@@ -1,0 +1,85 @@
+cmake_minimum_required(VERSION 3.18)
+
+option(ENABLE_ASAN "Enable ASAN instrumentation" ON)
+option(ENABLE_MSAN "Enable MSAN instrumentation" OFF)
+option(ENABLE_TSAN "Enable TSAN instrumentation" OFF)
+option(ENABLE_XRAY "Enable LLVM's xray instrumentation" OFF)
+
+project(FluffyGC VERSION 1.0.0
+                 LANGUAGES C)
+
+if (NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+  message(FATAL_ERROR "Non clang compiler unsupported")
+endif()
+
+# C standard checks
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+#src/reference.c
+add_executable(FluffyGC src/main.c
+                        src/region.c
+                        src/asan_stuff.c
+                        src/util.c
+                        src/descriptor.c
+                        src/heap.c
+                        src/root.c
+                        src/thread.c
+                        src/root_iterator.c
+                        src/gc/gc.c
+                        src/gc/young_collector.c
+                        src/gc/old_collector.c
+                        src/gc/full_collector.c
+                        src/gc/marker.c
+                        )
+
+target_compile_options(FluffyGC PRIVATE "-g")
+target_compile_options(FluffyGC PRIVATE "-O0")
+target_compile_options(FluffyGC PRIVATE "-fvisibility=hidden")
+target_compile_options(FluffyGC PRIVATE "-Wall")
+target_compile_options(FluffyGC PRIVATE "-fblocks")
+target_compile_options(FluffyGC PRIVATE "-fsanitize=undefined")
+target_compile_options(FluffyGC PRIVATE "-fno-sanitize-recover=undefined")
+target_compile_options(FluffyGC PRIVATE "-fno-omit-frame-pointer")
+target_compile_options(FluffyGC PRIVATE "-fno-common")
+target_compile_options(FluffyGC PRIVATE "-fsanitize=float-divide-by-zero")
+target_compile_options(FluffyGC PRIVATE "-fsanitize=implicit-conversion")
+target_compile_options(FluffyGC PRIVATE "-fsanitize=unsigned-integer-overflow")
+target_link_options(FluffyGC PRIVATE "-fsanitize=undefined")
+target_link_options(FluffyGC PRIVATE "-static-libsan")
+
+target_compile_definitions(FluffyGC PRIVATE "PROCESSED_BY_CMAKE")
+
+if (ENABLE_ASAN)
+  target_compile_options(FluffyGC PRIVATE "-fsanitize=address")
+  target_link_options(FluffyGC PRIVATE "-fsanitize=address")
+endif()
+
+if (ENABLE_TSAN)
+  target_compile_options(FluffyGC PRIVATE "-fsanitize=thread")
+  target_link_options(FluffyGC PRIVATE "-fsanitize=thread")
+endif()
+
+if (ENABLE_XRAY)
+  target_compile_options(FluffyGC PRIVATE "-fxray-instrument -fxray-instruction-threshold=1")
+  target_link_options(FluffyGC PRIVATE "-fxray-instrument -fxray-instruction-threshold=1")
+endif()
+
+if (ENABLE_MSAN)
+  target_compile_options(FluffyGC PRIVATE "-fsanitize=memory")
+  target_link_options(FluffyGC PRIVATE "-fsanitize=memory")
+endif()
+
+target_link_libraries(FluffyGC PRIVATE BlocksRuntime)
+target_link_libraries(FluffyGC PRIVATE pthread)
+
+target_include_directories(FluffyGC PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_include_directories(FluffyGC PRIVATE "${PROJECT_BINARY_DIR}/src")
+
+configure_file(src/config.h src/processed_config.h)
+
+
+
+
+
+
