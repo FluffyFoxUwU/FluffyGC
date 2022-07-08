@@ -3,8 +3,9 @@
 
 struct object_info;
 struct region;
+struct gc_state;
 
-void gc_marker_mark(struct region* onlyIn, struct object_info* objectInfo);
+void gc_marker_mark(struct gc_state* self, struct region* onlyIn, struct object_info* objectInfo);
 
 #endif
 

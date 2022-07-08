@@ -20,7 +20,7 @@ bool gc_young_pre_collect(struct gc_state* self) {
   return true;
 }
 
-typedef bool (^cardtable_iterator)(struct object_info* info, int index);
+typedef void (^cardtable_iterator)(struct object_info* info, int index);
 static bool iterateCardTable(struct gc_state* self, cardtable_iterator iterator) {
   for (int i = 0; i < self->heap->oldToYoungCardTableSize; i++) { 
     if (atomic_load(&self->heap->oldToYoungCardTable[i]) != true)
@@ -44,14 +44,12 @@ static void markPhase(struct gc_state* self) {
   struct heap* heap = self->heap;  
 
   // Marking phase
-  root_iterator_run(heap, heap->youngGeneration, ^bool (struct root_reference* ref, struct object_info* info) {
-    gc_marker_mark(heap->youngGeneration, info);
-    return true;
+  root_iterator_run(heap, heap->youngGeneration, ^void (struct object_info* info) {
+    gc_marker_mark(self, heap->youngGeneration, info);
   });
 
-  iterateCardTable(self, ^bool(struct object_info* info, int cardTableIndex) {
-    gc_marker_mark(heap->youngGeneration, info);
-    return true;
+  iterateCardTable(self, ^void (struct object_info* info, int cardTableIndex) {
+    gc_marker_mark(self, heap->youngGeneration, info);
   });
 }
 
@@ -95,35 +93,32 @@ void gc_young_collect(struct gc_state* self) {
     assert(currentObjectInfo->isValid);
     assert(currentObjectInfo->type != OBJECT_TYPE_UNKNOWN);
 
-    if (atomic_exchange(&currentObjectInfo->isMarked, false) == true) {
-      if (promotionFailure)
-        continue;
+    if (atomic_exchange(&currentObjectInfo->isMarked, false) == false) {
+      heap_on_object_sweep(heap, currentObjectInfo);
+      continue;
+    }
 
-      //printf("Promoting %p\n", currentObject);
-      struct region_reference* relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
+    if (promotionFailure)
+      continue;
+
+    //printf("Promoting %p\n", currentObject);
+    struct region_reference* relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
+    if (!relocatedLocation) {
+      gc_trigger_old_collection(self, REPORT_PROMOTION_FAILURE);
+      
+      relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
       if (!relocatedLocation) {
-        gc_trigger_old_collection(self, REPORT_PROMOTION_FAILURE);
-        
+        gc_trigger_full_collection(self, REPORT_PROMOTION_FAILURE);
+
         relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
         if (!relocatedLocation) {
-          gc_trigger_full_collection(self, REPORT_PROMOTION_FAILURE);
-
-          relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
-          if (!relocatedLocation) {
-            promotionFailure = true;
-            continue;
-          }
+          promotionFailure = true;
+          continue;
         }
       }
-
-      doPromote(self, currentObject, currentObjectInfo, relocatedLocation);
-    } else {
-      region_dealloc(currentObject->owner, currentObject);
-      if (currentObjectInfo->type == OBJECT_TYPE_NORMAL)
-        descriptor_release(currentObjectInfo->typeSpecific.normal.desc);
-      heap_reset_object_info(self->heap, currentObjectInfo);
-      currentObjectInfo->isValid = false;
     }
+
+    doPromote(self, currentObject, currentObjectInfo, relocatedLocation);
   }
 
   // Fix up addresses in promoted objects
@@ -143,21 +138,22 @@ void gc_young_collect(struct gc_state* self) {
   gc_fix_root(self);
 
   // Can be safely wiped
-  if (!promotionFailure)
+  if (!promotionFailure) {
     region_wipe(self->heap->youngGeneration);
-  else
+    gc_clear_old_to_young_card_table(self);
+  } else {
     region_move_bump_pointer_to_last(self->heap->youngGeneration);
-  
-  // Reset `justMoved` flag
-  for (int i = 0; i < heap->youngGeneration->sizeInCells; i++) {
-    struct object_info* currentObjectInfo = &heap->youngObjects[i];
-    if (currentObjectInfo->isMoved)
-      currentObjectInfo->moveData.newLocationInfo->justMoved = false;
   }
-  
-  gc_clear_old_to_young_card_table(self);
 }
 
 void gc_young_post_collect(struct gc_state* self) {
+  // Reset `justMoved` flag
+  for (int i = 0; i < self->heap->youngGeneration->sizeInCells; i++) {
+    struct object_info* currentObjectInfo = &self->heap->youngObjects[i];
+    if (currentObjectInfo->isMoved) {
+      currentObjectInfo->moveData.newLocationInfo->justMoved = false;
+      currentObjectInfo->isMoved = false;
+    }
+  }
 }
 

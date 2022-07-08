@@ -57,7 +57,6 @@ struct somedata {
   struct somedata* data;
 };
 
-int i;
 int main2() {
   puts("Hello World!");
   printf("FluffyGC Ver %d.%d.%d\n", FLUFFYGC_VERSION_MAJOR, FLUFFYGC_VERSION_MINOR, FLUFFYGC_VERSION_PATCH);
@@ -81,7 +80,7 @@ int main2() {
 
   // Young is 1/3 of total
   // Old   is 2/3 of total
-  struct heap* heap = heap_new(1 MiB, 2 MiB, 32 KiB, 100, 0.45f);
+  struct heap* heap = heap_new(8 MiB, 24 MiB, 32 KiB, 100, 0.45f);
   assert(heap);
 
   heap_attach_thread(heap);
@@ -103,18 +102,32 @@ int main2() {
 
   printf("Main: 1 %p\n", grandson->data->data);
   printf("Main: 2 %p\n", heap_obj_read_ptr(heap, grandfather, offsetof(struct somedata, data))->data->data);
+    
+  struct root_reference* arr = heap_array_new(heap, 8);
+  heap_array_write(heap, arr, 0, arr);
+  heap_array_write(heap, arr, 1, grandfather);
+  heap_array_write(heap, arr, 2, grandson);
+
+  thread_local_remove(currentThread, grandfather);
+  thread_local_remove(currentThread, grandson);
   
   //   500 with poison
   // 1,500 with no poison
 
   // 15,000 to fill old gen
   // 45,000 to fill old gen 3 times
-  for (i = 0; i < 45000; i++) {
+  for (int i = 0; i < 45000; i++) {
+    grandson = heap_array_read(heap, arr, 2);
+  
     struct root_reference* obj = heap_obj_new(heap, desc); 
     heap_obj_write_ptr(heap, grandson, offsetof(struct somedata, data), obj);
 
     thread_local_remove(currentThread, obj);
+    thread_local_remove(currentThread, grandson);
   }
+
+  grandfather = heap_array_read(heap, arr, 1);
+  grandson = heap_array_read(heap, arr, 2);
 
   printf("Main: 1 %p\n", grandson->data->data);
   printf("Main: 2 %p\n", heap_obj_read_ptr(heap, grandfather, offsetof(struct somedata, data))->data->data);

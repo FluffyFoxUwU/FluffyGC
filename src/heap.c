@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "descriptor.h"
 #include "gc/gc.h"
@@ -106,12 +107,13 @@ void heap_free(struct heap* self) {
 
   for (int i = 0; i < self->oldGeneration->sizeInCells; i++) {
     struct object_info* obj = &self->oldObjects[i];
-    if (obj->isValid && obj)
+    if (obj->isValid && obj->type == OBJECT_TYPE_NORMAL)
       descriptor_release(obj->typeSpecific.normal.desc);
   }
+
   for (int i = 0; i < self->youngGeneration->sizeInCells; i++) {
     struct object_info* obj = &self->youngObjects[i];
-    if (obj->isValid && obj)
+    if (obj->isValid && obj->type == OBJECT_TYPE_NORMAL)
       descriptor_release(obj->typeSpecific.normal.desc);
   }
 
@@ -200,34 +202,6 @@ struct object_info* heap_get_object_info(struct heap* self, struct region_refere
   return &objects[ref->id];
 }
 
-void heap_obj_write_ptr(struct heap* self, struct root_reference* object, size_t offset, struct root_reference* child) {
-  // The object is from old generation
-  // update card table
-  struct region_reference* objectAsRegionRef = object->data;
-  struct region* objectRegion = objectAsRegionRef->owner;
-
-  struct object_info* objectList;
-  if (objectRegion == self->youngGeneration)
-    objectList = self->youngObjects;
-  else
-    objectList = self->oldObjects;
-
-  assert(objectList[objectAsRegionRef->id].isValid);
-
-  heap_enter_unsafe_gc(self);
-
-  struct region* childRegion = heap_get_region2(self, child);
-  if (childRegion != objectRegion) {
-    if (childRegion == self->youngGeneration)
-      atomic_store(&self->oldToYoungCardTable[objectAsRegionRef->id / FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE], true); 
-    else
-      atomic_store(&self->youngToOldCardTable[objectAsRegionRef->id / FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE], true); 
-  }
-  
-  region_write(objectRegion, objectAsRegionRef, offset, (void*) &child->data->data, sizeof(void*));  
-  heap_exit_unsafe_gc(self);
-}
-
 void heap_obj_write_data(struct heap* self, struct root_reference* object, size_t offset, void* data, size_t size) {
   heap_enter_unsafe_gc(self);
   region_write(heap_get_region2(self, object), object->data, offset, data, size);
@@ -247,25 +221,91 @@ struct region_reference* heap_get_region_ref(struct heap* self, void* data) {
   return region_get_ref(region, data);
 }
 
-struct root_reference* heap_obj_read_ptr(struct heap* self, struct root_reference* object, size_t offset) {
-  heap_enter_unsafe_gc(self);
+static void writeCommon(struct heap* self, struct root_reference* object, size_t offset, struct root_reference* toWrite) {
+  struct region_reference* objectAsRegionRef = object->data;
+  struct region* objectRegion = objectAsRegionRef->owner;
+
+  assert(heap_get_object_info(self, objectAsRegionRef)->isValid);
+
+  struct region* childRegion = heap_get_region2(self, toWrite);
+  if (childRegion != objectRegion) {
+    if (childRegion == self->youngGeneration)
+      atomic_store(&self->oldToYoungCardTable[objectAsRegionRef->id / FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE], true); 
+    else
+      atomic_store(&self->youngToOldCardTable[objectAsRegionRef->id / FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE], true); 
+  }  
   
+  region_write(objectRegion, objectAsRegionRef, offset, (void*) &toWrite->data->data, sizeof(void*));  
+}
+
+static struct root_reference* readCommon(struct heap* self, struct root_reference* object, size_t offset) { 
   struct region_reference* objectAsRegionRef = object->data;
   struct region* region = objectAsRegionRef->owner;
 
   void* ptr;
   region_read(region, objectAsRegionRef, offset, &ptr, sizeof(void*));
 
-  struct root_reference* rootPtr = NULL;
-  if (ptr) {
-    struct thread* thread = heap_get_thread(self);
-    struct region_reference* regionRef = heap_get_region_ref(self, ptr);
-    assert(regionRef);
-    rootPtr = thread_local_add(thread, regionRef);
-  }
+  if (!ptr)
+    return NULL;
+  
+  struct thread* thread = heap_get_thread(self);
+  struct region_reference* regionRef = heap_get_region_ref(self, ptr);
+  assert(regionRef);
+  return thread_local_add(thread, regionRef);
+}
 
+void heap_obj_write_ptr(struct heap* self, struct root_reference* object, size_t offset, struct root_reference* child) {
+  heap_enter_unsafe_gc(self);
+  assert(object->isValid);
+
+  struct object_info* objectInfo = heap_get_object_info(self, object->data);
+  assert(objectInfo);
+  if (objectInfo->type != OBJECT_TYPE_NORMAL)
+    abort();
+
+  writeCommon(self, object, offset, child);
   heap_exit_unsafe_gc(self);
-  return rootPtr;
+}
+
+struct root_reference* heap_obj_read_ptr(struct heap* self, struct root_reference* object, size_t offset) {
+  heap_enter_unsafe_gc(self);
+  assert(object->isValid);
+  
+  struct object_info* objectInfo = heap_get_object_info(self, object->data);
+  assert(objectInfo);
+  if (objectInfo->type != OBJECT_TYPE_NORMAL)
+    abort();
+  
+  struct root_reference* ref = readCommon(self, object, offset);
+  heap_exit_unsafe_gc(self);
+  return ref;
+}
+
+void heap_array_write(struct heap* self, struct root_reference* object, int index, struct root_reference* child) {
+  heap_enter_unsafe_gc(self);
+  assert(object->isValid);
+  
+  struct object_info* objectInfo = heap_get_object_info(self, object->data);
+  assert(objectInfo);
+  if (objectInfo->type != OBJECT_TYPE_ARRAY)
+    abort();
+
+  writeCommon(self, object, sizeof(void*) * index, child);
+  heap_exit_unsafe_gc(self); 
+}
+
+struct root_reference* heap_array_read(struct heap* self, struct root_reference* object, int index) {
+  heap_enter_unsafe_gc(self);
+  assert(object->isValid);
+  
+  struct object_info* objectInfo = heap_get_object_info(self, object->data);
+  assert(objectInfo);
+  if (objectInfo->type != OBJECT_TYPE_ARRAY)
+    abort();
+  
+  struct root_reference* ref = readCommon(self, object, sizeof(void*) * index);
+  heap_exit_unsafe_gc(self);
+  return ref;
 }
 
 void heap_wait_gc(struct heap* self) {
@@ -524,7 +564,7 @@ struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc) 
   return rootRef;
 }
 
-struct root_reference* heap_obj_array(struct heap* self, int size) {
+struct root_reference* heap_array_new(struct heap* self, int size) {
   heap_enter_unsafe_gc(self);
   struct root_reference* rootRef = commonNew(self, sizeof(void*) * size);
   struct region_reference* regionRef = rootRef->data;
@@ -532,6 +572,7 @@ struct root_reference* heap_obj_array(struct heap* self, int size) {
   struct object_info* objInfo = heap_get_object_info(self, regionRef); 
   objInfo->type = OBJECT_TYPE_ARRAY;
   objInfo->typeSpecific.pointerArray.size = size;
+  memset(regionRef->data, 0, regionRef->dataSize);
 
   heap_exit_unsafe_gc(self);
   return rootRef;
@@ -567,6 +608,23 @@ void heap_report_gc_cause(struct heap* self, enum report_type type) {
     REPORT_TYPES
 #   undef X
   }
+}
+
+void heap_on_object_sweep(struct heap* self, struct object_info* obj) {
+  switch (obj->type) {
+    case OBJECT_TYPE_NORMAL:
+      descriptor_release(obj->typeSpecific.normal.desc);
+      break;
+    case OBJECT_TYPE_ARRAY:
+    case OBJECT_TYPE_OPAQUE:
+      break;
+    case OBJECT_TYPE_UNKNOWN:
+      abort();
+  }
+  
+  region_dealloc(obj->regionRef->owner, obj->regionRef);
+  heap_reset_object_info(self, obj);
+  obj->isValid = false;
 }
 
 

@@ -127,14 +127,13 @@ void gc_cleanup(struct gc_state* self) {
 }
 
 void gc_fix_root(struct gc_state* self) {
-  root_iterator_run(self->heap, NULL, ^bool (struct root_reference* ref, struct object_info* info) {
-    if (info->isMoved) {
-      assert(ref->data == info->moveData.oldLocation);
-      assert(info->moveData.newLocation != info->moveData.oldLocation);
-      ref->data = info->moveData.newLocation;
-    }
+  root_iterator_run2(self->heap, NULL, ^void (struct root_reference* ref, struct object_info* info) {
+    if (!info->isMoved)
+      return;
     
-    return true;
+    assert(ref->data == info->moveData.oldLocation);
+    assert(info->moveData.newLocation != info->moveData.oldLocation);
+    ref->data = info->moveData.newLocation;
   });
 }
 

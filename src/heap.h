@@ -156,9 +156,8 @@ struct root_reference* heap_obj_read_ptr(struct heap* self, struct root_referenc
 void heap_obj_write_data(struct heap* self, struct root_reference* object, size_t offset, void* data, size_t size);
 void heap_obj_read_data(struct heap* self, struct root_reference* object, size_t offset, void* data, size_t size);
 
-// Write to array
-void heap_obj_write_array(struct heap* self, struct root_reference* object, int index, struct root_reference* child);
-struct root_reference* heap_obj_read_array(struct heap* self, struct root_reference* object, int index);
+void heap_array_write(struct heap* self, struct root_reference* object, int index, struct root_reference* child);
+struct root_reference* heap_array_read(struct heap* self, struct root_reference* object, int index);
 
 // These two controls whether GC can run
 // or not 
@@ -177,6 +176,7 @@ struct thread* heap_get_thread(struct heap* self);
 
 // Object allocations
 struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc);
+struct root_reference* heap_array_new(struct heap* self, int size);
 
 // Reset all fielda
 void heap_reset_object_info(struct heap* self, struct object_info* info);
@@ -186,6 +186,9 @@ struct region_reference* heap_get_region_ref(struct heap* self, void* data);
 struct region* heap_get_region(struct heap* self, void* data);
 struct region* heap_get_region2(struct heap* self, struct root_reference* data);
 struct object_info* heap_get_object_info(struct heap* heap, struct region_reference* ref);
+
+// Events
+void heap_on_object_sweep(struct heap* self, struct object_info* obj);
 
 // Reports
 ATTRIBUTE((format(printf, 2, 3)))

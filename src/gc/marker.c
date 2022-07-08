@@ -11,12 +11,14 @@
 struct mark_context {
   struct region* onlyIn;
   struct object_info* objectInfo;
+  struct gc_state* gcState;
 };
 
-static struct mark_context makeContext(struct region* onlyIn, struct object_info* objectInfo) {
+static struct mark_context makeContext(struct gc_state* gcState, struct region* onlyIn, struct object_info* objectInfo) {
   struct mark_context tmp = {
     .onlyIn = onlyIn,
-    .objectInfo = objectInfo
+    .objectInfo = objectInfo,
+    .gcState = gcState
   };
   return tmp;
 }
@@ -42,13 +44,16 @@ static void markNormalObject(const struct mark_context self) {
 
     //printf("[Marking: Ref: %p] Name: '%s' (offset: %zu  ptr: %p)\n", self.objectInfo->regionRef, desc->fields[i].name, offset, ptr);
     
-    mark(makeContext(self.onlyIn, objectInfo));
+    mark(makeContext(self.gcState, self.onlyIn, objectInfo));
   }
 }
 
 static void markArrayObject(const struct mark_context self) {
   void** array = self.objectInfo->regionRef->data;
   for (int i = 0; i < self.objectInfo->typeSpecific.pointerArray.size; i++) {
+    if (!array[i])
+      continue;
+
     struct region_reference* ref = heap_get_region_ref(self.objectInfo->owner, array[i]);
     assert(ref);
     struct object_info* objectInfo = heap_get_object_info(self.objectInfo->owner, ref);
@@ -59,7 +64,7 @@ static void markArrayObject(const struct mark_context self) {
 
     //printf("[Marking: Ref: %p] Name: '%s' (offset: %zu  ptr: %p)\n", self.objectInfo->regionRef, desc->fields[i].name, offset, ptr);
     
-    mark(makeContext(self.onlyIn, objectInfo));
+    mark(makeContext(self.gcState, self.onlyIn, objectInfo));
   } 
 }
 
@@ -82,8 +87,8 @@ static void mark(const struct mark_context self) {
   }
 }
 
-void gc_marker_mark(struct region* onlyIn, struct object_info* objectInfo) {
-  mark(makeContext(onlyIn, objectInfo));
+void gc_marker_mark(struct gc_state* self, struct region* onlyIn, struct object_info* objectInfo) {
+  mark(makeContext(self, onlyIn, objectInfo));
 }
 
 

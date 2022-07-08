@@ -52,15 +52,18 @@ void gc_full_collect(struct gc_state* self) {
   // for old generation
   for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
     struct object_info* currentObjectInfo = &heap->oldObjects[i];
-    if (currentObjectInfo->isValid && currentObjectInfo->regionRef->id != i) {
-      int newLocation = currentObjectInfo->regionRef->id;
-      
-      // In theory it shouldnt overlap anything
-      assert(!heap->oldObjects[newLocation].isValid);
-
-      heap->oldObjects[newLocation] = *currentObjectInfo;
-      currentObjectInfo->isValid = false;
+    if (!currentObjectInfo->isValid || 
+        currentObjectInfo->regionRef->id == i) {
+      continue;
     }
+    
+    int newLocation = currentObjectInfo->regionRef->id;
+    
+    // In theory it shouldnt overlap anything
+    assert(!heap->oldObjects[newLocation].isValid);
+
+    heap->oldObjects[newLocation] = *currentObjectInfo;
+    currentObjectInfo->isValid = false;
   }
 
   // Fix all references

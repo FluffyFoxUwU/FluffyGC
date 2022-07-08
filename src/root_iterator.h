@@ -8,12 +8,15 @@
 // Iterates all known GC roots (thread
 // roots, global roots, etc)
 struct object_info;
-struct root_reference;
 struct heap;
 struct region;
-typedef bool (^root_iterator_t)(struct root_reference* objectRef, struct object_info* object);
+struct root_reference;
 
-bool root_iterator_run(struct heap* heap, struct region* onlyIn, root_iterator_t iterator);
+typedef void (^root_iterator_t)(struct object_info* object);
+typedef void (^root_iterator2_t)(struct root_reference* ref, struct object_info* object);
+
+void root_iterator_run(struct heap* heap, struct region* onlyIn, root_iterator_t iterator);
+void root_iterator_run2(struct heap* heap, struct region* onlyIn, root_iterator2_t iterator);
 
 #endif
 
