@@ -27,7 +27,7 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
   self->threadsCount = 0;
   self->threadsListSize = 0;
   self->localFrameStackSize = localFrameStackSize;
-  self->preTenurSize = youngSize;
+  self->preTenurSize = 64 * 1024;
   self->concurrentOldGCthreshold = concurrentOldGCThreshold;
   self->gcCompletedWaitingCount = 0;
   atomic_init(&self->votedToBlockGC, 0);
@@ -391,10 +391,12 @@ static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {
 
     heap_exit_unsafe_gc(self);
     heap_report_gc_cause(self, REPORT_OLD_ALLOCATION_FAILURE);
+    
     if (emergencyFullCollection) 
       heap_call_gc(self, GC_REQUEST_COLLECT_FULL);
     else
       heap_call_gc(self, GC_REQUEST_COLLECT_OLD);
+    
     heap_wait_gc(self);
     heap_enter_unsafe_gc(self);
   }
@@ -476,14 +478,14 @@ static struct region_reference* tryAllocate(struct heap* self, size_t size, stru
     *allocRegion = self->oldGeneration;
   }
   
-  if (ref) {
-    struct object_info* object = heap_get_object_info(self, ref);
-    object->isValid = true;
-    heap_reset_object_info(self, object);
-    object->regionRef = ref;
-  }
+  if (!ref)
+    return NULL;
+  
+  struct object_info* object = heap_get_object_info(self, ref);
+  object->isValid = true;
+  heap_reset_object_info(self, object);
+  object->regionRef = ref;
  
-  assert(ref); 
   return ref;
 }
 

@@ -54,6 +54,13 @@ static void* mainThread(void* _self) {
         gc_old_post_collect(self);
         break;
       case GC_REQUEST_COLLECT_FULL:
+        if (!gc_full_pre_collect(self)) {
+          heap_report_printf(heap, "Failure to run pre-collect task for full collection");
+          break;
+        }
+        gc_full_collect(self);
+        gc_full_post_collect(self);
+        break;
       case GC_REQUEST_START_CONCURRENT:
       case GC_REQUEST_CONTINUE:
         break;
@@ -220,6 +227,7 @@ static void fixObjectRefs(struct fixer_context* self, struct region_reference* r
   assert(ref->owner == self->forGeneration);
   
   struct object_info* objectInfo = &self->objects[ref->id];
+  assert(objectInfo->isValid);
   switch (objectInfo->type) {
     case OBJECT_TYPE_NORMAL:
       fixObjectRefsNormal(self, ref);

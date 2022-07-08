@@ -37,33 +37,17 @@ void gc_full_collect(struct gc_state* self) {
     if (!ptr)
       return NULL;
 
+    // Unrecognized leave as it is
     struct region* region = heap_get_region(heap, ptr);
     if (region != heap->oldGeneration)
-      return NULL;
+      return ptr;
 
     cellid_t id = region_get_cellid(region, ptr);
     struct region_reference* newObject = self->fullGC.oldLookup[id];
     assert(newObject);
     return newObject->data;
   };
-
-  // Fix all references
-  for (int i = 0; i < heap->youngGeneration->sizeInCells; i++) {
-    struct object_info* currentObjectInfo = &heap->youngObjects[i];
-    if (!currentObjectInfo->isValid)
-      continue;
-    
-    gc_fix_object_refs_custom(self, heap->youngGeneration, heap->youngGeneration, currentObjectInfo->regionRef, fixer);
-  }
   
-  for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
-    struct object_info* currentObjectInfo = &heap->oldObjects[i];
-    if (!currentObjectInfo->isValid)
-      continue;
-
-    gc_fix_object_refs_custom(self, heap->oldGeneration, heap->oldGeneration, currentObjectInfo->regionRef, fixer);
-  }
-
   // Fix the objects registry
   // for old generation
   for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
@@ -77,6 +61,25 @@ void gc_full_collect(struct gc_state* self) {
       heap->oldObjects[newLocation] = *currentObjectInfo;
       currentObjectInfo->isValid = false;
     }
+  }
+
+  // Fix all references
+  for (int i = 0; i < heap->youngGeneration->sizeInCells; i++) {
+    struct object_info* currentObjectInfo = &heap->youngObjects[i];
+    if (!currentObjectInfo->isValid)
+      continue;
+    
+    assert(currentObjectInfo->type != OBJECT_TYPE_UNKNOWN);
+    gc_fix_object_refs_custom(self, heap->youngGeneration, heap->youngGeneration, currentObjectInfo->regionRef, fixer);
+  }
+  
+  for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
+    struct object_info* currentObjectInfo = &heap->oldObjects[i];
+    if (!currentObjectInfo->isValid)
+      continue;
+
+    assert(currentObjectInfo->type != OBJECT_TYPE_UNKNOWN);
+    gc_fix_object_refs_custom(self, heap->oldGeneration, heap->oldGeneration, currentObjectInfo->regionRef, fixer);
   }
 }
 

@@ -73,7 +73,15 @@ int main2() {
       .offset = offsetof(struct somedata, data)
     }
   };
-  struct heap* heap = heap_new(8 MiB, 200 KiB, 32 KiB, 100, 0.45f);
+
+  // Random tests
+  // 64  MiB heap =   8.6 sec
+  // 3   MiB heap =   8.9 sec
+  // 64  KiB heap =  21.6 sec
+
+  // Young is 1/3 of total
+  // Old   is 2/3 of total
+  struct heap* heap = heap_new(1 MiB, 2 MiB, 32 KiB, 100, 0.45f);
   assert(heap);
 
   heap_attach_thread(heap);

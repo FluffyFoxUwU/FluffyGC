@@ -40,8 +40,7 @@ static bool iterateCardTable(struct gc_state* self, cardtable_iterator iterator)
   return true;
 }
 
-void gc_young_collect(struct gc_state* self) {
-  bool promotionFailure = false;
+static void markPhase(struct gc_state* self) {
   struct heap* heap = self->heap;  
 
   // Marking phase
@@ -54,6 +53,34 @@ void gc_young_collect(struct gc_state* self) {
     gc_marker_mark(heap->youngGeneration, info);
     return true;
   });
+}
+
+static void doPromote(struct gc_state* self, struct region_reference* currentObject, struct object_info* currentObjectInfo, struct region_reference* relocatedLocation) {
+  struct object_info* relocatedInfo = &self->heap->oldObjects[relocatedLocation->id];
+  assert(relocatedInfo->isValid == false);
+  
+  *relocatedInfo = *currentObjectInfo;
+  relocatedInfo->regionRef = relocatedLocation;
+  relocatedInfo->justMoved = true;
+  relocatedInfo->moveData.oldLocation = currentObject;
+
+  heap_reset_object_info(self->heap, currentObjectInfo);
+  currentObjectInfo->isValid = false;
+  currentObjectInfo->isMoved = true;
+  currentObjectInfo->moveData.oldLocation = currentObject;
+  currentObjectInfo->moveData.newLocation = relocatedLocation;
+  currentObjectInfo->moveData.newLocationInfo = relocatedInfo;
+
+  // Copy over the data
+  region_write(relocatedLocation->owner, relocatedLocation, 0, currentObject->data, currentObject->dataSize);
+}
+
+void gc_young_collect(struct gc_state* self) {
+  bool promotionFailure = false;
+  struct heap* heap = self->heap;  
+  
+  // Mark phase
+  markPhase(self);
 
   // Sweep phase
   for (int i = 0; i < heap->youngGeneration->sizeInCells; i++) {
@@ -74,8 +101,8 @@ void gc_young_collect(struct gc_state* self) {
 
       //printf("Promoting %p\n", currentObject);
       struct region_reference* relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
-      if (relocatedLocation == NULL) {
-        //gc_trigger_old_collection(self, REPORT_PROMOTION_FAILURE);
+      if (!relocatedLocation) {
+        gc_trigger_old_collection(self, REPORT_PROMOTION_FAILURE);
         
         relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
         if (!relocatedLocation) {
@@ -89,23 +116,7 @@ void gc_young_collect(struct gc_state* self) {
         }
       }
 
-      struct object_info* relocatedInfo = &self->heap->oldObjects[relocatedLocation->id];
-      assert(relocatedInfo->isValid == false);
-      
-      *relocatedInfo = *currentObjectInfo;
-      relocatedInfo->regionRef = relocatedLocation;
-      relocatedInfo->justMoved = true;
-      relocatedInfo->moveData.oldLocation = currentObject;
-
-      heap_reset_object_info(self->heap, currentObjectInfo);
-      currentObjectInfo->isValid = false;
-      currentObjectInfo->isMoved = true;
-      currentObjectInfo->moveData.oldLocation = currentObject;
-      currentObjectInfo->moveData.newLocation = relocatedLocation;
-      currentObjectInfo->moveData.newLocationInfo = relocatedInfo;
-
-      // Copy over the data
-      region_write(relocatedLocation->owner, relocatedLocation, 0, currentObject->data, currentObject->dataSize);
+      doPromote(self, currentObject, currentObjectInfo, relocatedLocation);
     } else {
       region_dealloc(currentObject->owner, currentObject);
       if (currentObjectInfo->type == OBJECT_TYPE_NORMAL)

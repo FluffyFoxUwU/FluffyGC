@@ -45,7 +45,6 @@ struct region_reference* region_get_ref(struct region* self, void* data) {
   id = self->cellIDMapping[id];
 
   struct region_reference* data2 = self->referenceLookup[id];
-  assert(data2);
   return data2;
 }
 
@@ -375,7 +374,7 @@ void region_move_bump_pointer_to_last(struct region* self) {
   while (current >= 0 && !self->regionUsageLookup[current])
     current--;
 
-  if (self->regionUsageLookup[current])
+  if (current < 0 || self->regionUsageLookup[current])
     current++;
 
   atomic_store(&self->bumpPointer, current);
