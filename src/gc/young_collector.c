@@ -79,7 +79,6 @@ void gc_young_collect(struct gc_state* self) {
         
         relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
         if (!relocatedLocation) {
-          gc_fix_root(self);
           gc_trigger_full_collection(self, REPORT_PROMOTION_FAILURE);
 
           relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
