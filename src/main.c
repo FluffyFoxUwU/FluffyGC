@@ -1,3 +1,4 @@
+#include <linux/prctl.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -5,6 +6,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/prctl.h>
 
 #include "config.h"
 #include "reference.h"
@@ -13,6 +15,7 @@
 #include "heap.h"
 #include "thread.h"
 #include "root.h"
+#include "profiler.h"
 
 #define KiB * (1024)
 #define MiB * (1024 KiB)
@@ -57,10 +60,9 @@ struct somedata {
   struct somedata* data;
 };
 
-int main2() {
-  puts("Hello World!");
-  printf("FluffyGC Ver %d.%d.%d\n", FLUFFYGC_VERSION_MAJOR, FLUFFYGC_VERSION_MINOR, FLUFFYGC_VERSION_PATCH);
-
+static void* abuser(void* _heap) {
+  prctl(PR_SET_NAME, "Abuser");
+  
   struct descriptor_typeid id = {
     .name = "net.fluffyfox.bettergc.Test",
     .ownerID = 0,
@@ -72,21 +74,12 @@ int main2() {
       .offset = offsetof(struct somedata, data)
     }
   };
-
-  // Random tests
-  // 64  MiB heap =   8.6 sec
-  // 3   MiB heap =   8.9 sec
-  // 64  KiB heap =  21.6 sec
-
-  // Young is 1/3 of total
-  // Old   is 2/3 of total
-  struct heap* heap = heap_new(8 MiB, 24 MiB, 32 KiB, 100, 0.45f);
-  assert(heap);
-
+  
+  struct heap* heap = _heap;
+  struct descriptor* desc = heap_descriptor_new(heap, id, sizeof(struct somedata), sizeof(fields) / sizeof(*fields), fields);
+  
   heap_attach_thread(heap);
   struct thread* currentThread = heap_get_thread(heap);
-
-  struct descriptor* desc = heap_descriptor_new(heap, id, sizeof(struct somedata), sizeof(fields) / sizeof(*fields), fields);
   
   //////////////////////
   thread_push_frame(currentThread, 16);
@@ -111,12 +104,7 @@ int main2() {
   thread_local_remove(currentThread, grandfather);
   thread_local_remove(currentThread, grandson);
   
-  //   500 with poison
-  // 1,500 with no poison
-
-  // 15,000 to fill old gen
-  // 45,000 to fill old gen 3 times
-  for (int i = 0; i < 45000; i++) {
+  for (int i = 0; i < 50000; i++) {
     grandson = heap_array_read(heap, arr, 2);
   
     struct root_reference* obj = heap_obj_new(heap, desc); 
@@ -128,11 +116,7 @@ int main2() {
 
   grandfather = heap_array_read(heap, arr, 1);
   grandson = heap_array_read(heap, arr, 2);
-
-  printf("Main: 1 %p\n", grandson->data->data);
-  printf("Main: 2 %p\n", heap_obj_read_ptr(heap, grandfather, offsetof(struct somedata, data))->data->data);
-  printf("Main: 3 %p\n", heap_obj_read_ptr(heap, grandson, offsetof(struct somedata, data))->data->data);
-  
+ 
   {
     int integer = -1;
     heap_obj_read_data(heap, grandson, offsetof(struct somedata, someInteger), &integer, sizeof(integer));
@@ -143,8 +127,34 @@ int main2() {
   //////////////////////
   
   heap_descriptor_release(heap, desc);
-  
   heap_detach_thread(heap);
+  
+  return NULL;
+}
+
+int main2() {
+  prctl(PR_SET_NAME, "Main");
+
+  puts("Hello World!");
+  printf("FluffyGC Ver %d.%d.%d\n", FLUFFYGC_VERSION_MAJOR, FLUFFYGC_VERSION_MINOR, FLUFFYGC_VERSION_PATCH);
+
+
+  // Young is 1/3 of total
+  // Old   is 2/3 of total
+  struct heap* heap = heap_new(8 MiB, 24 MiB, 32 KiB, 100, 0.45f);
+  assert(heap);
+  
+  int abuserCount = 8;
+  pthread_t* abusers = calloc(abuserCount, sizeof(*abusers));
+
+  for (int i = 0; i < abuserCount; i++)
+    if (pthread_create(&abusers[i], NULL, abuser, heap) != 0)
+      abort();
+  
+  for (int i = 0; i < abuserCount; i++)
+    pthread_join(abusers[i], NULL);
+
+  free(abusers);
   heap_free(heap);
   return 0;
 }
@@ -178,7 +188,8 @@ const char* __asan_default_options() {
 
 #if FLUFFYGC_UBSAN_ENABLED
 const char* __ubsan_default_options() {
-  return "print_stacktrace=1";
+  return "print_stacktrace=1:"
+         "suppressions=suppressions/UBSan.supp";
 }
 #endif
 

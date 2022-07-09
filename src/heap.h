@@ -82,6 +82,9 @@ struct object_info {
 
 struct heap {
   struct gc_state* gcState;
+  
+  // Allocation lock
+  pthread_mutex_t allocLock;
 
   struct region* youngGeneration;
   struct region* oldGeneration;

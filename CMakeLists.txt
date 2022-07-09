@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 
-option(ENABLE_ASAN "Enable ASAN instrumentation" ON)
+option(ENABLE_ASAN "Enable ASAN instrumentation" OFF)
 option(ENABLE_MSAN "Enable MSAN instrumentation" OFF)
 option(ENABLE_TSAN "Enable TSAN instrumentation" OFF)
 option(ENABLE_XRAY "Enable LLVM's xray instrumentation" OFF)
@@ -31,6 +31,11 @@ add_executable(FluffyGC src/main.c
                         src/gc/old_collector.c
                         src/gc/full_collector.c
                         src/gc/marker.c
+                        src/collection/hashmap.c
+                        src/profiler.c
+                        src/collection/list.c
+                        src/collection/list_node.c
+                        src/collection/list_iterator.c
                         )
 
 target_compile_options(FluffyGC PRIVATE "-g")
@@ -74,11 +79,18 @@ target_link_libraries(FluffyGC PRIVATE BlocksRuntime)
 target_link_libraries(FluffyGC PRIVATE pthread)
 
 target_include_directories(FluffyGC PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_include_directories(FluffyGC PRIVATE "${PROJECT_SOURCE_DIR}/src/collection")
+target_include_directories(FluffyGC PRIVATE "${PROJECT_SOURCE_DIR}/libs")
 target_include_directories(FluffyGC PRIVATE "${PROJECT_BINARY_DIR}/src")
 
 configure_file(src/config.h src/processed_config.h)
 
-
+# Suppression files
+add_custom_command(TARGET FluffyGC POST_BUILD
+                   COMMAND ${CMAKE_COMMAND} -E copy
+                           ${PROJECT_SOURCE_DIR}/suppressions/UBSan.supp
+                           ${PROJECT_BINARY_DIR}/suppressions/UBSan.supp
+                           )
 
 
 

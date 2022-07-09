@@ -10,6 +10,7 @@
 #include "../config.h"
 #include "../region.h"
 #include "../descriptor.h"
+#include "../profiler.h"
 
 #include "young_collector.h"
 #include "full_collector.h"
@@ -41,6 +42,8 @@ static bool iterateCardTable(struct gc_state* self, cardtable_iterator iterator)
 }
 
 static void markPhase(struct gc_state* self) {
+  profiler_begin(self->profiler, "mark");
+  
   struct heap* heap = self->heap;  
 
   // Marking phase
@@ -51,6 +54,8 @@ static void markPhase(struct gc_state* self) {
   iterateCardTable(self, ^void (struct object_info* info, int cardTableIndex) {
     gc_marker_mark(self, heap->youngGeneration, info);
   });
+  
+  profiler_end(self->profiler);
 }
 
 static void doPromote(struct gc_state* self, struct region_reference* currentObject, struct object_info* currentObjectInfo, struct region_reference* relocatedLocation) {
@@ -81,6 +86,7 @@ void gc_young_collect(struct gc_state* self) {
   markPhase(self);
 
   // Sweep phase
+  profiler_begin(self->profiler, "sweep");
   for (int i = 0; i < heap->youngGeneration->sizeInCells; i++) {
     struct region_reference* currentObject = heap->youngGeneration->referenceLookup[i];
     struct object_info* currentObjectInfo = &heap->youngObjects[i];
@@ -108,7 +114,7 @@ void gc_young_collect(struct gc_state* self) {
       
       relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
       if (!relocatedLocation) {
-        gc_trigger_full_collection(self, REPORT_PROMOTION_FAILURE);
+        gc_trigger_full_collection(self, REPORT_PROMOTION_FAILURE, false);
 
         relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
         if (!relocatedLocation) {
@@ -120,6 +126,7 @@ void gc_young_collect(struct gc_state* self) {
 
     doPromote(self, currentObject, currentObjectInfo, relocatedLocation);
   }
+  profiler_end(self->profiler);
 
   // Fix up addresses in promoted objects
   // No need to clear the object_info as
@@ -130,7 +137,8 @@ void gc_young_collect(struct gc_state* self) {
     if (currentObjectInfo->isMoved)
       gc_fix_object_refs(self, heap->youngGeneration, heap->oldGeneration, currentObjectInfo->moveData.newLocation);
   }
-   
+    
+  profiler_begin(self->profiler, "fix-refs"); 
   // Fix references in GC roots to
   // update the to young refs to
   // become to old refs (as youngs
@@ -143,7 +151,8 @@ void gc_young_collect(struct gc_state* self) {
     gc_clear_old_to_young_card_table(self);
   } else {
     region_move_bump_pointer_to_last(self->heap->youngGeneration);
-  }
+  } 
+  profiler_end(self->profiler); 
 }
 
 void gc_young_post_collect(struct gc_state* self) {

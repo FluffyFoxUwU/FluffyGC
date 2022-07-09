@@ -1,0 +1,6 @@
+[submodule "libs/hashmap"]
+	path = libs/hashmap
+	url = https://github.com/DavidLeeds/hashmap
+[submodule "libs/list"]
+	path = libs/list
+	url = https://github.com/clibs/list

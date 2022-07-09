@@ -2,7 +2,9 @@
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <assert.h>
+#include <sys/prctl.h>
 
 #include "gc.h"
 #include "young_collector.h"
@@ -13,8 +15,93 @@
 #include "../region.h"
 #include "../root_iterator.h"
 #include "../descriptor.h"
+#include "../profiler.h"
+
+static void gcTriggerYoungCollection(struct gc_state* self) {
+  profiler_begin(self->profiler, "young-gc");
+  
+  profiler_begin(self->profiler, "pre-collect"); 
+  bool res = gc_young_pre_collect(self);
+  profiler_end(self->profiler); 
+
+  if (!res) {
+    heap_report_printf(self->heap, "Failure to run pre-collect task for old collection");
+    goto failure;
+  }
+
+  profiler_begin(self->profiler, "collect"); 
+  gc_young_collect(self);
+  profiler_end(self->profiler); 
+  
+  profiler_begin(self->profiler, "post-collect"); 
+  gc_young_post_collect(self);
+  profiler_end(self->profiler);
+  
+  failure:
+  profiler_end(self->profiler);
+}
+
+static void gcTriggerOldCollection(struct gc_state* self) {
+  profiler_begin(self->profiler, "old-gc");
+  
+  profiler_begin(self->profiler, "pre-collect"); 
+  bool res = gc_old_pre_collect(self);
+  profiler_end(self->profiler); 
+
+  if (!res) {
+    heap_report_printf(self->heap, "Failure to run pre-collect task for old collection");
+    goto failure;
+  }
+
+  profiler_begin(self->profiler, "collect"); 
+  gc_old_collect(self);
+  profiler_end(self->profiler); 
+  
+  profiler_begin(self->profiler, "post-collect"); 
+  gc_old_post_collect(self);
+  profiler_end(self->profiler);
+  
+  failure:
+  profiler_end(self->profiler);
+}
+
+static void gcTriggerFullCollection(struct gc_state* self, bool isExplicit) {
+  profiler_begin(self->profiler, "full-gc");
+  
+  profiler_begin(self->profiler, "pre-collect"); 
+  bool res = gc_full_pre_collect(self, isExplicit);
+  profiler_end(self->profiler); 
+
+  if (!res) {
+    heap_report_printf(self->heap, "Failure to run pre-collect task for old collection");
+    goto failure;
+  }
+
+  profiler_begin(self->profiler, "collect"); 
+  gc_full_collect(self, isExplicit);
+  profiler_end(self->profiler); 
+  
+  profiler_begin(self->profiler, "post-collect"); 
+  gc_full_post_collect(self, isExplicit);
+  profiler_end(self->profiler);
+  
+  failure:
+  profiler_end(self->profiler);
+}
+
+void gc_trigger_old_collection(struct gc_state* self, enum report_type reason) {
+  heap_report_gc_cause(self->heap, reason);
+  gcTriggerOldCollection(self);
+}
+
+void gc_trigger_full_collection(struct gc_state* self, enum report_type reason, bool isExplicit) {
+  heap_report_gc_cause(self->heap, reason);
+  gcTriggerFullCollection(self, isExplicit);
+}
 
 static void* mainThread(void* _self) {
+  prctl(PR_SET_NAME, "GC-Thread");
+  
   struct gc_state* self = _self;
   struct heap* heap = self->heap;
   bool shuttingDown = false;
@@ -27,6 +114,9 @@ static void* mainThread(void* _self) {
     while (!heap->gcRequested || atomic_load(&heap->votedToBlockGC) > 0)
       pthread_cond_wait(&heap->gcMayRunCond, &heap->gcMayRunLock); 
     
+    profiler_reset(self->profiler);
+    profiler_start(self->profiler);
+
     isRequested = heap->gcRequested;
     requestType = heap->gcRequestedType;
 
@@ -38,28 +128,13 @@ static void* mainThread(void* _self) {
         shuttingDown = true;
         break;
       case GC_REQUEST_COLLECT_YOUNG:
-        if (!gc_young_pre_collect(self)) {
-          heap_report_printf(heap, "Failure to run pre-collect task for young collection");
-          break;
-        }
-        gc_young_collect(self);
-        gc_young_post_collect(self);
+        gcTriggerYoungCollection(self);
         break;
       case GC_REQUEST_COLLECT_OLD:
-        if (!gc_old_pre_collect(self)) {
-          heap_report_printf(heap, "Failure to run pre-collect task for old collection");
-          break;
-        }
-        gc_old_collect(self);
-        gc_old_post_collect(self);
+        gcTriggerOldCollection(self);
         break;
       case GC_REQUEST_COLLECT_FULL:
-        if (!gc_full_pre_collect(self)) {
-          heap_report_printf(heap, "Failure to run pre-collect task for full collection");
-          break;
-        }
-        gc_full_collect(self);
-        gc_full_post_collect(self);
+        gcTriggerFullCollection(self, true);
         break;
       case GC_REQUEST_START_CONCURRENT:
       case GC_REQUEST_CONTINUE:
@@ -75,14 +150,16 @@ static void* mainThread(void* _self) {
                                                    (double) youngSize / 1024/ 1024);
     printf("[GC] Old   usage: %.2f -> %.2f MiB\n", (double) prevOldSize / 1024 / 1024,
                                                    (double) oldSize / 1024/ 1024);
-
     pthread_mutex_lock(&heap->gcCompletedLock);
     heap->gcCompleted = true;
     pthread_mutex_unlock(&heap->gcCompletedLock);
     pthread_cond_broadcast(&heap->gcCompletedCond);
 
     heap->gcRequested = false;
-    heap->gcRequestedType = GC_REQUEST_UNKNOWN;  
+    heap->gcRequestedType = GC_REQUEST_UNKNOWN;
+
+    profiler_stop(self->profiler);
+    profiler_dump(self->profiler, stderr);
   }
   pthread_mutex_unlock(&heap->gcMayRunLock);
 
@@ -98,7 +175,10 @@ struct gc_state* gc_init(struct heap* heap) {
   self->statistics.youngGCCount = 0;
   self->statistics.youngGCTime = 0.0f;
   self->isGCThreadRunning = false;
-  
+  self->profiler = profiler_new();
+  if (!self->profiler)
+    goto failure;
+
   self->fullGC.oldLookup = calloc(heap->oldGeneration->sizeInCells, sizeof(struct region_reference*));
   if (!self->fullGC.oldLookup)
     goto failure;
@@ -121,7 +201,9 @@ void gc_cleanup(struct gc_state* self) {
   heap_call_gc(self->heap, GC_REQUEST_SHUTDOWN);
   if (self->isGCThreadRunning)
     pthread_join(self->gcThread, NULL);
-  
+  if (self->profiler)
+    profiler_free(self->profiler);
+
   free(self->fullGC.oldLookup);
   free(self);
 }
@@ -145,28 +227,6 @@ void gc_clear_young_to_old_card_table(struct gc_state* self) {
 void gc_clear_old_to_young_card_table(struct gc_state* self) {
   for (int i = 0; i < self->heap->oldToYoungCardTableSize; i++)
     atomic_store(&self->heap->oldToYoungCardTable[i], false);
-}
-
-void gc_trigger_old_collection(struct gc_state* self, enum report_type reason) {
-  heap_report_gc_cause(self->heap, reason);
-  
-  if (!gc_old_pre_collect(self)) {
-    heap_report_printf(self->heap, "Failure to run pre-collect task for old collection");
-    return;
-  }
-  gc_old_collect(self);
-  gc_old_post_collect(self);
-}
-
-void gc_trigger_full_collection(struct gc_state* self, enum report_type reason) {
-  heap_report_gc_cause(self->heap, reason);
-  
-  if (!gc_full_pre_collect(self)) {
-    heap_report_printf(self->heap, "Failure to run pre-collect task for full collection");
-    return;
-  }
-  gc_full_collect(self);
-  gc_full_post_collect(self);
 }
 
 struct fixer_context {

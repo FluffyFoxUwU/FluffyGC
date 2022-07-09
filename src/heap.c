@@ -35,6 +35,7 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
 
   pthread_mutex_init(&self->gcCompletedLock, NULL);
   pthread_mutex_init(&self->gcMayRunLock, NULL);
+  pthread_mutex_init(&self->allocLock, NULL);
   
   pthread_cond_init(&self->gcCompletedCond, NULL);
   pthread_cond_init(&self->gcMayRunCond, NULL);
@@ -130,6 +131,7 @@ void heap_free(struct heap* self) {
   
   pthread_mutex_destroy(&self->gcCompletedLock);
   pthread_mutex_destroy(&self->gcMayRunLock);
+  pthread_mutex_destroy(&self->allocLock);
   
   pthread_cond_destroy(&self->gcCompletedCond);
   pthread_cond_destroy(&self->gcMayRunCond);
@@ -423,25 +425,23 @@ static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {
   struct region_reference* regionRef;
  
   retry:;
-  int retryCount = 0;
-  for (; retryCount < FLUFFYGC_HEAP_MAX_OLD_ALLOC_RETRIES; retryCount++) {
-    regionRef = region_alloc_or_fit(self->oldGeneration, size);
-    if (regionRef != NULL)
-      break;
-
+  regionRef = region_alloc_or_fit(self->oldGeneration, size);
+  if (regionRef == NULL) {
     heap_exit_unsafe_gc(self);
     heap_report_gc_cause(self, REPORT_OLD_ALLOCATION_FAILURE);
     
-    if (emergencyFullCollection) 
+    if (emergencyFullCollection)
       heap_call_gc(self, GC_REQUEST_COLLECT_FULL);
     else
       heap_call_gc(self, GC_REQUEST_COLLECT_OLD);
     
     heap_wait_gc(self);
     heap_enter_unsafe_gc(self);
+      
+    regionRef = region_alloc_or_fit(self->oldGeneration, size);
   }
   
-  if (retryCount >= FLUFFYGC_HEAP_MAX_OLD_ALLOC_RETRIES && regionRef == NULL) {
+  if (regionRef == NULL) {
     // Old GC cant free any space
     // trigger full collection
     if (!emergencyFullCollection) {
@@ -464,23 +464,20 @@ static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {
 }
 
 static struct region_reference* tryAllocateYoung(struct heap* self, size_t size) {   
-  int retryCount = 0;
-  struct region_reference* regionRef;
-  for (; retryCount < FLUFFYGC_HEAP_MAX_YOUNG_ALLOC_RETRIES; retryCount++) {
-    regionRef = region_alloc(self->youngGeneration, size);
-    if (regionRef != NULL)
-      break;
-
+  struct region_reference* regionRef = region_alloc(self->youngGeneration, size);
+  if (regionRef == NULL) {
     heap_report_gc_cause(self, REPORT_YOUNG_ALLOCATION_FAILURE);
     
     heap_exit_unsafe_gc(self);
     heap_call_gc(self, GC_REQUEST_COLLECT_YOUNG);
     heap_wait_gc(self);
     heap_enter_unsafe_gc(self);
-  }
+    
+    regionRef = region_alloc(self->youngGeneration, size);
+  } 
   
   // Young GC can't free any more space
-  if (retryCount >= FLUFFYGC_HEAP_MAX_YOUNG_ALLOC_RETRIES && regionRef == NULL) {
+  if (regionRef == NULL) {
     heap_report_gc_cause(self, REPORT_OUT_OF_MEMORY);
     return NULL;
   }
@@ -548,6 +545,7 @@ static struct root_reference* commonNew(struct heap* self, size_t size) {
 }
 
 struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc) {
+  pthread_mutex_lock(&self->allocLock);
   heap_enter_unsafe_gc(self);
   struct root_reference* rootRef = commonNew(self, desc->objectSize);
   struct region_reference* regionRef = rootRef->data;
@@ -561,10 +559,12 @@ struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc) 
   descriptor_acquire(desc);
   
   heap_exit_unsafe_gc(self);
+  pthread_mutex_unlock(&self->allocLock);
   return rootRef;
 }
 
 struct root_reference* heap_array_new(struct heap* self, int size) {
+  pthread_mutex_lock(&self->allocLock);
   heap_enter_unsafe_gc(self);
   struct root_reference* rootRef = commonNew(self, sizeof(void*) * size);
   struct region_reference* regionRef = rootRef->data;
@@ -575,6 +575,7 @@ struct root_reference* heap_array_new(struct heap* self, int size) {
   memset(regionRef->data, 0, regionRef->dataSize);
 
   heap_exit_unsafe_gc(self);
+  pthread_mutex_unlock(&self->allocLock);
   return rootRef;
 }
 
@@ -621,7 +622,7 @@ void heap_on_object_sweep(struct heap* self, struct object_info* obj) {
     case OBJECT_TYPE_UNKNOWN:
       abort();
   }
-  
+ 
   region_dealloc(obj->regionRef->owner, obj->regionRef);
   heap_reset_object_info(self, obj);
   obj->isValid = false;

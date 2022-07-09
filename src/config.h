@@ -33,9 +33,5 @@
 // Size to increase when the thread list is full
 #define FLUFFYGC_HEAP_THREAD_LIST_STEP_SIZE (16)
 
-// Max retries count before giving up
-#define FLUFFYGC_HEAP_MAX_YOUNG_ALLOC_RETRIES (5)
-#define FLUFFYGC_HEAP_MAX_OLD_ALLOC_RETRIES (2)
-
 #endif
 

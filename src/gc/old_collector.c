@@ -10,6 +10,7 @@
 #include "../config.h"
 #include "../region.h"
 #include "../descriptor.h"
+#include "../profiler.h"
 
 #include "young_collector.h"
 #include "gc.h"
@@ -40,6 +41,8 @@ static bool iterateCardTable(struct gc_state* self, cardtable_iterator iterator)
 }
 
 static void markPhase(struct gc_state* self) {
+  profiler_begin(self->profiler, "mark");
+  
   struct heap* heap = self->heap;  
 
   // Marking phase
@@ -50,6 +53,8 @@ static void markPhase(struct gc_state* self) {
   iterateCardTable(self, ^void (struct object_info* info, int cardTableIndex) {
     gc_marker_mark(self, heap->oldGeneration, info);
   });
+  
+  profiler_end(self->profiler);
 }
 
 void gc_old_collect(struct gc_state* self) {
@@ -58,6 +63,7 @@ void gc_old_collect(struct gc_state* self) {
   markPhase(self);
 
   // Sweep phase
+  profiler_begin(self->profiler, "sweep");
   for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
     struct region_reference* currentObject = heap->oldGeneration->referenceLookup[i];
     struct object_info* currentObjectInfo = &heap->oldObjects[i];
@@ -72,8 +78,11 @@ void gc_old_collect(struct gc_state* self) {
     
     heap_on_object_sweep(heap, currentObjectInfo);
   }
+  profiler_end(self->profiler);
 
+  profiler_begin(self->profiler, "pre-sweep");
   region_move_bump_pointer_to_last(self->heap->oldGeneration);
+  profiler_end(self->profiler);
 }
 
 void gc_old_post_collect(struct gc_state* self) {
