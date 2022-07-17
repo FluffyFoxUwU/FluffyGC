@@ -7,6 +7,7 @@
 
 #include "descriptor.h"
 #include "gc/gc.h"
+#include "gc/gc_enums.h"
 #include "heap.h"
 #include "config.h"
 #include "reference.h"
@@ -27,7 +28,7 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
   self->threadsCount = 0;
   self->threadsListSize = 0;
   self->localFrameStackSize = localFrameStackSize;
-  self->preTenurSize = youngSize-1; //64 * 1024;
+  self->preTenurSize = youngSize-1;//64 * 1024;
   self->concurrentOldGCthreshold = concurrentOldGCThreshold;
 
   pthread_mutex_init(&self->gcCompletedLock, NULL);
@@ -426,28 +427,42 @@ void heap_exit_unsafe_gc(struct heap* self) {
 }
 
 void heap_call_gc(struct heap* self, enum gc_request_type requestType) {
+  pthread_mutex_lock(&self->gcCompletedLock);
   pthread_mutex_lock(&self->gcMayRunLock);
-  //heap_wait_gc(self);
 
-  if (self->gcRequested) {
+  if (self->gcRequested && self->gcRequestedType == requestType) {
     pthread_mutex_unlock(&self->gcMayRunLock); 
     return;
   }
   
-  pthread_mutex_lock(&self->gcCompletedLock);
   self->gcCompleted = false;
-  pthread_mutex_unlock(&self->gcCompletedLock);
+  self->gcRequested = true;
+  self->gcRequestedType = requestType;
 
+  pthread_mutex_unlock(&self->gcMayRunLock); 
+  pthread_mutex_unlock(&self->gcCompletedLock);
+  
+  pthread_cond_broadcast(&self->gcMayRunCond); 
+}
+
+void heap_call_gc_blocking(struct heap* self, enum gc_request_type requestType) {
+  pthread_mutex_lock(&self->gcCompletedLock);
+  pthread_mutex_lock(&self->gcMayRunLock);
+
+  if (self->gcRequested && self->gcRequestedType == requestType) {
+    pthread_mutex_unlock(&self->gcMayRunLock); 
+    return;
+  }
+  
+  self->gcCompleted = false;
   self->gcRequested = true;
   self->gcRequestedType = requestType;
 
   pthread_mutex_unlock(&self->gcMayRunLock); 
   pthread_cond_broadcast(&self->gcMayRunCond); 
-}
-
-void heap_call_gc_blocking(struct heap* self, enum gc_request_type requestType) {
-  heap_call_gc(self, requestType);
-  heap_wait_gc(self);
+  
+  heap_wait_gc_no_lock(self);
+  pthread_mutex_unlock(&self->gcCompletedLock);
 }
 
 static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {   
@@ -469,7 +484,7 @@ static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {
   
   heap_exit_unsafe_gc(self);
   heap_report_gc_cause(self, REPORT_OLD_ALLOCATION_FAILURE);
-  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_OLD);
+  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_FULL);
   heap_enter_unsafe_gc(self);
   
   regionRef = region_alloc_or_fit(self->oldGeneration, size);
@@ -478,12 +493,6 @@ static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {
     return NULL;
 
   allocation_success:;
-  // Trigger concurrent GC
-  float occupancyPercent = (float) self->oldGeneration->sizeInCells / 
-                           (float) self->oldGeneration->bumpPointer;
-  if (occupancyPercent >= self->concurrentOldGCthreshold)
-    heap_call_gc(self, GC_REQUEST_START_CONCURRENT);
-
   return regionRef; 
 }
 
@@ -497,9 +506,16 @@ static struct region_reference* tryAllocateYoung(struct heap* self, size_t size)
   heap_call_gc_blocking(self, GC_REQUEST_COLLECT_YOUNG);
   heap_enter_unsafe_gc(self);
   
-  regionRef = region_alloc(self->youngGeneration, size);
+  regionRef = region_alloc(self->youngGeneration, size);  
+  if (regionRef != NULL)
+    goto allocation_success;
+
+  heap_exit_unsafe_gc(self);
+  heap_report_gc_cause(self, REPORT_YOUNG_ALLOCATION_FAILURE);
+  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_FULL);
+  heap_enter_unsafe_gc(self);
   
-  // Young GC can't free any more space
+  regionRef = region_alloc(self->youngGeneration, size);  
   if (regionRef == NULL) {
     heap_report_gc_cause(self, REPORT_OUT_OF_MEMORY);
     return NULL;
@@ -533,13 +549,6 @@ static struct region_reference* tryAllocate(struct heap* self, size_t size, stru
     ref = tryAllocateYoung(self, size);
     *allocRegion = self->youngGeneration;
   } else {
-    // There still tiny problem about old allocation
-    // like if you repeatly allocating large
-    // object continously sometime full GC cant
-    // compacts it for whatever reason
-    if (1)
-      return NULL;
-
     ref = tryAllocateOld(self, size);
     *allocRegion = self->oldGeneration;
   }
@@ -552,6 +561,14 @@ static struct region_reference* tryAllocate(struct heap* self, size_t size, stru
   heap_reset_object_info(self, object);
   object->regionRef = ref;
  
+  /*
+  // Trigger concurrent GC
+  float occupancyPercent = (float) atomic_load(&self->oldGeneration->usage) /
+                           (float) self->oldGeneration->sizeInCells;
+  if (occupancyPercent >= self->concurrentOldGCthreshold)
+    heap_call_gc(self, GC_REQUEST_START_CONCURRENT);
+  */
+
   return ref;
 }
 

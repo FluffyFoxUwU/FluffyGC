@@ -3,7 +3,6 @@
 
 enum gc_request_type {
   GC_REQUEST_UNKNOWN,
-  GC_REQUEST_CONTINUE,
 
   // Automaticly trigger old
   // then full if either cant

@@ -26,15 +26,18 @@ bool gc_full_pre_collect(struct gc_state* self, bool isExplicit) {
 void gc_full_collect(struct gc_state* self, bool isExplicit) {
   struct heap* heap = self->heap;  
  
-  if (isExplicit)
+  if (isExplicit) {
+    gc_trigger_young_collection(self, REPORT_FULL_COLLECTION);
     gc_trigger_old_collection(self, REPORT_FULL_COLLECTION);
+  }
 
   // Record previous locations
   profiler_begin(self->profiler, "record-refs");
   for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
     struct object_info* currentObjectInfo = &heap->oldObjects[i];
     if (currentObjectInfo->isValid) {
-      assert(self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] == NULL);
+      assert(self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] == NULL ||
+             self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] == currentObjectInfo->regionRef);
       self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] = currentObjectInfo->regionRef;
     }
   }

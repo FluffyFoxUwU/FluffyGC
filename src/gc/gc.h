@@ -36,6 +36,7 @@ void gc_clear_old_to_young_card_table(struct gc_state* self);
 void gc_clear_young_to_old_card_table(struct gc_state* self);
 
 // Triggers
+void gc_trigger_young_collection(struct gc_state* self, enum report_type reason);
 void gc_trigger_old_collection(struct gc_state* self, enum report_type reason);
 void gc_trigger_full_collection(struct gc_state* self, enum report_type reason, bool isExplicit);
 

@@ -304,6 +304,17 @@ static bool region_move_cell(struct region* self, cellid_t src, cellid_t dest) {
   return true;
 }
 
+static void region_move_bump_pointer_to_last_no_lock(struct region* self) {
+  cellid_t current = atomic_load(&self->bumpPointer);
+  while (current >= 0 && !self->regionUsageLookup[current])
+    current--;
+
+  if (current < 0 || self->regionUsageLookup[current])
+    current++;
+
+  atomic_store(&self->bumpPointer, current);
+}
+
 void region_compact(struct region* self) {
   pthread_rwlock_wrlock(&self->compactionAndWipingLock);
   cellid_t dest = 0;
@@ -315,7 +326,8 @@ void region_compact(struct region* self) {
       struct region_reference* ref = self->referenceLookup[src];
       
       // Check if destination is overlapped
-      // with pinned object if yes skip over
+      // with pinned or used object if yes
+      // skip over
       for (cellid_t i = dest; i < dest + ref->sizeInCells; i++) {
         struct region_reference* current = self->referenceLookup[i];
         if (current && current->isPinned > 0) {
@@ -323,23 +335,35 @@ void region_compact(struct region* self) {
           break;
         }
       }
+      
+      // Skip pinned objects
+      if (ref->isPinned) {
+        src += ref->sizeInCells;
+        continue;
+      }
 
       assert(dest < self->sizeInCells);
       assert(src < self->sizeInCells);
 
-      if (src != dest)
-        region_move_cell(self, src, dest);
+      bool overlapping = false;
+      for (cellid_t i = dest; i < dest + ref->sizeInCells; i++) {
+        if (self->regionUsageLookup[i]) {
+          overlapping = true;
+          break;
+        }
+      }
       
-      src += ref->sizeInCells;
+      if (!overlapping && src != dest)
+        region_move_cell(self, src, dest);
 
-      if (!ref->isPinned)
-        dest += ref->sizeInCells;
+      src += ref->sizeInCells;
+      dest += ref->sizeInCells;
     } else {
       src += 1;
     }
   }
 
-  atomic_store(&self->bumpPointer, dest);
+  region_move_bump_pointer_to_last_no_lock(self);
   pthread_rwlock_unlock(&self->compactionAndWipingLock);
 }
 
@@ -370,14 +394,7 @@ void region_unpin_object(struct region* self, struct region_reference* data) {
 
 void region_move_bump_pointer_to_last(struct region* self) {
   pthread_rwlock_rdlock(&self->compactionAndWipingLock);
-  cellid_t current = atomic_load(&self->bumpPointer);
-  while (current >= 0 && !self->regionUsageLookup[current])
-    current--;
-
-  if (current < 0 || self->regionUsageLookup[current])
-    current++;
-
-  atomic_store(&self->bumpPointer, current);
+  region_move_bump_pointer_to_last_no_lock(self);
   pthread_rwlock_unlock(&self->compactionAndWipingLock);
 }
 

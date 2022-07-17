@@ -7,6 +7,7 @@
 #include <sys/prctl.h>
 
 #include "gc.h"
+#include "gc_enums.h"
 #include "young_collector.h"
 #include "old_collector.h"
 #include "full_collector.h"
@@ -94,6 +95,11 @@ void gc_trigger_old_collection(struct gc_state* self, enum report_type reason) {
   gcTriggerOldCollection(self);
 }
 
+void gc_trigger_young_collection(struct gc_state* self, enum report_type reason) {
+  heap_report_gc_cause(self->heap, reason);
+  gcTriggerYoungCollection(self);
+}
+
 void gc_trigger_full_collection(struct gc_state* self, enum report_type reason, bool isExplicit) {
   heap_report_gc_cause(self->heap, reason);
   gcTriggerFullCollection(self, isExplicit);
@@ -111,8 +117,8 @@ static void* mainThread(void* _self) {
     bool isRequested;
      
     pthread_mutex_lock(&heap->gcMayRunLock);
-    heap->gcRequested = false;
 
+    heap->gcRequested = false;
     while (!heap->gcRequested)
       pthread_cond_wait(&heap->gcMayRunCond, &heap->gcMayRunLock); 
 
@@ -127,7 +133,8 @@ static void* mainThread(void* _self) {
      
     size_t prevYoungSize = atomic_load(&heap->youngGeneration->usage);
     size_t prevOldSize = atomic_load(&heap->oldGeneration->usage);
-    
+    bool canSignalCompletion = true;
+
     switch (requestType) {
       case GC_REQUEST_SHUTDOWN:
         shuttingDown = true;
@@ -142,7 +149,6 @@ static void* mainThread(void* _self) {
         gcTriggerFullCollection(self, true);
         break;
       case GC_REQUEST_START_CONCURRENT:
-      case GC_REQUEST_CONTINUE:
         break;
       case GC_REQUEST_UNKNOWN:
         abort();
@@ -156,12 +162,16 @@ static void* mainThread(void* _self) {
     printf("[GC] Old   usage: %.2f -> %.2f MiB\n", (double) prevOldSize / 1024 / 1024,
                                                    (double) oldSize / 1024/ 1024);
     profiler_stop(self->profiler);
-    profiler_dump(self->profiler, stderr);
-    
-    pthread_mutex_lock(&heap->gcCompletedLock);
-    heap->gcCompleted = true;
-    pthread_mutex_unlock(&heap->gcCompletedLock);
-    pthread_cond_broadcast(&heap->gcCompletedCond);
+   
+    if (canSignalCompletion) {
+      profiler_dump(self->profiler, stderr);
+      
+      pthread_mutex_lock(&heap->gcCompletedLock);
+      heap->gcCompleted = true;
+      pthread_mutex_unlock(&heap->gcCompletedLock);
+      pthread_cond_broadcast(&heap->gcCompletedCond);
+    }
+
     pthread_rwlock_unlock(&heap->gcUnsafeRwlock);
   }
 
