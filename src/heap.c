@@ -24,23 +24,21 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
   self->gcCompleted = false;
   self->gcRequested = false;
   self->gcRequestedType = GC_REQUEST_UNKNOWN;
-  self->votedToBlockGC = 0;
   self->threadsCount = 0;
   self->threadsListSize = 0;
   self->localFrameStackSize = localFrameStackSize;
-  self->preTenurSize = 64 * 1024;
+  self->preTenurSize = youngSize-1; //64 * 1024;
   self->concurrentOldGCthreshold = concurrentOldGCThreshold;
-  self->gcCompletedWaitingCount = 0;
-  atomic_init(&self->votedToBlockGC, 0);
 
   pthread_mutex_init(&self->gcCompletedLock, NULL);
   pthread_mutex_init(&self->gcMayRunLock, NULL);
   pthread_mutex_init(&self->allocLock, NULL);
-  
+   
   pthread_cond_init(&self->gcCompletedCond, NULL);
   pthread_cond_init(&self->gcMayRunCond, NULL);
  
   pthread_rwlock_init(&self->lock, NULL);
+  pthread_rwlock_init(&self->gcUnsafeRwlock, NULL);
   
   pthread_key_create(&self->currentThreadKey, NULL);
   
@@ -80,11 +78,15 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
   for (int i = 0; i < youngToOldCardTableSize; i++)
     atomic_init(&self->youngToOldCardTable[i], false);
   
-  for (int i = 0; i < self->youngGeneration->sizeInCells; i++)
+  for (int i = 0; i < self->youngGeneration->sizeInCells; i++) {
     atomic_init(&self->youngObjects[i].isMarked, false);
+    heap_reset_object_info(self, &self->youngObjects[i]);
+  }
   
-  for (int i = 0; i < self->oldGeneration->sizeInCells; i++)
+  for (int i = 0; i < self->oldGeneration->sizeInCells; i++) {
     atomic_init(&self->oldObjects[i].isMarked, false);
+    heap_reset_object_info(self, &self->oldObjects[i]);
+  }
 
   self->gcState = gc_init(self);
   if (!self->gcState)
@@ -128,6 +130,7 @@ void heap_free(struct heap* self) {
   region_free(self->oldGeneration);
   
   pthread_rwlock_destroy(&self->lock);
+  pthread_rwlock_destroy(&self->gcUnsafeRwlock);
   
   pthread_mutex_destroy(&self->gcCompletedLock);
   pthread_mutex_destroy(&self->gcMayRunLock);
@@ -176,9 +179,9 @@ void heap_descriptor_release(struct heap* self, struct descriptor* desc) {
 
 struct region* heap_get_region(struct heap* self, void* data) {
   assert(data);
-  if (region_get_ref(self->youngGeneration, data))
+  if (region_get_cellid(self->youngGeneration, data) != -1)
     return self->youngGeneration;
-  else if (region_get_ref(self->oldGeneration, data))
+  else if (region_get_cellid(self->oldGeneration, data) != -1)
     return self->oldGeneration;
   return NULL;
 }
@@ -250,7 +253,7 @@ static struct root_reference* readCommon(struct heap* self, struct root_referenc
   if (!ptr)
     return NULL;
   
-  struct thread* thread = heap_get_thread(self);
+  struct thread* thread = heap_get_thread_data(self)->thread;
   struct region_reference* regionRef = heap_get_region_ref(self, ptr);
   assert(regionRef);
   return thread_local_add(thread, regionRef);
@@ -310,35 +313,6 @@ struct root_reference* heap_array_read(struct heap* self, struct root_reference*
   return ref;
 }
 
-void heap_wait_gc(struct heap* self) {
-  pthread_mutex_lock(&self->gcCompletedLock);
-  self->gcCompletedWaitingCount++;
-  
-  // Wait for GC
-  while (!self->gcCompleted)
-    pthread_cond_wait(&self->gcCompletedCond, &self->gcCompletedLock);
-
-  self->gcCompletedWaitingCount--;
-  if (self->gcCompletedWaitingCount == 0)
-    self->gcCompleted = false;
-  pthread_mutex_unlock(&self->gcCompletedLock);
-}
-
-void heap_enter_unsafe_gc(struct heap* self) {
-  atomic_fetch_add(&self->votedToBlockGC, 1); 
-}
-
-void heap_exit_unsafe_gc(struct heap* self) {
-  int prev = atomic_fetch_sub(&self->votedToBlockGC, 1);
-  if (prev <= 0) {
-    abort(); /* Exiting more than entered */
-  } else if (prev == 1) {
-    // Wake GC up and process the maybe 
-    // pending request
-    pthread_cond_broadcast(&self->gcMayRunCond);
-  }
-}
-
 bool heap_is_attached(struct heap* self) {
   return pthread_getspecific(self->currentThreadKey) != NULL;
 }
@@ -353,40 +327,56 @@ bool heap_attach_thread(struct heap* self) {
     if (self->threads[freePos] == NULL)
       break;
   
+  struct thread* thread = NULL;
+  struct thread_data* data = NULL;
+
   // Cant find free space
   if (freePos == self->threadsListSize)
     if (!heap_resize_threads_list_no_lock(self, self->threadsListSize + FLUFFYGC_HEAP_THREAD_LIST_STEP_SIZE))
       goto failure;
 
-  struct thread* thread = thread_new(self, freePos, self->localFrameStackSize);
+  thread = thread_new(self, freePos, self->localFrameStackSize);
   if (!thread)
     goto failure;
   self->threads[freePos] = thread;
 
   self->threadsCount++;
-  pthread_setspecific(self->currentThreadKey, thread);
+
+  data = malloc(sizeof(*data));
+  if (!data)
+    goto failure;
+
+  data->thread = thread;
+  data->numberOfTimeEnteredUnsafeGC = 0;
+
+  pthread_setspecific(self->currentThreadKey, data);
   pthread_rwlock_unlock(&self->lock);
   return true;
 
   failure:
+  if (thread)
+    thread_free(thread);
+  if (data)
+    free(data);
   pthread_rwlock_unlock(&self->lock);
   return false;
 }
 
 void heap_detach_thread(struct heap* self) {
-  struct thread* thread = pthread_getspecific(self->currentThreadKey);
+  struct thread_data* data = heap_get_thread_data(self);
   
   pthread_rwlock_wrlock(&self->lock);
-  self->threads[thread->id] = NULL;
+  self->threads[data->thread->id] = NULL;
   pthread_rwlock_unlock(&self->lock);
 
-  thread_free(thread);
-  
+  thread_free(data->thread);
+  free(data);
+
   self->threadsCount--;
   pthread_setspecific(self->currentThreadKey, NULL);
 }
 
-struct thread* heap_get_thread(struct heap* self) {
+struct thread_data* heap_get_thread_data(struct heap* self) {
   return pthread_getspecific(self->currentThreadKey);
 }
 
@@ -410,8 +400,43 @@ bool heap_resize_threads_list_no_lock(struct heap* self, int newSize) {
   return true;
 }
 
+void heap_wait_gc_no_lock(struct heap* self) {
+  while (!self->gcCompleted)
+    pthread_cond_wait(&self->gcCompletedCond, &self->gcCompletedLock);
+}
+
+void heap_wait_gc(struct heap* self) {
+  pthread_mutex_lock(&self->gcCompletedLock);
+  heap_wait_gc_no_lock(self);
+  pthread_mutex_unlock(&self->gcCompletedLock);
+}
+
+void heap_enter_unsafe_gc(struct heap* self) {
+  struct thread_data* data = heap_get_thread_data(self);
+  data->numberOfTimeEnteredUnsafeGC++;
+  if (data->numberOfTimeEnteredUnsafeGC == 1)
+    pthread_rwlock_rdlock(&self->gcUnsafeRwlock);
+}
+
+void heap_exit_unsafe_gc(struct heap* self) {
+  struct thread_data* data = heap_get_thread_data(self);
+  data->numberOfTimeEnteredUnsafeGC--;
+  if (data->numberOfTimeEnteredUnsafeGC == 0)
+    pthread_rwlock_unlock(&self->gcUnsafeRwlock);
+}
+
 void heap_call_gc(struct heap* self, enum gc_request_type requestType) {
   pthread_mutex_lock(&self->gcMayRunLock);
+  //heap_wait_gc(self);
+
+  if (self->gcRequested) {
+    pthread_mutex_unlock(&self->gcMayRunLock); 
+    return;
+  }
+  
+  pthread_mutex_lock(&self->gcCompletedLock);
+  self->gcCompleted = false;
+  pthread_mutex_unlock(&self->gcCompletedLock);
 
   self->gcRequested = true;
   self->gcRequestedType = requestType;
@@ -420,40 +445,39 @@ void heap_call_gc(struct heap* self, enum gc_request_type requestType) {
   pthread_cond_broadcast(&self->gcMayRunCond); 
 }
 
+void heap_call_gc_blocking(struct heap* self, enum gc_request_type requestType) {
+  heap_call_gc(self, requestType);
+  heap_wait_gc(self);
+}
+
 static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {   
-  bool emergencyFullCollection = false;
   struct region_reference* regionRef;
  
-  retry:;
   regionRef = region_alloc_or_fit(self->oldGeneration, size);
-  if (regionRef == NULL) {
-    heap_exit_unsafe_gc(self);
-    heap_report_gc_cause(self, REPORT_OLD_ALLOCATION_FAILURE);
-    
-    if (emergencyFullCollection)
-      heap_call_gc(self, GC_REQUEST_COLLECT_FULL);
-    else
-      heap_call_gc(self, GC_REQUEST_COLLECT_OLD);
-    
-    heap_wait_gc(self);
-    heap_enter_unsafe_gc(self);
-      
-    regionRef = region_alloc_or_fit(self->oldGeneration, size);
-  }
+  if (regionRef != NULL)
+    goto allocation_success;
   
-  if (regionRef == NULL) {
-    // Old GC cant free any space
-    // trigger full collection
-    if (!emergencyFullCollection) {
-      emergencyFullCollection = true;
-      goto retry;
-    }
+  heap_exit_unsafe_gc(self);
+  heap_report_gc_cause(self, REPORT_OLD_ALLOCATION_FAILURE);
+  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_OLD);
+  heap_enter_unsafe_gc(self);
+    
+  regionRef = region_alloc_or_fit(self->oldGeneration, size);
   
-    // Old and Full GC can't free any more space
-    heap_report_gc_cause(self, REPORT_OUT_OF_MEMORY);
+  if (regionRef != NULL) 
+    goto allocation_success;
+  
+  heap_exit_unsafe_gc(self);
+  heap_report_gc_cause(self, REPORT_OLD_ALLOCATION_FAILURE);
+  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_OLD);
+  heap_enter_unsafe_gc(self);
+  
+  regionRef = region_alloc_or_fit(self->oldGeneration, size);
+  // We're dead cant free enough space
+  if (!regionRef)
     return NULL;
-  }
 
+  allocation_success:;
   // Trigger concurrent GC
   float occupancyPercent = (float) self->oldGeneration->sizeInCells / 
                            (float) self->oldGeneration->bumpPointer;
@@ -465,16 +489,15 @@ static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {
 
 static struct region_reference* tryAllocateYoung(struct heap* self, size_t size) {   
   struct region_reference* regionRef = region_alloc(self->youngGeneration, size);
-  if (regionRef == NULL) {
-    heap_report_gc_cause(self, REPORT_YOUNG_ALLOCATION_FAILURE);
-    
-    heap_exit_unsafe_gc(self);
-    heap_call_gc(self, GC_REQUEST_COLLECT_YOUNG);
-    heap_wait_gc(self);
-    heap_enter_unsafe_gc(self);
-    
-    regionRef = region_alloc(self->youngGeneration, size);
-  } 
+  if (regionRef != NULL)
+    goto allocation_success;
+  
+  heap_exit_unsafe_gc(self);
+  heap_report_gc_cause(self, REPORT_YOUNG_ALLOCATION_FAILURE);
+  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_YOUNG);
+  heap_enter_unsafe_gc(self);
+  
+  regionRef = region_alloc(self->youngGeneration, size);
   
   // Young GC can't free any more space
   if (regionRef == NULL) {
@@ -482,13 +505,11 @@ static struct region_reference* tryAllocateYoung(struct heap* self, size_t size)
     return NULL;
   }
 
+  allocation_success:
   return regionRef; 
 }
 
 void heap_reset_object_info(struct heap* self, struct object_info* object) {
-  assert(self == object->owner || object->owner == NULL);
-  assert(object->isValid);
-  
   object->owner = self;
 
   object->typeSpecific.normal.desc = NULL;
@@ -500,6 +521,7 @@ void heap_reset_object_info(struct heap* self, struct object_info* object) {
   object->isMoved = false;
   object->justMoved = false;
   object->moveData.oldLocation = NULL;
+  object->moveData.oldLocationInfo = NULL;
   object->moveData.newLocation = NULL;
   object->moveData.newLocationInfo = NULL;
   atomic_store(&object->isMarked, false);
@@ -511,6 +533,13 @@ static struct region_reference* tryAllocate(struct heap* self, size_t size, stru
     ref = tryAllocateYoung(self, size);
     *allocRegion = self->youngGeneration;
   } else {
+    // There still tiny problem about old allocation
+    // like if you repeatly allocating large
+    // object continously sometime full GC cant
+    // compacts it for whatever reason
+    if (1)
+      return NULL;
+
     ref = tryAllocateOld(self, size);
     *allocRegion = self->oldGeneration;
   }
@@ -532,7 +561,7 @@ static struct root_reference* commonNew(struct heap* self, size_t size) {
   if (!regionRef)
     return NULL;
 
-  struct thread* thread = heap_get_thread(self);
+  struct thread* thread = heap_get_thread_data(self)->thread;
   struct root_reference* ref = thread_local_add(thread, regionRef);
   if (!ref)
     goto failure_alloc_ref;
@@ -544,12 +573,37 @@ static struct root_reference* commonNew(struct heap* self, size_t size) {
   return NULL;
 }
 
+struct root_reference* heap_obj_opaque_new(struct heap* self, size_t size) {
+  pthread_mutex_lock(&self->allocLock);
+  heap_enter_unsafe_gc(self);
+  struct root_reference* rootRef = commonNew(self, size);
+  if (!rootRef)
+    goto failure;
+
+  struct region_reference* regionRef = rootRef->data;
+
+  struct object_info* objInfo = heap_get_object_info(self, regionRef); 
+  objInfo->type = OBJECT_TYPE_OPAQUE;
+
+  heap_exit_unsafe_gc(self);
+  pthread_mutex_unlock(&self->allocLock);
+  return rootRef;
+  
+  failure:
+  heap_exit_unsafe_gc(self);
+  pthread_mutex_unlock(&self->allocLock);
+  return NULL;
+}
+
 struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc) {
   pthread_mutex_lock(&self->allocLock);
   heap_enter_unsafe_gc(self);
   struct root_reference* rootRef = commonNew(self, desc->objectSize);
+  if (!rootRef)
+    goto failure;
+
   struct region_reference* regionRef = rootRef->data;
-  struct region* allocRegion = heap_get_region2(self, rootRef);
+  struct region* allocRegion = regionRef->owner;
 
   descriptor_init(desc, allocRegion, regionRef);
   
@@ -561,6 +615,11 @@ struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc) 
   heap_exit_unsafe_gc(self);
   pthread_mutex_unlock(&self->allocLock);
   return rootRef;
+  
+  failure:
+  heap_exit_unsafe_gc(self);
+  pthread_mutex_unlock(&self->allocLock);
+  return NULL;
 }
 
 struct root_reference* heap_array_new(struct heap* self, int size) {
@@ -611,7 +670,7 @@ void heap_report_gc_cause(struct heap* self, enum report_type type) {
   }
 }
 
-void heap_on_object_sweep(struct heap* self, struct object_info* obj) {
+void heap_sweep_an_object(struct heap* self, struct object_info* obj) {
   switch (obj->type) {
     case OBJECT_TYPE_NORMAL:
       descriptor_release(obj->typeSpecific.normal.desc);

@@ -17,6 +17,9 @@
 #include "marker.h"
 
 bool gc_full_pre_collect(struct gc_state* self, bool isExplicit) {
+  for (int i = 0; i < self->heap->oldGeneration->sizeInCells; i++)
+    self->fullGC.oldLookup[i] = NULL;
+  
   return true;
 }
 
@@ -30,8 +33,10 @@ void gc_full_collect(struct gc_state* self, bool isExplicit) {
   profiler_begin(self->profiler, "record-refs");
   for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
     struct object_info* currentObjectInfo = &heap->oldObjects[i];
-    if (currentObjectInfo->isValid)
+    if (currentObjectInfo->isValid) {
+      assert(self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] == NULL);
       self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] = currentObjectInfo->regionRef;
+    }
   }
   profiler_end(self->profiler);
   
@@ -70,32 +75,43 @@ void gc_full_collect(struct gc_state* self, bool isExplicit) {
     assert(!heap->oldObjects[newLocation].isValid);
 
     heap->oldObjects[newLocation] = *currentObjectInfo;
+    heap_reset_object_info(heap, currentObjectInfo);
     currentObjectInfo->isValid = false;
   }
   profiler_end(self->profiler);
 
-  // Fix all references
+  // Last fix ups
   profiler_begin(self->profiler, "fix-refs");
   for (int i = 0; i < heap->youngGeneration->sizeInCells; i++) {
     struct object_info* currentObjectInfo = &heap->youngObjects[i];
+
     if (!currentObjectInfo->isValid)
       continue;
     
     assert(currentObjectInfo->type != OBJECT_TYPE_UNKNOWN);
-    gc_fix_object_refs_custom(self, heap->youngGeneration, heap->youngGeneration, currentObjectInfo->regionRef, fixer);
+    gc_fix_object_refs_custom(self, NULL, currentObjectInfo, fixer);
   }
   
   for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
     struct object_info* currentObjectInfo = &heap->oldObjects[i];
     if (!currentObjectInfo->isValid)
       continue;
+    
+    if (currentObjectInfo->justMoved) {
+      struct object_info* oldInfo = currentObjectInfo->moveData.oldLocationInfo;
+      assert(oldInfo->isMoved);
+
+      oldInfo->moveData.newLocation = currentObjectInfo->regionRef;
+      oldInfo->moveData.newLocationInfo = currentObjectInfo;
+    }
 
     assert(currentObjectInfo->type != OBJECT_TYPE_UNKNOWN);
-    gc_fix_object_refs_custom(self, heap->oldGeneration, heap->oldGeneration, currentObjectInfo->regionRef, fixer);
-  } 
+    gc_fix_object_refs_custom(self, NULL, currentObjectInfo, fixer);
+  }
   profiler_end(self->profiler);
 }
 
 void gc_full_post_collect(struct gc_state* self, bool isExplicit) {
+  region_move_bump_pointer_to_last(self->heap->oldGeneration);
 }
 

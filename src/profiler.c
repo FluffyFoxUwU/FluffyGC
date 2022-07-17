@@ -67,7 +67,7 @@ static double getCurrentTime() {
 
   double time = ((double) current.tv_sec) + 
               (((double) current.tv_nsec) / 1000000000.0f);
-  return time;
+  return time * 1000.0f;
 }
 
 static void startSection(struct profiler_section* section) {

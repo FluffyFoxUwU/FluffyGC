@@ -76,16 +76,24 @@ void gc_old_collect(struct gc_state* self) {
       continue;
     }
     
-    heap_on_object_sweep(heap, currentObjectInfo);
+    if (currentObjectInfo->justMoved) {
+      struct object_info* oldInfo = currentObjectInfo->moveData.oldLocationInfo;
+      assert(oldInfo->isMoved);
+      assert(oldInfo->moveData.newLocationInfo == currentObjectInfo);
+      assert(oldInfo->moveData.oldLocationInfo == oldInfo);
+      
+      heap_reset_object_info(heap, oldInfo);
+    }
+    
+    heap_sweep_an_object(heap, currentObjectInfo);
   }
   profiler_end(self->profiler);
 
-  profiler_begin(self->profiler, "pre-sweep");
+  profiler_begin(self->profiler, "post-sweep");
   region_move_bump_pointer_to_last(self->heap->oldGeneration);
   profiler_end(self->profiler);
 }
 
 void gc_old_post_collect(struct gc_state* self) {
-  gc_clear_young_to_old_card_table(self);
 }
 

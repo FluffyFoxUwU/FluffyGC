@@ -106,23 +106,28 @@ static void* mainThread(void* _self) {
   struct heap* heap = self->heap;
   bool shuttingDown = false;
 
-  pthread_mutex_lock(&heap->gcMayRunLock);
   while (!shuttingDown) {
     enum gc_request_type requestType;
     bool isRequested;
-    
-    while (!heap->gcRequested || atomic_load(&heap->votedToBlockGC) > 0)
+     
+    pthread_mutex_lock(&heap->gcMayRunLock);
+    heap->gcRequested = false;
+
+    while (!heap->gcRequested)
       pthread_cond_wait(&heap->gcMayRunCond, &heap->gcMayRunLock); 
-    
-    profiler_reset(self->profiler);
-    profiler_start(self->profiler);
 
     isRequested = heap->gcRequested;
     requestType = heap->gcRequestedType;
-
+    
+    pthread_mutex_unlock(&heap->gcMayRunLock);
+    pthread_rwlock_wrlock(&heap->gcUnsafeRwlock); 
+    
+    profiler_reset(self->profiler);
+    profiler_start(self->profiler);
+     
     size_t prevYoungSize = atomic_load(&heap->youngGeneration->usage);
     size_t prevOldSize = atomic_load(&heap->oldGeneration->usage);
-
+    
     switch (requestType) {
       case GC_REQUEST_SHUTDOWN:
         shuttingDown = true;
@@ -150,18 +155,15 @@ static void* mainThread(void* _self) {
                                                    (double) youngSize / 1024/ 1024);
     printf("[GC] Old   usage: %.2f -> %.2f MiB\n", (double) prevOldSize / 1024 / 1024,
                                                    (double) oldSize / 1024/ 1024);
+    profiler_stop(self->profiler);
+    profiler_dump(self->profiler, stderr);
+    
     pthread_mutex_lock(&heap->gcCompletedLock);
     heap->gcCompleted = true;
     pthread_mutex_unlock(&heap->gcCompletedLock);
     pthread_cond_broadcast(&heap->gcCompletedCond);
-
-    heap->gcRequested = false;
-    heap->gcRequestedType = GC_REQUEST_UNKNOWN;
-
-    profiler_stop(self->profiler);
-    profiler_dump(self->profiler, stderr);
+    pthread_rwlock_unlock(&heap->gcUnsafeRwlock);
   }
-  pthread_mutex_unlock(&heap->gcMayRunLock);
 
   return NULL;
 }
@@ -175,6 +177,7 @@ struct gc_state* gc_init(struct heap* heap) {
   self->statistics.youngGCCount = 0;
   self->statistics.youngGCTime = 0.0f;
   self->isGCThreadRunning = false;
+
   self->profiler = profiler_new();
   if (!self->profiler)
     goto failure;
@@ -232,9 +235,7 @@ void gc_clear_old_to_young_card_table(struct gc_state* self) {
 struct fixer_context {
   struct gc_state* gcState;
   struct object_info* objects;
-  struct object_info* sourceObjects;
-  struct region* forGeneration;
-  struct region* sourceGen;
+  struct region* generation;
   gc_fixer_callback fixer;
 };
 
@@ -244,34 +245,35 @@ static void* defaultFixer(struct fixer_context* self, void* ptr) {
   if (!ptr)
     return NULL; 
 
-  struct region_reference* prevObject = region_get_ref(self->sourceGen, ptr);
+  struct region_reference* prevObject = region_get_ref(self->generation, ptr);
   if (!prevObject)
     return ptr;
 
-  struct object_info* prevObjectInfo = &self->sourceObjects[prevObject->id];
+  struct object_info* prevObjectInfo = &self->objects[prevObject->id];
   struct region_reference* relocatedObject = prevObjectInfo->moveData.newLocation;
   
-  assert(prevObjectInfo->isMoved);
+  // The object not moved so no need
+  // to fix it
+  if (!prevObjectInfo->isMoved)
+    return ptr;
+
+  // Consistency check
   assert(prevObjectInfo->moveData.oldLocation == prevObject);
   
   return relocatedObject->data;
 }
 
-static void fixObjectRefsArray(struct fixer_context* self, struct region_reference* ref) {
-  assert(ref->owner == self->forGeneration);
- 
-  struct object_info* objectInfo = &self->objects[ref->id];
+static void fixObjectRefsArray(struct fixer_context* self, struct object_info* objectInfo) {
   void** array = objectInfo->regionRef->data;
 
   for (int i = 0; i < objectInfo->typeSpecific.pointerArray.size; i++)
     array[i] = self->fixer(array[i]);
 }
 
-static void fixObjectRefsNormal(struct fixer_context* self, struct region_reference* ref) {
-  assert(ref->owner == self->forGeneration);
-  struct object_info* objectInfo = &self->objects[ref->id];
-
+static void fixObjectRefsNormal(struct fixer_context* self, struct object_info* objectInfo) {
   struct descriptor* desc = objectInfo->typeSpecific.normal.desc;
+  struct region_reference* ref = objectInfo->regionRef;
+
   for (int i = 0; i < desc->numFields; i++) {
     size_t offset = desc->fields[i].offset;
     void* ptr;
@@ -282,17 +284,14 @@ static void fixObjectRefsNormal(struct fixer_context* self, struct region_refere
   }
 }
 
-static void fixObjectRefs(struct fixer_context* self, struct region_reference* ref) {
-  assert(ref->owner == self->forGeneration);
-  
-  struct object_info* objectInfo = &self->objects[ref->id];
+static void fixObjectRefs(struct fixer_context* self, struct object_info* objectInfo) {
   assert(objectInfo->isValid);
   switch (objectInfo->type) {
     case OBJECT_TYPE_NORMAL:
-      fixObjectRefsNormal(self, ref);
+      fixObjectRefsNormal(self, objectInfo);
       return;
     case OBJECT_TYPE_ARRAY:
-      fixObjectRefsArray(self, ref);
+      fixObjectRefsArray(self, objectInfo);
       return;
     case OBJECT_TYPE_OPAQUE:
       return;
@@ -303,45 +302,29 @@ static void fixObjectRefs(struct fixer_context* self, struct region_reference* r
   abort();
 }
 
-static struct fixer_context fixObjectCommon(struct gc_state* self, struct region* sourceGen, struct region* forGen, struct region_reference* ref) {
-  struct object_info* objects;
-  struct object_info* sourceObjects;
-  if (forGen != NULL) {
-    if (self->heap->oldGeneration == forGen)
-      objects = self->heap->oldObjects;
-    else if (self->heap->youngGeneration == forGen)
+static struct fixer_context fixObjectCommon(struct gc_state* self, struct region* generation) {
+  struct object_info* objects = NULL;
+
+  if (generation) {
+    if (generation == self->heap->youngGeneration)
       objects = self->heap->youngObjects;
+    else if (generation == self->heap->oldGeneration)
+      objects = self->heap->oldObjects;
     else
       abort();
-  } else {
-    objects = NULL;  
   }
 
-  if (sourceGen) {
-    if (sourceGen == self->heap->youngGeneration)
-      sourceObjects = self->heap->youngObjects;
-    else if (sourceGen == self->heap->oldGeneration)
-      sourceObjects = self->heap->oldObjects;
-    else
-      abort();
-  } else {
-    sourceObjects = NULL;  
-  }
-  
   struct fixer_context ctx = {
     .gcState = self,
     .objects = objects,
-    .sourceObjects = sourceObjects,
-    .sourceGen = sourceGen,
-    .forGeneration = forGen,
+    .generation = generation,
     .fixer = NULL
   };
   return ctx;
 }
 
-void gc_fix_object_refs(struct gc_state* self, struct region* sourceGen, struct region* forGen, struct region_reference* ref) {
-  assert(forGen);
-  __block struct fixer_context ctx = fixObjectCommon(self, sourceGen, forGen, ref);
+void gc_fix_object_refs(struct gc_state* self, struct region* generation, struct object_info* ref) {
+  __block struct fixer_context ctx = fixObjectCommon(self, generation);
 
   ctx.fixer = ^void* (void* ptr) {
     return defaultFixer(&ctx, ptr);
@@ -349,10 +332,9 @@ void gc_fix_object_refs(struct gc_state* self, struct region* sourceGen, struct 
   fixObjectRefs(&ctx, ref);
 }
 
-void gc_fix_object_refs_custom(struct gc_state* self, struct region* sourceGen, struct region* forGen, struct region_reference* ref, gc_fixer_callback call) {
-  assert(forGen);
-  struct fixer_context ctx = fixObjectCommon(self, sourceGen, forGen, ref);
-  ctx.fixer = call;
+void gc_fix_object_refs_custom(struct gc_state* self, struct region* generation, struct object_info* ref, gc_fixer_callback call) {
+  struct fixer_context ctx = fixObjectCommon(self, generation);
+  ctx.fixer = call; 
   fixObjectRefs(&ctx, ref);
 }
 

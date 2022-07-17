@@ -10,7 +10,7 @@
 struct profiler;
 struct gc_state {
   struct heap* heap;
-  
+
   bool isGCThreadRunning;
   pthread_t gcThread;
 
@@ -42,8 +42,8 @@ void gc_trigger_full_collection(struct gc_state* self, enum report_type reason, 
 // Fixers
 typedef void* (^gc_fixer_callback)(void* ptr);
 
-void gc_fix_object_refs(struct gc_state* self, struct region* sourceGen, struct region* forGen, struct region_reference* ref);
-void gc_fix_object_refs_custom(struct gc_state* self, struct region* sourceGen, struct region* forGen, struct region_reference* ref, gc_fixer_callback fixer);
+void gc_fix_object_refs(struct gc_state* self, struct region* sourceGen, struct object_info* ref);
+void gc_fix_object_refs_custom(struct gc_state* self, struct region* sourceGen, struct object_info* ref, gc_fixer_callback fixer);
 
 #endif
 

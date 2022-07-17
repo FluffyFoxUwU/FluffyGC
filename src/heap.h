@@ -75,9 +75,15 @@ struct object_info {
   bool isMoved;
   struct {
     struct region_reference* oldLocation;
+    struct object_info* oldLocationInfo;
     struct region_reference* newLocation;
     struct object_info* newLocationInfo;
   } moveData;
+};
+
+struct thread_data {
+  struct thread* thread;
+  int numberOfTimeEnteredUnsafeGC;
 };
 
 struct heap {
@@ -106,20 +112,30 @@ struct heap {
   // of old generation)
   float concurrentOldGCthreshold;
   
-  volatile bool gcCompleted;
-  volatile int gcCompletedWaitingCount;
+  ///////////////////////////////////////////////
+  // For sending signal that request completed //
+  ///////////////////////////////////////////////
+  volatile bool gcCompleted; 
   pthread_mutex_t gcCompletedLock;
   pthread_cond_t gcCompletedCond;
-  
+  ///////////////////////////////////////////////
+
+  //////////////////////////////////////////
+  // For sending request to the GC thread //
+  //////////////////////////////////////////
   volatile bool gcRequested; 
   volatile enum gc_request_type gcRequestedType;
   pthread_mutex_t gcMayRunLock;
   pthread_cond_t gcMayRunCond;
+  //////////////////////////////////////////
 
-  // If non-zero GC can't start and
-  // must remain blocked
-  atomic_int votedToBlockGC;
- 
+  // If there any writer
+  // GC is not safe to run
+  // 
+  // honestly i never success making
+  // this without abusing rwlock
+  pthread_rwlock_t gcUnsafeRwlock;
+
   // Thread informations
   pthread_key_t currentThreadKey;
   
@@ -167,7 +183,11 @@ struct root_reference* heap_array_read(struct heap* self, struct root_reference*
 void heap_enter_unsafe_gc(struct heap* self);
 void heap_exit_unsafe_gc(struct heap* self);
 
+// Block if GC currently running
+void heap_wait_gc(struct heap* self);
+
 void heap_call_gc(struct heap* self, enum gc_request_type requestType);
+void heap_call_gc_blocking(struct heap* self, enum gc_request_type requestType);
 
 // Threads stuffs
 bool heap_is_attached(struct heap* self);
@@ -175,13 +195,18 @@ bool heap_attach_thread(struct heap* self);
 void heap_detach_thread(struct heap* self);
 bool heap_resize_threads_list(struct heap* self, int newSize);
 bool heap_resize_threads_list_no_lock(struct heap* self, int newSize);
-struct thread* heap_get_thread(struct heap* self);
+struct thread_data* heap_get_thread_data(struct heap* self);
 
 // Object allocations
 struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc);
 struct root_reference* heap_array_new(struct heap* self, int size);
 
-// Reset all fielda
+// Arbitrary size object with no pointer
+// in it (still need write data and read
+// data functions)
+struct root_reference* heap_obj_opaque_new(struct heap* self, size_t size);
+
+// Reset all fields
 void heap_reset_object_info(struct heap* self, struct object_info* info);
 
 // Gets
@@ -191,7 +216,7 @@ struct region* heap_get_region2(struct heap* self, struct root_reference* data);
 struct object_info* heap_get_object_info(struct heap* heap, struct region_reference* ref);
 
 // Events
-void heap_on_object_sweep(struct heap* self, struct object_info* obj);
+void heap_sweep_an_object(struct heap* self, struct object_info* obj);
 
 // Reports
 ATTRIBUTE((format(printf, 2, 3)))

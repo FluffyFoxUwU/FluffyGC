@@ -19,8 +19,8 @@ static void* get_cell_addr(struct region* self, cellid_t cellid) {
 }
 
 cellid_t region_get_cellid(struct region* self, void* data) {
-  assert(data <= self->topRegion && 
-         data >= self->region);
+  if (data > self->topRegion || data < self->region)
+    return -1;
   return (data - self->region) / FLUFFYGC_REGION_CELL_SIZE;
 }
 
