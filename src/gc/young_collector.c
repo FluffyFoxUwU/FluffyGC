@@ -27,7 +27,7 @@ static bool iterateCardTable(struct gc_state* self, cardtable_iterator iterator)
     if (atomic_load(&self->heap->oldToYoungCardTable[i]) != true)
       continue;
     
-    cellid_t rangeStart = i * FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE;
+    int rangeStart = i * FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE;
     
     for (int j = 0; j < FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE; j++) {
       struct object_info* info = &self->heap->oldObjects[rangeStart + j];
@@ -175,7 +175,7 @@ void gc_young_collect(struct gc_state* self) {
   fixAddr(self, false);
   profiler_end(self->profiler); 
   
-  profiler_begin(self->profiler, "post-sweep"); 
+  profiler_begin(self->profiler, "reset-relocation-info"); 
   region_wipe(self->heap->youngGeneration);
   gc_clear_old_to_young_card_table(self);
   

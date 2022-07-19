@@ -26,7 +26,7 @@ static bool iterateCardTable(struct gc_state* self, cardtable_iterator iterator)
     if (atomic_load(&self->heap->youngToOldCardTable[i]) != true)
       continue;
     
-    cellid_t rangeStart = i * FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE;
+    int rangeStart = i * FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE;
     
     for (int j = 0; j < FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE; j++) {
       struct object_info* info = &self->heap->youngObjects[rangeStart + j];

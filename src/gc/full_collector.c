@@ -56,7 +56,7 @@ void gc_full_collect(struct gc_state* self, bool isExplicit) {
     if (region != heap->oldGeneration)
       return ptr;
 
-    cellid_t id = region_get_cellid(region, ptr);
+    int id = region_get_cellid(region, ptr);
     struct region_reference* newObject = self->fullGC.oldLookup[id];
     assert(newObject);
     return newObject->data;
@@ -75,7 +75,10 @@ void gc_full_collect(struct gc_state* self, bool isExplicit) {
     int newLocation = currentObjectInfo->regionRef->id;
     
     // In theory it shouldnt overlap anything
-    assert(!heap->oldObjects[newLocation].isValid);
+    // except itself
+    struct object_info oldObjectInfo = heap->oldObjects[newLocation];
+    if (oldObjectInfo.isValid && oldObjectInfo.regionRef != currentObjectInfo->regionRef) 
+      abort();
 
     heap->oldObjects[newLocation] = *currentObjectInfo;
     heap_reset_object_info(heap, currentObjectInfo);

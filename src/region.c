@@ -13,20 +13,20 @@
 #include "asan_stuff.h"
 #include "util.h"
 
-static void* get_cell_addr(struct region* self, cellid_t cellid) {
+static void* get_cell_addr(struct region* self, int cellid) {
   assert(cellid < self->sizeInCells);
   return self->region + (FLUFFYGC_REGION_CELL_SIZE * cellid);
 }
 
-cellid_t region_get_cellid(struct region* self, void* data) {
+int region_get_cellid(struct region* self, void* data) {
   if (data > self->topRegion || data < self->region)
     return -1;
   return (data - self->region) / FLUFFYGC_REGION_CELL_SIZE;
 }
 
 /*
-cellid_t region_get_cellid_mapped(struct region* self, void* data) {
-  cellid_t id = region_get_cellid(self, data);
+int region_get_cellid_mapped(struct region* self, void* data) {
+  int id = region_get_cellid(self, data);
   if (id < 0)
     return id;
 
@@ -38,7 +38,7 @@ cellid_t region_get_cellid_mapped(struct region* self, void* data) {
 struct region_reference* region_get_ref(struct region* self, void* data) {
   if (data < self->region || data > self->topRegion)
     return NULL;
-  cellid_t id = region_get_cellid(self, data);
+  int id = region_get_cellid(self, data);
   if (id < 0)
     return NULL;
 
@@ -59,14 +59,14 @@ size_t region_get_actual_allocated_size(size_t size) {
     requiredSize *= 3;
   }
   
-  cellid_t sizeInCells = requiredSize / FLUFFYGC_REGION_CELL_SIZE;
+  int sizeInCells = requiredSize / FLUFFYGC_REGION_CELL_SIZE;
   if (requiredSize % FLUFFYGC_REGION_CELL_SIZE > 0)
     sizeInCells++;
   
   return sizeInCells * FLUFFYGC_REGION_CELL_SIZE;
 }
 
-static void poison_cells(struct region* self, cellid_t cellStart, int count) {
+static void poison_cells(struct region* self, int cellStart, int count) {
   assert(cellStart + count < self->sizeInCells); /* Check cells range */
   if (!FLUFFYGC_ASAN_ENABLED || !FLUFFYGC_REGION_ENABLE_POISONING)
     return;
@@ -75,7 +75,7 @@ static void poison_cells(struct region* self, cellid_t cellStart, int count) {
     asan_poison_memory_region(get_cell_addr(self, cellStart + i), FLUFFYGC_REGION_CELL_SIZE);
 }
 
-static void unpoison_cells(struct region* self, cellid_t cellStart, int count) {
+static void unpoison_cells(struct region* self, int cellStart, int count) {
   assert(cellStart + count < self->sizeInCells); /* Check cells range */
   if (!FLUFFYGC_ASAN_ENABLED || !FLUFFYGC_REGION_ENABLE_POISONING)
     return;
@@ -128,7 +128,7 @@ struct region* region_new(size_t size) {
       !self->cellIDMapping)
     goto failure;
   
-  for (cellid_t i = 0; i < sizeInCells; i++)
+  for (int i = 0; i < sizeInCells; i++)
     self->cellIDMapping[i] = i;
 
   poison_cells(self, 0, sizeInCells - 1);
@@ -157,7 +157,7 @@ void region_free(struct region* self) {
   free(self);
 }
 
-static void region_make_unavailable(struct region* self, cellid_t cell, int count) {
+static void region_make_unusable(struct region* self, int cell, int count) {
   for (int i = 0; i < count; i++) {
     assert(self->regionUsageLookup[cell + i] == true);
     self->regionUsageLookup[cell + i] = false;
@@ -166,7 +166,7 @@ static void region_make_unavailable(struct region* self, cellid_t cell, int coun
   poison_cells(self, cell, count);
 }
 
-static void region_make_available_no_unpoison(struct region* self, cellid_t cell, int count) {
+static void region_make_usable_no_unpoison(struct region* self, int cell, int count) {
   for (int i = 0; i < count; i++) {
     assert(self->regionUsageLookup[cell + i] == false);
     self->regionUsageLookup[cell + i] = true;
@@ -192,13 +192,13 @@ struct region_reference* region_alloc(struct region* self, size_t dataSize) {
     requiredSize *= 3;
   }
   
-  cellid_t sizeInCells = requiredSize / FLUFFYGC_REGION_CELL_SIZE;
+  int sizeInCells = requiredSize / FLUFFYGC_REGION_CELL_SIZE;
   if (requiredSize % FLUFFYGC_REGION_CELL_SIZE > 0)
     sizeInCells++;
 
   pthread_rwlock_rdlock(&self->compactionAndWipingLock);
   
-  cellid_t newCellID;
+  int newCellID;
   if (!util_atomic_add_if_less_int(&self->bumpPointer, sizeInCells, self->sizeInCells, &newCellID))
     goto failure;
 
@@ -216,13 +216,12 @@ struct region_reference* region_alloc(struct region* self, size_t dataSize) {
   ref->dataSize = dataSize;
   ref->redzoneOffset = redzoneOffset;
   ref->poisonSize = poisonSize;
-  ref->isPinned = false;
   ref->owner = self;
 
   self->referenceLookup[newCellID] = ref;
   self->cellIDMapping[region_get_cellid(self, ref->data)] = newCellID;
 
-  region_make_available_no_unpoison(self, ref->id, sizeInCells);
+  region_make_usable_no_unpoison(self, ref->id, sizeInCells);
   if (FLUFFYGC_REGION_ENABLE_POISONING)
     asan_unpoison_memory_region(ref->data, poisonSize);
 
@@ -244,9 +243,9 @@ static void region_dealloc_no_lock(struct region* self, struct region_reference*
   
   atomic_fetch_sub(&self->usage, ref->sizeInCells * FLUFFYGC_REGION_CELL_SIZE);
 
-  region_make_unavailable(self, ref->id, ref->sizeInCells);
+  region_make_unusable(self, ref->id, ref->sizeInCells);
   self->referenceLookup[ref->id] = NULL;
-  cellid_t mappingIndex = region_get_cellid(self, ref->data);
+  int mappingIndex = region_get_cellid(self, ref->data);
   self->cellIDMapping[mappingIndex] = mappingIndex;
   free(ref);
 }
@@ -269,43 +268,86 @@ void region_wipe(struct region *self) {
   pthread_rwlock_unlock(&self->compactionAndWipingLock);
 }
 
-static bool region_move_cell(struct region* self, cellid_t src, cellid_t dest) {
+static void region_move_cell(struct region* self, int src, int dest) {
   assert(src < self->sizeInCells);
   assert(dest < self->sizeInCells);
   assert(self->regionUsageLookup[src] == true);
   assert(self->regionUsageLookup[dest] == false);
-  
+  assert(src > dest);
+
   struct region_reference* ref = self->referenceLookup[src];
-  if (ref->isPinned > 0)
-    return false; /* Object is pinned can't move */
+  int oldID = ref->id;
 
   void* newCellArea = get_cell_addr(self, dest);
   void* oldArea = ref->data;
   ref->data = newCellArea + ref->redzoneOffset;
   ref->id = dest;
   
-  region_make_available_no_unpoison(self, dest, ref->sizeInCells);
+  int x1 = oldID;
+  int x2 = oldID + ref->sizeInCells;
+  int y1 = dest;
+  int y2 = dest + ref->sizeInCells;
+  // https://stackoverflow.com/a/12888920/13447666
+  // plus few comments for getting 
+  // overlapped range
+  bool isOverlap = (x1 >= y1 && x1 <= y2) ||
+                   (x2 >= y1 && x2 <= y2) ||
+                   (y1 >= x1 && y1 <= x2) ||
+                   (y2 >= x1 && y2 <= x2);
+  
+  // min(x2,y2) - max(x1,y1)
+  int overlapSize = (x2 < y2 ? x2 : y2) -
+                    (x1 > y1 ? x1 : y1);
+  
+  if (isOverlap && overlapSize == 0)
+    isOverlap = false;
+
+  // max(x1, y1)
+  int overlapStart = (x1 > y1 ? x1 : y1);
+  int overlapEnd = overlapStart + overlapSize;
+
+  int leftZoneSize = overlapStart - src;
+  int rightZoneSize = overlapEnd - dest;
+    
+  if (isOverlap) {
+    printf("Old[0]: %d\n", x1);
+    printf("Old[1]: %d\n", x2);
+    printf("New[0]: %d\n", y1);
+    printf("New[1]: %d\n", y2);
+    printf("Overlap[0]: %d\n", overlapStart);
+    printf("Overlap[1]: %d\n", overlapEnd);
+    printf("Overlap size: %d\n", overlapSize);
+    printf("Left zone size: %d\n", leftZoneSize);
+    printf("Right zone size: %d\n", rightZoneSize);
+  }
+
+  if (isOverlap && leftZoneSize > 0)
+    region_make_usable_no_unpoison(self, dest, leftZoneSize);
+  else
+    region_make_usable_no_unpoison(self, dest, ref->sizeInCells);
+  
   if (FLUFFYGC_REGION_ENABLE_POISONING)
     asan_unpoison_memory_region(ref->data, ref->poisonSize);
   
   // Copy the data
-  memcpy(ref->data, oldArea, ref->dataSize);
+  memmove(ref->data, oldArea, ref->dataSize);
 
-  region_make_unavailable(self, src, ref->sizeInCells);
-   
+  if (isOverlap && rightZoneSize > 0)
+    region_make_unusable(self, overlapEnd, rightZoneSize);
+  else
+    region_make_unusable(self, src, ref->sizeInCells);
+  
   self->referenceLookup[src] = NULL;
   self->referenceLookup[dest] = ref;
 
-  cellid_t newMapping = region_get_cellid(self, ref->data);
-  cellid_t oldMapping = region_get_cellid(self, oldArea);
-  self->cellIDMapping[newMapping] = ref->id;
+  int newMapping = region_get_cellid(self, ref->data);
+  int oldMapping = region_get_cellid(self, oldArea);
   self->cellIDMapping[oldMapping] = oldMapping;
-
-  return true;
+  self->cellIDMapping[newMapping] = ref->id;
 }
 
 static void region_move_bump_pointer_to_last_no_lock(struct region* self) {
-  cellid_t current = atomic_load(&self->bumpPointer);
+  int current = atomic_load(&self->bumpPointer);
   while (current >= 0 && !self->regionUsageLookup[current])
     current--;
 
@@ -317,43 +359,21 @@ static void region_move_bump_pointer_to_last_no_lock(struct region* self) {
 
 void region_compact(struct region* self) {
   pthread_rwlock_wrlock(&self->compactionAndWipingLock);
-  cellid_t dest = 0;
-  cellid_t src = 0;
+  int dest = 0;
+  int src = 0;
 
   // Anything after bumpPointer is just free cells
   while (src < self->bumpPointer) {
     if (self->regionUsageLookup[src]) {
       struct region_reference* ref = self->referenceLookup[src];
-      
-      // Check if destination is overlapped
-      // with pinned or used object if yes
-      // skip over
-      for (cellid_t i = dest; i < dest + ref->sizeInCells; i++) {
-        struct region_reference* current = self->referenceLookup[i];
-        if (current && current->isPinned > 0) {
-          dest = i + current->sizeInCells;
-          break;
-        }
-      }
-      
-      // Skip pinned objects
-      if (ref->isPinned) {
-        src += ref->sizeInCells;
+      if (!ref) {
+        src += 1;
         continue;
-      }
+      } 
 
       assert(dest < self->sizeInCells);
       assert(src < self->sizeInCells);
-
-      bool overlapping = false;
-      for (cellid_t i = dest; i < dest + ref->sizeInCells; i++) {
-        if (self->regionUsageLookup[i]) {
-          overlapping = true;
-          break;
-        }
-      }
-      
-      if (!overlapping && src != dest)
+      if (src != dest)
         region_move_cell(self, src, dest);
 
       src += ref->sizeInCells;
@@ -377,19 +397,6 @@ void region_write(struct region* self, struct region_reference* ref, size_t offs
   pthread_rwlock_rdlock(&self->compactionAndWipingLock);
   memcpy(ref->data + offset, buffer, size);
   pthread_rwlock_unlock(&self->compactionAndWipingLock); 
-}
-
-void region_pin_object(struct region* self, struct region_reference* data) {
-  pthread_rwlock_rdlock(&self->compactionAndWipingLock);
-  atomic_fetch_add(&data->isPinned, 1);
-  pthread_rwlock_unlock(&self->compactionAndWipingLock);
-}
-
-void region_unpin_object(struct region* self, struct region_reference* data) {
-  pthread_rwlock_rdlock(&self->compactionAndWipingLock);
-  int prev = atomic_fetch_sub(&data->isPinned, 1);
-  assert(prev > 0);
-  pthread_rwlock_unlock(&self->compactionAndWipingLock);
 }
 
 void region_move_bump_pointer_to_last(struct region* self) {

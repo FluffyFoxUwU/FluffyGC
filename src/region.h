@@ -27,9 +27,6 @@ Legend:
  F = Free cellid
 */
 
-typedef int cellid_t;
-typedef atomic_int atomic_cellid_t;
-
 struct region {
   void* region;
   
@@ -39,12 +36,12 @@ struct region {
   size_t sizeInCells;
 
   volatile atomic_size_t usage;
-  volatile atomic_cellid_t bumpPointer;
+  volatile atomic_int bumpPointer;
 
   // True if used and false if free
   bool* regionUsageLookup;
   struct region_reference** referenceLookup;
-  cellid_t* cellIDMapping;
+  int* cellIDMapping;
 
   // read lock if its unsafe to compact / wipe
   // write lock if attempting to compact / wipe
@@ -53,10 +50,8 @@ struct region {
 
 struct region_reference {
   struct region* owner;
-  cellid_t id;
+  int id;
   void* volatile data;
-
-  atomic_int isPinned;
 
   size_t dataSize;
   size_t sizeInCells;
@@ -80,11 +75,7 @@ void region_compact(struct region* self);
 void region_wipe(struct region* self);
 void region_move_bump_pointer_to_last(struct region* self);
 
-// Pin can be recursive
-void region_pin_object(struct region* self, struct region_reference* data);
-void region_unpin_object(struct region* self, struct region_reference* data);
-
-cellid_t region_get_cellid(struct region* self, void* data);
+int region_get_cellid(struct region* self, void* data);
 
 // Include requirement that need `size` to be
 // multiple of cell size and redzones if ASAN
