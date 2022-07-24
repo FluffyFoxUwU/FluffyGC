@@ -15,13 +15,13 @@
 
 static void* get_cell_addr(struct region* self, int cellid) {
   assert(cellid < self->sizeInCells);
-  return self->region + (FLUFFYGC_REGION_CELL_SIZE * cellid);
+  return self->region + (CONFIG_ALLOCATOR_CELL_SIZE * cellid);
 }
 
 int region_get_cellid(struct region* self, void* data) {
   if (data > self->topRegion || data < self->region)
     return -1;
-  return (data - self->region) / FLUFFYGC_REGION_CELL_SIZE;
+  return (data - self->region) / CONFIG_ALLOCATOR_CELL_SIZE;
 }
 
 /*
@@ -50,38 +50,38 @@ struct region_reference* region_get_ref(struct region* self, void* data) {
 
 size_t region_get_actual_allocated_size(size_t size) {
   size_t requiredSize = size;
-  if (FLUFFYGC_ASAN_ENABLED && FLUFFYGC_REGION_ENABLE_POISONING) {
+  if (IS_ENABLED(CONFIG_ASAN) && IS_ENABLED(CONFIG_REGION_POISON)) {
     // Size has to be multiples of poison
     // granularity for poisoning
-    if (requiredSize % FLUFFYGC_REGION_POISON_GRANULARITY > 0)
-      requiredSize += FLUFFYGC_REGION_POISON_GRANULARITY - (requiredSize % FLUFFYGC_REGION_POISON_GRANULARITY);
+    if (requiredSize % CONFIG_ALLOCATOR_POISON_GRANULARITY > 0)
+      requiredSize += CONFIG_ALLOCATOR_POISON_GRANULARITY - (requiredSize % CONFIG_ALLOCATOR_POISON_GRANULARITY);
 
     requiredSize *= 3;
   }
   
-  int sizeInCells = requiredSize / FLUFFYGC_REGION_CELL_SIZE;
-  if (requiredSize % FLUFFYGC_REGION_CELL_SIZE > 0)
+  int sizeInCells = requiredSize / CONFIG_ALLOCATOR_CELL_SIZE;
+  if (requiredSize % CONFIG_ALLOCATOR_CELL_SIZE > 0)
     sizeInCells++;
   
-  return sizeInCells * FLUFFYGC_REGION_CELL_SIZE;
+  return sizeInCells * CONFIG_ALLOCATOR_CELL_SIZE;
 }
 
 static void poison_cells(struct region* self, int cellStart, int count) {
   assert(cellStart + count < self->sizeInCells); /* Check cells range */
-  if (!FLUFFYGC_ASAN_ENABLED || !FLUFFYGC_REGION_ENABLE_POISONING)
+  if (!IS_ENABLED(CONFIG_ASAN) || !IS_ENABLED(CONFIG_REGION_POISON))
     return;
 
   for (unsigned int i = 0; i < count; i++)
-    asan_poison_memory_region(get_cell_addr(self, cellStart + i), FLUFFYGC_REGION_CELL_SIZE);
+    asan_poison_memory_region(get_cell_addr(self, cellStart + i), CONFIG_ALLOCATOR_CELL_SIZE);
 }
 
 static void unpoison_cells(struct region* self, int cellStart, int count) {
   assert(cellStart + count < self->sizeInCells); /* Check cells range */
-  if (!FLUFFYGC_ASAN_ENABLED || !FLUFFYGC_REGION_ENABLE_POISONING)
+  if (!IS_ENABLED(CONFIG_ASAN) || !IS_ENABLED(CONFIG_REGION_POISON))
     return;
 
   for (unsigned int i = 0; i < count; i++)
-    asan_unpoison_memory_region(get_cell_addr(self, cellStart + i), FLUFFYGC_REGION_CELL_SIZE);
+    asan_unpoison_memory_region(get_cell_addr(self, cellStart + i), CONFIG_ALLOCATOR_CELL_SIZE);
 }
 
 struct region* region_new(size_t size) {
@@ -91,9 +91,9 @@ struct region* region_new(size_t size) {
 
   // Correct the size
   size_t correctedSize = size;
-  if (correctedSize % FLUFFYGC_REGION_CELL_SIZE != 0) {
-    correctedSize -= correctedSize % FLUFFYGC_REGION_CELL_SIZE;
-    correctedSize += FLUFFYGC_REGION_CELL_SIZE;
+  if (correctedSize % CONFIG_ALLOCATOR_CELL_SIZE != 0) {
+    correctedSize -= correctedSize % CONFIG_ALLOCATOR_CELL_SIZE;
+    correctedSize += CONFIG_ALLOCATOR_CELL_SIZE;
   }
 
   // Limits to 2 billions cells
@@ -108,16 +108,16 @@ struct region* region_new(size_t size) {
   atomic_init(&self->usage, 0);
   pthread_rwlock_init(&self->compactionAndWipingLock, NULL);
  
-  size_t sizeInCells = correctedSize / FLUFFYGC_REGION_CELL_SIZE;
+  size_t sizeInCells = correctedSize / CONFIG_ALLOCATOR_CELL_SIZE;
 
   // Allocation calls
-  self->region = aligned_alloc(FLUFFYGC_REGION_CELL_ALIGNMENT, correctedSize);
+  self->region = aligned_alloc(CONFIG_ALLOCATOR_CELL_SIZE, correctedSize);
   self->referenceLookup = calloc(sizeInCells, sizeof(struct region_reference*));
   self->regionUsageLookup = calloc(sizeInCells, sizeof(*self->regionUsageLookup));
   self->cellIDMapping = calloc(sizeInCells, sizeof(*self->cellIDMapping));
   
   self->sizeInCells = sizeInCells;
-  self->topRegion = self->region + sizeInCells * FLUFFYGC_REGION_CELL_SIZE;
+  self->topRegion = self->region + sizeInCells * CONFIG_ALLOCATOR_CELL_SIZE;
  
   // Check in bulk if the allocation call is
   // just literally allocates memory (malloc, 
@@ -181,19 +181,19 @@ struct region_reference* region_alloc(struct region* self, size_t dataSize) {
   size_t redzoneOffset = 0;
   size_t requiredSize = dataSize;
   size_t poisonSize = 0;
-  if (FLUFFYGC_ASAN_ENABLED && FLUFFYGC_REGION_ENABLE_POISONING) {
+  if (IS_ENABLED(CONFIG_ASAN) && IS_ENABLED(CONFIG_REGION_POISON)) {
     // Size has to be multiples of poison
     // granularity for poisoning
-    if (requiredSize % FLUFFYGC_REGION_POISON_GRANULARITY > 0)
-      requiredSize += FLUFFYGC_REGION_POISON_GRANULARITY - (requiredSize % FLUFFYGC_REGION_POISON_GRANULARITY);
+    if (requiredSize % CONFIG_ALLOCATOR_POISON_GRANULARITY > 0)
+      requiredSize += CONFIG_ALLOCATOR_POISON_GRANULARITY - (requiredSize % CONFIG_ALLOCATOR_POISON_GRANULARITY);
 
     redzoneOffset = requiredSize;
     poisonSize = requiredSize;
     requiredSize *= 3;
   }
   
-  int sizeInCells = requiredSize / FLUFFYGC_REGION_CELL_SIZE;
-  if (requiredSize % FLUFFYGC_REGION_CELL_SIZE > 0)
+  int sizeInCells = requiredSize / CONFIG_ALLOCATOR_CELL_SIZE;
+  if (requiredSize % CONFIG_ALLOCATOR_CELL_SIZE > 0)
     sizeInCells++;
 
   pthread_rwlock_rdlock(&self->compactionAndWipingLock);
@@ -208,7 +208,7 @@ struct region_reference* region_alloc(struct region* self, size_t dataSize) {
     goto failure;
   }
 
-  atomic_fetch_add(&self->usage, sizeInCells * FLUFFYGC_REGION_CELL_SIZE);
+  atomic_fetch_add(&self->usage, sizeInCells * CONFIG_ALLOCATOR_CELL_SIZE);
 
   ref->id = newCellID;
   ref->data = get_cell_addr(self, newCellID) + redzoneOffset;
@@ -222,7 +222,7 @@ struct region_reference* region_alloc(struct region* self, size_t dataSize) {
   self->cellIDMapping[region_get_cellid(self, ref->data)] = newCellID;
 
   region_make_usable_no_unpoison(self, ref->id, sizeInCells);
-  if (FLUFFYGC_REGION_ENABLE_POISONING)
+  if (IS_ENABLED(CONFIG_REGION_POISON))
     asan_unpoison_memory_region(ref->data, poisonSize);
 
   pthread_rwlock_unlock(&self->compactionAndWipingLock);
@@ -241,7 +241,7 @@ static void region_dealloc_no_lock(struct region* self, struct region_reference*
   if (!ref)
     return;
   
-  atomic_fetch_sub(&self->usage, ref->sizeInCells * FLUFFYGC_REGION_CELL_SIZE);
+  atomic_fetch_sub(&self->usage, ref->sizeInCells * CONFIG_ALLOCATOR_CELL_SIZE);
 
   region_make_unusable(self, ref->id, ref->sizeInCells);
   self->referenceLookup[ref->id] = NULL;
@@ -273,7 +273,11 @@ static void region_move_cell(struct region* self, int src, int dest) {
   assert(dest < self->sizeInCells);
   assert(self->regionUsageLookup[src] == true);
   assert(self->regionUsageLookup[dest] == false);
-  assert(src > dest);
+  
+  if (src < dest)
+    abort();
+  else if (src == dest)
+   return;
 
   struct region_reference* ref = self->referenceLookup[src];
   int oldID = ref->id;
@@ -306,9 +310,16 @@ static void region_move_cell(struct region* self, int src, int dest) {
   int overlapStart = (x1 > y1 ? x1 : y1);
   int overlapEnd = overlapStart + overlapSize;
 
-  int leftZoneSize = overlapStart - src;
-  int rightZoneSize = overlapEnd - dest;
-    
+  int leftZoneSize = overlapStart - y1;
+  int rightZoneSize = x2 - overlapEnd;
+  
+  /*
+   *   |xxx|      overlapped
+   *   |      |   source
+   * |     |      dest
+   *
+   */
+
   if (isOverlap) {
     printf("Old[0]: %d\n", x1);
     printf("Old[1]: %d\n", x2);
@@ -326,7 +337,7 @@ static void region_move_cell(struct region* self, int src, int dest) {
   else
     region_make_usable_no_unpoison(self, dest, ref->sizeInCells);
   
-  if (FLUFFYGC_REGION_ENABLE_POISONING)
+  if (IS_ENABLED(CONFIG_REGION_POISON))
     asan_unpoison_memory_region(ref->data, ref->poisonSize);
   
   // Copy the data

@@ -105,6 +105,44 @@ void gc_trigger_full_collection(struct gc_state* self, enum report_type reason, 
   gcTriggerFullCollection(self, isExplicit);
 }
 
+static void serve(struct gc_state* self, enum gc_request_type requestType, bool* shuttingDown) {
+  struct heap* heap = self->heap;
+  profiler_reset(self->profiler);
+  profiler_start(self->profiler);
+   
+  bool canSignalCompletion = true;
+
+  switch (requestType) {
+    case GC_REQUEST_SHUTDOWN:
+      *shuttingDown = true;
+      break;
+    case GC_REQUEST_COLLECT_YOUNG:
+      gcTriggerYoungCollection(self);
+      break;
+    case GC_REQUEST_COLLECT_OLD:
+      gcTriggerOldCollection(self);
+      break;
+    case GC_REQUEST_COLLECT_FULL:
+      gcTriggerFullCollection(self, true);
+      break;
+    case GC_REQUEST_START_CONCURRENT:
+      break;
+    case GC_REQUEST_UNKNOWN:
+      abort();
+  }
+  
+  profiler_stop(self->profiler);
+ 
+  if (canSignalCompletion) {
+    profiler_dump(self->profiler, stderr);
+    
+    pthread_mutex_lock(&heap->gcCompletedLock);
+    heap->gcCompleted = true;
+    pthread_mutex_unlock(&heap->gcCompletedLock);
+    pthread_cond_broadcast(&heap->gcCompletedCond);
+  }
+}
+
 static void* mainThread(void* _self) {
   prctl(PR_SET_NAME, "GC-Thread");
   
@@ -112,12 +150,11 @@ static void* mainThread(void* _self) {
   struct heap* heap = self->heap;
   bool shuttingDown = false;
 
+  pthread_mutex_lock(&heap->gcMayRunLock);
   while (!shuttingDown) {
     enum gc_request_type requestType;
     bool isRequested;
-     
-    pthread_mutex_lock(&heap->gcMayRunLock);
-
+    
     heap->gcRequested = false;
     while (!heap->gcRequested)
       pthread_cond_wait(&heap->gcMayRunCond, &heap->gcMayRunLock); 
@@ -125,55 +162,23 @@ static void* mainThread(void* _self) {
     isRequested = heap->gcRequested;
     requestType = heap->gcRequestedType;
     
-    pthread_mutex_unlock(&heap->gcMayRunLock);
-    pthread_rwlock_wrlock(&heap->gcUnsafeRwlock); 
     
-    profiler_reset(self->profiler);
-    profiler_start(self->profiler);
-     
+    pthread_rwlock_wrlock(&heap->gcUnsafeRwlock); 
     size_t prevYoungSize = atomic_load(&heap->youngGeneration->usage);
     size_t prevOldSize = atomic_load(&heap->oldGeneration->usage);
-    bool canSignalCompletion = true;
-
-    switch (requestType) {
-      case GC_REQUEST_SHUTDOWN:
-        shuttingDown = true;
-        break;
-      case GC_REQUEST_COLLECT_YOUNG:
-        gcTriggerYoungCollection(self);
-        break;
-      case GC_REQUEST_COLLECT_OLD:
-        gcTriggerOldCollection(self);
-        break;
-      case GC_REQUEST_COLLECT_FULL:
-        gcTriggerFullCollection(self, true);
-        break;
-      case GC_REQUEST_START_CONCURRENT:
-        break;
-      case GC_REQUEST_UNKNOWN:
-        abort();
-    }
+    
+    // Process the request
+    serve(self, requestType, &shuttingDown);
     
     size_t youngSize = atomic_load(&heap->youngGeneration->usage);
     size_t oldSize = atomic_load(&heap->oldGeneration->usage);
-
     printf("[GC] Young usage: %.2f -> %.2f MiB\n", (double) prevYoungSize / 1024 / 1024,
                                                    (double) youngSize / 1024/ 1024);
     printf("[GC] Old   usage: %.2f -> %.2f MiB\n", (double) prevOldSize / 1024 / 1024,
-                                                   (double) oldSize / 1024/ 1024);
-    profiler_stop(self->profiler);
-   
-    if (canSignalCompletion) {
-      profiler_dump(self->profiler, stderr);
-      
-      pthread_mutex_lock(&heap->gcCompletedLock);
-      heap->gcCompleted = true;
-      pthread_mutex_unlock(&heap->gcCompletedLock);
-      pthread_cond_broadcast(&heap->gcCompletedCond);
-    }
-
+                                                 (double) oldSize / 1024/ 1024);
     pthread_rwlock_unlock(&heap->gcUnsafeRwlock);
   }
+  pthread_mutex_unlock(&heap->gcMayRunLock);
 
   return NULL;
 }

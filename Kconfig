@@ -1,0 +1,122 @@
+mainmenu "FluffyGC Configuration"
+
+menu Debugging
+  config DEBUG
+    bool "Enable debug mode"
+    default n
+    help
+      Enable all debugging checks and options
+  
+  choice
+    prompt "Additional sanitizer"
+    depends on DEBUG
+    optional
+
+    config ASAN
+      bool "Enable Address Sanitizer"
+    config TSAN
+      bool "Enable Thread Sanitizer" 
+    config MSAN
+      bool "Enable Memory Sanitizer"
+  endchoice
+  
+  config UBSAN
+    bool "Enable Undefined behavior Sanitizer"
+    default n
+    depends on DEBUG
+endmenu
+
+menu Allocator
+  choice
+    prompt "Select cell size"
+    default ALLOCATOR_CELL_SIZE_512
+    help 
+      Depends average object size in your
+      program, setting to larger or lower 
+      value may improve performance
+      Default is 512 bytes
+
+   config ALLOCATOR_CELL_SIZE_128
+     bool "128 bytes"
+   config ALLOCATOR_CELL_SIZE_256
+     bool "256 bytes"
+   config ALLOCATOR_CELL_SIZE_512
+     bool "512 bytes"
+   config ALLOCATOR_CELL_SIZE_1024
+     bool "1024 bytes"
+   config ALLOCATOR_CELL_SIZE_2048
+     bool "2048 bytes"
+  endchoice
+
+  config ALLOCATOR_CELL_SIZE
+    int
+    default 128     if ALLOCATOR_CELL_SIZE_128
+    default 256     if ALLOCATOR_CELL_SIZE_256
+    default 512     if ALLOCATOR_CELL_SIZE_512
+    default 1024    if ALLOCATOR_CELL_SIZE_1024
+    default 2048    if ALLOCATOR_CELL_SIZE_2048
+  
+  config ALLOCATOR_POISON
+    bool "Enable poisoning" if ASAN
+    default y if ASAN
+    help
+      Enable poisoning unallocated cells and 
+      enable redzones (Useful for debugging)
+
+  config ALLOCATOR_POISON_GRANULARITY
+    int "Poison granularity" if ASAN && ALLOCATOR_POISON
+    range 1 16
+    default 8
+endmenu
+
+menu General
+  choice
+    prompt "Cells per card table entry"
+    default CARD_TABLE_PER_BUCKET_SIZE_64
+
+    config CARD_TABLE_PER_BUCKET_SIZE_16
+      bool "16 cells"
+    config CARD_TABLE_PER_BUCKET_SIZE_32
+      bool "32 cells"
+    config CARD_TABLE_PER_BUCKET_SIZE_64
+      bool "64 cells"
+    config CARD_TABLE_PER_BUCKET_SIZE_128
+      bool "128 cells"
+    config CARD_TABLE_PER_BUCKET_SIZE_256
+      bool "256 cells"
+  endchoice
+
+  config CARD_TABLE_PER_BUCKET_SIZE
+    int
+    default 16     if CARD_TABLE_PER_BUCKET_SIZE_16
+    default 32     if CARD_TABLE_PER_BUCKET_SIZE_32
+    default 64     if CARD_TABLE_PER_BUCKET_SIZE_64
+    default 128    if CARD_TABLE_PER_BUCKET_SIZE_128
+    default 256    if CARD_TABLE_PER_BUCKET_SIZE_256
+
+  config VERSION_MAJOR
+    int
+    default 1
+
+  config VERSION_MINOR
+    int
+    default 0
+
+  config VERSION_PATCH
+    int
+    default 0
+
+  config VERSION_LOCAL_VERSION
+    string "Local version"
+    default ""
+    help
+      Appended to the end of version string
+
+  config THREAD_LIST_STEP_SIZE
+    int "Step size of thread list"
+    range 1 50
+    default 10
+    help
+      Set auto resize step size of list of threads
+endmenu
+

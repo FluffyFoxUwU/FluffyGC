@@ -15,30 +15,12 @@
 #include "young_collector.h"
 #include "gc.h"
 #include "marker.h"
+#include "cardtable_iterator.h"
 
 bool gc_old_pre_collect(struct gc_state* self) {
   return true;
 }
 
-typedef void (^cardtable_iterator)(struct object_info* info, int index);
-static bool iterateCardTable(struct gc_state* self, cardtable_iterator iterator) {
-  for (int i = 0; i < self->heap->youngToOldCardTableSize; i++) { 
-    if (atomic_load(&self->heap->youngToOldCardTable[i]) != true)
-      continue;
-    
-    int rangeStart = i * FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE;
-    
-    for (int j = 0; j < FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE; j++) {
-      struct object_info* info = &self->heap->youngObjects[rangeStart + j];
-       
-      if (!info->regionRef || info->isValid == false)
-        continue;
-
-      iterator(info, i);
-    }
-  }
-  return true;
-}
 
 static void markPhase(struct gc_state* self) {
   profiler_begin(self->profiler, "mark");
@@ -50,7 +32,7 @@ static void markPhase(struct gc_state* self) {
     gc_marker_mark(self, heap->oldGeneration, info);
   });
 
-  iterateCardTable(self, ^void (struct object_info* info, int cardTableIndex) {
+  cardtable_iterator_do(heap, heap->youngObjects, heap->youngToOldCardTable, heap->youngToOldCardTableSize, ^void (struct object_info* info, int cardTableIndex) {
     gc_marker_mark(self, heap->oldGeneration, info);
   });
   

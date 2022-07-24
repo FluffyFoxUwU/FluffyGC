@@ -33,7 +33,7 @@ enum object_type {
   X(REPORT_OLD_ALLOCATION_FAILURE, "Old allocation failure") \
   X(REPORT_PROMOTION_FAILURE, "Promotion failure") \
   X(REPORT_OUT_OF_MEMORY, "Out of memory") \
-  X(REPORT_FULL_COLLECTION, "Full collection")
+  X(REPORT_FULL_COLLECTION, "Explicit full collection")
 
 enum report_type {
 # define X(name, ...) name,
@@ -100,6 +100,12 @@ struct heap {
   
   size_t oldToYoungCardTableSize;
   size_t youngToOldCardTableSize;
+  
+  // Atomic because there is
+  // multiple writes (reminder
+  // for myself to not keep
+  // converting bool to atomic_bool 
+  // and to bool repeatly)
   atomic_bool* oldToYoungCardTable;
   atomic_bool* youngToOldCardTable;
 

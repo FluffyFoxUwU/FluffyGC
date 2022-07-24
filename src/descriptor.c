@@ -7,6 +7,19 @@
 
 #include "descriptor.h"
 #include "region.h"
+#include "binary_search.h"
+
+static int compareByOffset(const void* _a, const void* _b) {
+  const struct descriptor_field* a = _a;
+  const struct descriptor_field* b = _b;
+
+  if (a->offset > b->offset)
+    return 1;
+  else if (a->offset < b->offset)
+    return -1;
+  else
+    return 0;
+}
 
 struct descriptor* descriptor_new(struct descriptor_typeid id, size_t objectSize, int numFields, struct descriptor_field* offsets) {
   struct descriptor* self = malloc(sizeof(*self) + sizeof(*offsets) * numFields);
@@ -14,7 +27,7 @@ struct descriptor* descriptor_new(struct descriptor_typeid id, size_t objectSize
     return NULL;
   
   self->numFields = numFields;
-  self->alreadyUnregistered = false;
+  atomic_init(&self->alreadyUnregistered, false);
   atomic_init(&self->counter, 1);
   self->id = id;
   self->id.name = strdup(id.name);
@@ -24,6 +37,8 @@ struct descriptor* descriptor_new(struct descriptor_typeid id, size_t objectSize
     self->fields[i].name = strdup(offsets[i].name);
   }
 
+  qsort(self->fields, numFields, sizeof(*self->fields), compareByOffset);
+  
   self->objectSize = objectSize;
   return self;
 }
@@ -60,12 +75,13 @@ void* descriptor_read_ptr(struct descriptor* self, struct region* region, struct
 }
 
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
-  // TODO: Convert this to be binary search
-  for (int i = 0; i < self->numFields; i++)
-    if (self->fields[i].offset == offset)
-      return i;
+  struct descriptor_field toSearch = {
+    .offset = offset,
+    .name = NULL,
+    .type = DESCRIPTOR_FIELD_TYPE_UNKNOWN
+  };
 
-  return -1;
+  return binary_search_do(self->fields, self->numFields, sizeof(*self->fields), compareByOffset, &toSearch);
 }
 
 

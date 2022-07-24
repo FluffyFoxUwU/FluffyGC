@@ -5,10 +5,6 @@ cmake_minimum_required(VERSION 3.18)
 #option(ENABLE_TSAN "Enable TSAN instrumentation" OFF)
 #option(ENABLE_XRAY "Enable LLVM's xray instrumentation" OFF)
 
-set(ENABLE_ASAN OFF CACHE BOOL "Enable ASAN instrumentation")
-set(ENABLE_MSAN OFF CACHE BOOL "Enable MSAN instrumentation")
-set(ENABLE_TSAN OFF CACHE BOOL "Enable TSAN instrumentation")
-set(ENABLE_XRAY OFF CACHE BOOL "Enable LLVM's xray instrumentation")
 
 project(FluffyGC VERSION 1.0.0
                  LANGUAGES C)
@@ -20,6 +16,31 @@ endif()
 # C standard checks
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+include(scripts/process_dot_config.cmake)
+
+set(ENABLE_ASAN OFF)
+set(ENABLE_MSAN OFF)
+set(ENABLE_TSAN OFF)
+set(ENABLE_XRAY OFF)
+
+if (DEFINED CONFIG_ASAN) 
+  set(ENABLE_ASAN ON)
+endif()
+
+if (DEFINED CONFIG_TSAN) 
+  set(ENABLE_TSAN ON)
+endif()
+
+if (DEFINED CONFIG_MSAN) 
+  set(ENABLE_MSAN ON)
+endif()
+
+if (DEFINED CONFIG_UBSAN) 
+  set(ENABLE_UBSAN ON)
+endif()
 
 #src/reference.c
 add_executable(FluffyGC src/main.c
@@ -41,6 +62,9 @@ add_executable(FluffyGC src/main.c
                         src/collection/list.c
                         src/collection/list_node.c
                         src/collection/list_iterator.c
+                        src/binary_search.c
+                        src/gc/cardtable_iterator.c
+                        src/api_layer/v1.c
                         )
 
 target_compile_options(FluffyGC PRIVATE "-g")
@@ -91,11 +115,14 @@ target_link_libraries(FluffyGC PRIVATE BlocksRuntime)
 target_link_libraries(FluffyGC PRIVATE pthread)
 
 target_include_directories(FluffyGC PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_include_directories(FluffyGC PRIVATE "${PROJECT_SOURCE_DIR}/include")
 target_include_directories(FluffyGC PRIVATE "${PROJECT_SOURCE_DIR}/src/collection")
 target_include_directories(FluffyGC PRIVATE "${PROJECT_SOURCE_DIR}/libs")
 target_include_directories(FluffyGC PRIVATE "${PROJECT_BINARY_DIR}/src")
 
 configure_file(src/config.h src/processed_config.h)
+# Abusing
+configure_file(${PROJECT_SOURCE_DIR}/.config ${PROJECT_BINARY_DIR}/.config)
 
 # Suppression files
 add_custom_command(TARGET FluffyGC POST_BUILD
@@ -103,7 +130,6 @@ add_custom_command(TARGET FluffyGC POST_BUILD
                            ${PROJECT_SOURCE_DIR}/suppressions/UBSan.supp
                            ${PROJECT_BINARY_DIR}/suppressions/UBSan.supp
                            )
-
 
 
 

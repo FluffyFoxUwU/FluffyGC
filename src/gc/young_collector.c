@@ -12,32 +12,13 @@
 #include "../descriptor.h"
 #include "../profiler.h"
 
+#include "cardtable_iterator.h"
 #include "young_collector.h"
 #include "full_collector.h"
 #include "gc.h"
 #include "marker.h"
 
 bool gc_young_pre_collect(struct gc_state* self) {
-  return true;
-}
-
-typedef void (^cardtable_iterator)(struct object_info* info, int index);
-static bool iterateCardTable(struct gc_state* self, cardtable_iterator iterator) {
-  for (int i = 0; i < self->heap->oldToYoungCardTableSize; i++) { 
-    if (atomic_load(&self->heap->oldToYoungCardTable[i]) != true)
-      continue;
-    
-    int rangeStart = i * FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE;
-    
-    for (int j = 0; j < FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE; j++) {
-      struct object_info* info = &self->heap->oldObjects[rangeStart + j];
-       
-      if (!info->regionRef || info->isValid == false)
-        continue;
-
-      iterator(info, i);
-    }
-  }
   return true;
 }
 
@@ -51,7 +32,7 @@ static void markPhase(struct gc_state* self) {
     gc_marker_mark(self, heap->youngGeneration, info);
   });
 
-  iterateCardTable(self, ^void (struct object_info* info, int cardTableIndex) {
+  cardtable_iterator_do(heap, heap->oldObjects, heap->oldToYoungCardTable, heap->oldToYoungCardTableSize, ^void (struct object_info* info, int cardTableIndex) {
     gc_marker_mark(self, heap->youngGeneration, info);
   });
   
@@ -111,7 +92,7 @@ static void fixAddr(struct gc_state* self, bool aboutToCallOldGC) {
     }
   }  
 
-  iterateCardTable(self, ^void (struct object_info* info, int cardTableIndex) {
+  cardtable_iterator_do(heap, heap->oldObjects, heap->oldToYoungCardTable, heap->oldToYoungCardTableSize, ^void (struct object_info* info, int cardTableIndex) {
     gc_fix_object_refs(self, self->heap->youngGeneration, info);
   });
   
@@ -145,7 +126,6 @@ void gc_young_collect(struct gc_state* self) {
       continue;
     }
 
-    //printf("Promoting %p\n", currentObject);
     struct region_reference* relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
     if (relocatedLocation)
       goto promotion_success;
@@ -160,10 +140,10 @@ void gc_young_collect(struct gc_state* self) {
     gc_trigger_full_collection(self, REPORT_PROMOTION_FAILURE, false);
 
     relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
-    // We're dead cant promote
     if (!relocatedLocation) {
       profiler_end(self->profiler);
-      goto promotion_failure;
+      heap_report_printf(heap, "Old generation exhausted cannot promote");
+      break;
     }
 
     promotion_success:
@@ -189,13 +169,12 @@ void gc_young_collect(struct gc_state* self) {
       relocated->moveData.newLocation = NULL;
       relocated->moveData.newLocationInfo = NULL;
     }
+    
     heap_reset_object_info(heap, currentObjectInfo);
-    currentObjectInfo->isValid = false;
     currentObjectInfo->isMoved = false;
   }
   profiler_end(self->profiler); 
 
-  promotion_failure:
   region_move_bump_pointer_to_last(self->heap->youngGeneration);
 }
 

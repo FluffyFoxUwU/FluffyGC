@@ -9,9 +9,16 @@
 struct region;
 struct region_reference;
 
+enum field_type {
+  DESCRIPTOR_FIELD_TYPE_UNKNOWN,
+  DESCRIPTOR_FIELD_TYPE_STRONG,
+  DESCRIPTOR_FIELD_TYPE_WEAK
+};
+
 struct descriptor_field {
   const char* name;
   size_t offset;
+  enum field_type type;
 };
 
 struct descriptor_typeid {

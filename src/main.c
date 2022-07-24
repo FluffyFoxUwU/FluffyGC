@@ -15,6 +15,7 @@
 #include "heap.h"
 #include "thread.h"
 #include "root.h"
+#include "config.h"
 #include "profiler.h"
 
 #define KiB * (1024)
@@ -71,10 +72,11 @@ static void* abuser(void* _heap) {
   struct descriptor_field fields[] = {
     {
       .name = "data",
-      .offset = offsetof(struct somedata, data)
+      .offset = offsetof(struct somedata, data),
+      .type = DESCRIPTOR_FIELD_TYPE_STRONG
     }
   };
-  
+ 
   struct heap* heap = _heap;
   struct descriptor* desc = heap_descriptor_new(heap, id, sizeof(struct somedata), sizeof(fields) / sizeof(*fields), fields);
   
@@ -150,12 +152,12 @@ int main2() {
   prctl(PR_SET_NAME, "Main");
 
   puts("Hello World!");
-  printf("FluffyGC Ver %d.%d.%d\n", FLUFFYGC_VERSION_MAJOR, FLUFFYGC_VERSION_MINOR, FLUFFYGC_VERSION_PATCH);
+  printf("FluffyGC Ver %d.%d.%d\n", CONFIG_VERSION_MAJOR, CONFIG_VERSION_MINOR, CONFIG_VERSION_PATCH);
 
 
   // Young is 1/3 of total
   // Old   is 2/3 of total
-  struct heap* heap = heap_new(8 MiB, 2 MiB, 32 KiB, 100, 0.45f);
+  struct heap* heap = heap_new(8 MiB, 24 MiB, 32 KiB, 100, 0.45f);
   assert(heap);
   
   int abuserCount = 6;
@@ -188,8 +190,7 @@ int main() {
   return res;
 }
 
-#if FLUFFYGC_ASAN_ENABLED
-// Force always slow unwind
+#if IS_ENABLED(CONFIG_ASAN)
 const char* __asan_default_options() {
   return "fast_unwind_on_malloc=0:"
          "detect_invalid_pointer_pairs=10:"
@@ -202,20 +203,20 @@ const char* __asan_default_options() {
 }
 #endif
 
-#if FLUFFYGC_UBSAN_ENABLED
+#if IS_ENABLED(CONFIG_UBSAN)
 const char* __ubsan_default_options() {
   return "print_stacktrace=1:"
          "suppressions=suppressions/UBSan.supp";
 }
 #endif
 
-#if FLUFFYGC_TSAN_ENABLED
+#if IS_ENABLED(CONFIG_TSAN)
 const char* __tsan_default_options() {
   return "second_deadlock_stack=1";
 }
 #endif
 
-#if FLUFFYGC_MSAN_ENABLED
+#if IS_ENABLED(CONFIG_MSAN)
 const char* __msan_default_options() {
   return "";
 }

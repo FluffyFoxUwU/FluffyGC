@@ -26,3 +26,6 @@ build
 *.profdata
 *.sqlite3
 saved.vim
+.config
+.config.*
+

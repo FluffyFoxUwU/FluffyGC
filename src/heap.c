@@ -52,11 +52,11 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
   if (!self->oldGeneration)
     goto failure;
  
-  size_t youngToOldCardTableSize = self->youngGeneration->sizeInCells / FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE;
-  size_t oldToYoungCardTableSize = self->oldGeneration->sizeInCells / FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE;
-  if (self->youngGeneration->sizeInCells % FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE > 0)
+  size_t youngToOldCardTableSize = self->youngGeneration->sizeInCells / CONFIG_CARD_TABLE_PER_BUCKET_SIZE;
+  size_t oldToYoungCardTableSize = self->oldGeneration->sizeInCells / CONFIG_CARD_TABLE_PER_BUCKET_SIZE;
+  if (self->youngGeneration->sizeInCells % CONFIG_CARD_TABLE_PER_BUCKET_SIZE > 0)
     youngToOldCardTableSize++;
-  if (self->oldGeneration->sizeInCells % FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE > 0)
+  if (self->oldGeneration->sizeInCells % CONFIG_CARD_TABLE_PER_BUCKET_SIZE> 0)
     oldToYoungCardTableSize++;
 
   self->oldToYoungCardTableSize = oldToYoungCardTableSize;
@@ -73,12 +73,12 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
       !self->youngObjects ||
       !self->oldObjects)
     goto failure;
-  
+   
   for (int i = 0; i < oldToYoungCardTableSize; i++)
     atomic_init(&self->oldToYoungCardTable[i], false);
   for (int i = 0; i < youngToOldCardTableSize; i++)
     atomic_init(&self->youngToOldCardTable[i], false);
-  
+
   for (int i = 0; i < self->youngGeneration->sizeInCells; i++) {
     atomic_init(&self->youngObjects[i].isMarked, false);
     heap_reset_object_info(self, &self->youngObjects[i]);
@@ -166,16 +166,21 @@ struct descriptor* heap_descriptor_new(struct heap* self, struct descriptor_type
   return NULL;
 }
 
-void heap_descriptor_release(struct heap* self, struct descriptor* desc) {
+void heap_descriptor_release(struct heap* self, struct descriptor* desc) { 
   if (!desc)
     return;
 
+  // Attempt to unregister twice
+  if (atomic_exchange(&desc->alreadyUnregistered, true) == true)
+    abort();
+
   size_t descriptorSize = sizeof(struct descriptor) + sizeof(struct descriptor_field) * desc->numFields; 
-  if (descriptor_release(desc)) {
-    pthread_rwlock_wrlock(&self->lock);
-    self->metaspaceUsage -= descriptorSize;
-    pthread_rwlock_unlock(&self->lock);
-  }
+  if (!descriptor_release(desc))
+    abort();
+  
+  pthread_rwlock_wrlock(&self->lock);
+  self->metaspaceUsage -= descriptorSize;
+  pthread_rwlock_unlock(&self->lock);
 }
 
 struct region* heap_get_region(struct heap* self, void* data) {
@@ -227,7 +232,7 @@ struct region_reference* heap_get_region_ref(struct heap* self, void* data) {
   return region_get_ref(region, data);
 }
 
-static void writeCommon(struct heap* self, struct root_reference* object, size_t offset, struct root_reference* toWrite) {
+static void writePtrCommon(struct heap* self, struct root_reference* object, size_t offset, struct root_reference* toWrite) {
   struct region_reference* objectAsRegionRef = object->data;
   struct region* objectRegion = objectAsRegionRef->owner;
 
@@ -236,15 +241,15 @@ static void writeCommon(struct heap* self, struct root_reference* object, size_t
   struct region* childRegion = heap_get_region2(self, toWrite);
   if (childRegion != objectRegion) {
     if (childRegion == self->youngGeneration)
-      atomic_store(&self->oldToYoungCardTable[objectAsRegionRef->id / FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE], true); 
+      atomic_store(&self->oldToYoungCardTable[objectAsRegionRef->id / CONFIG_CARD_TABLE_PER_BUCKET_SIZE], true); 
     else
-      atomic_store(&self->youngToOldCardTable[objectAsRegionRef->id / FLUFFYGC_HEAP_CARD_TABLE_PER_BUCKET_SIZE], true); 
+      atomic_store(&self->youngToOldCardTable[objectAsRegionRef->id / CONFIG_CARD_TABLE_PER_BUCKET_SIZE], true); 
   }  
   
   region_write(objectRegion, objectAsRegionRef, offset, (void*) &toWrite->data->data, sizeof(void*));  
 }
 
-static struct root_reference* readCommon(struct heap* self, struct root_reference* object, size_t offset) { 
+static struct root_reference* readPtrCommon(struct heap* self, struct root_reference* object, size_t offset) { 
   struct region_reference* objectAsRegionRef = object->data;
   struct region* region = objectAsRegionRef->owner;
 
@@ -269,7 +274,7 @@ void heap_obj_write_ptr(struct heap* self, struct root_reference* object, size_t
   if (objectInfo->type != OBJECT_TYPE_NORMAL)
     abort();
 
-  writeCommon(self, object, offset, child);
+  writePtrCommon(self, object, offset, child);
   heap_exit_unsafe_gc(self);
 }
 
@@ -282,7 +287,7 @@ struct root_reference* heap_obj_read_ptr(struct heap* self, struct root_referenc
   if (objectInfo->type != OBJECT_TYPE_NORMAL)
     abort();
   
-  struct root_reference* ref = readCommon(self, object, offset);
+  struct root_reference* ref = readPtrCommon(self, object, offset);
   heap_exit_unsafe_gc(self);
   return ref;
 }
@@ -296,7 +301,7 @@ void heap_array_write(struct heap* self, struct root_reference* object, int inde
   if (objectInfo->type != OBJECT_TYPE_ARRAY)
     abort();
 
-  writeCommon(self, object, sizeof(void*) * index, child);
+  writePtrCommon(self, object, sizeof(void*) * index, child);
   heap_exit_unsafe_gc(self); 
 }
 
@@ -309,7 +314,7 @@ struct root_reference* heap_array_read(struct heap* self, struct root_reference*
   if (objectInfo->type != OBJECT_TYPE_ARRAY)
     abort();
   
-  struct root_reference* ref = readCommon(self, object, sizeof(void*) * index);
+  struct root_reference* ref = readPtrCommon(self, object, sizeof(void*) * index);
   heap_exit_unsafe_gc(self);
   return ref;
 }
@@ -333,7 +338,7 @@ bool heap_attach_thread(struct heap* self) {
 
   // Cant find free space
   if (freePos == self->threadsListSize)
-    if (!heap_resize_threads_list_no_lock(self, self->threadsListSize + FLUFFYGC_HEAP_THREAD_LIST_STEP_SIZE))
+    if (!heap_resize_threads_list_no_lock(self, self->threadsListSize + CONFIG_THREAD_LIST_STEP_SIZE))
       goto failure;
 
   thread = thread_new(self, freePos, self->localFrameStackSize);
@@ -432,17 +437,18 @@ void heap_call_gc(struct heap* self, enum gc_request_type requestType) {
 
   if (self->gcRequested && self->gcRequestedType == requestType) {
     pthread_mutex_unlock(&self->gcMayRunLock); 
-    return;
+    goto request_already_sent;
   }
   
-  self->gcCompleted = false;
   self->gcRequested = true;
   self->gcRequestedType = requestType;
 
   pthread_mutex_unlock(&self->gcMayRunLock); 
-  pthread_mutex_unlock(&self->gcCompletedLock);
   
   pthread_cond_broadcast(&self->gcMayRunCond); 
+
+  request_already_sent:
+  pthread_mutex_unlock(&self->gcCompletedLock);
 }
 
 void heap_call_gc_blocking(struct heap* self, enum gc_request_type requestType) {
@@ -450,10 +456,11 @@ void heap_call_gc_blocking(struct heap* self, enum gc_request_type requestType) 
   pthread_mutex_lock(&self->gcMayRunLock);
 
   if (self->gcRequested && self->gcRequestedType == requestType) {
+    heap_wait_gc_no_lock(self);
     pthread_mutex_unlock(&self->gcMayRunLock); 
-    return;
+    goto request_already_sent;
   }
-  
+
   self->gcCompleted = false;
   self->gcRequested = true;
   self->gcRequestedType = requestType;
@@ -461,8 +468,28 @@ void heap_call_gc_blocking(struct heap* self, enum gc_request_type requestType) 
   pthread_mutex_unlock(&self->gcMayRunLock); 
   pthread_cond_broadcast(&self->gcMayRunCond); 
   
+  request_already_sent:
   heap_wait_gc_no_lock(self);
   pthread_mutex_unlock(&self->gcCompletedLock);
+}
+
+static void onHeapExhaustion(struct heap* self) {
+  heap_report_printf(self, "Heap memory exhausted");
+}
+
+static void tryFixOOM(struct heap* self) {
+  heap_report_gc_cause(self, REPORT_OUT_OF_MEMORY);
+  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_FULL);
+}
+
+static void tryFixYoungExhaustion(struct heap* self) {
+  heap_report_gc_cause(self, REPORT_YOUNG_ALLOCATION_FAILURE);
+  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_YOUNG);
+}
+
+static void tryFixOldExhaustion(struct heap* self) {
+  heap_report_gc_cause(self, REPORT_OLD_ALLOCATION_FAILURE);
+  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_OLD);
 }
 
 static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {   
@@ -473,26 +500,24 @@ static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {
     goto allocation_success;
   
   heap_exit_unsafe_gc(self);
-  heap_report_gc_cause(self, REPORT_OLD_ALLOCATION_FAILURE);
-  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_OLD);
+  tryFixOldExhaustion(self);
   heap_enter_unsafe_gc(self);
-    
+
   regionRef = region_alloc_or_fit(self->oldGeneration, size);
-  
-  if (regionRef != NULL) 
+  if (regionRef != NULL)
     goto allocation_success;
   
   heap_exit_unsafe_gc(self);
-  heap_report_gc_cause(self, REPORT_OLD_ALLOCATION_FAILURE);
-  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_FULL);
+  tryFixOOM(self);
   heap_enter_unsafe_gc(self);
-  
-  regionRef = region_alloc_or_fit(self->oldGeneration, size);
-  // We're dead cant free enough space
-  if (!regionRef)
-    return NULL;
 
-  allocation_success:;
+  regionRef = region_alloc_or_fit(self->oldGeneration, size);
+  if (!regionRef) {
+    onHeapExhaustion(self);
+    return NULL;
+  }
+
+  allocation_success:
   return regionRef; 
 }
 
@@ -502,8 +527,7 @@ static struct region_reference* tryAllocateYoung(struct heap* self, size_t size)
     goto allocation_success;
   
   heap_exit_unsafe_gc(self);
-  heap_report_gc_cause(self, REPORT_YOUNG_ALLOCATION_FAILURE);
-  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_YOUNG);
+  tryFixYoungExhaustion(self);
   heap_enter_unsafe_gc(self);
   
   regionRef = region_alloc(self->youngGeneration, size);  
@@ -511,13 +535,12 @@ static struct region_reference* tryAllocateYoung(struct heap* self, size_t size)
     goto allocation_success;
 
   heap_exit_unsafe_gc(self);
-  heap_report_gc_cause(self, REPORT_YOUNG_ALLOCATION_FAILURE);
-  heap_call_gc_blocking(self, GC_REQUEST_COLLECT_FULL);
+  tryFixOOM(self);
   heap_enter_unsafe_gc(self);
-  
+
   regionRef = region_alloc(self->youngGeneration, size);  
   if (regionRef == NULL) {
-    heap_report_gc_cause(self, REPORT_OUT_OF_MEMORY);
+    onHeapExhaustion(self);
     return NULL;
   }
 
@@ -613,6 +636,9 @@ struct root_reference* heap_obj_opaque_new(struct heap* self, size_t size) {
 }
 
 struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc) {
+  if (atomic_load(&desc->alreadyUnregistered) == true)
+    abort();
+  
   pthread_mutex_lock(&self->allocLock);
   heap_enter_unsafe_gc(self);
   struct root_reference* rootRef = commonNew(self, desc->objectSize);
