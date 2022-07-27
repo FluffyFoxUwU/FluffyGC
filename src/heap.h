@@ -224,6 +224,9 @@ struct object_info* heap_get_object_info(struct heap* heap, struct region_refere
 // Events
 void heap_sweep_an_object(struct heap* self, struct object_info* obj);
 
+// Misc
+bool heap_is_array(struct heap* self, struct root_reference* ref);
+
 // Reports
 ATTRIBUTE((format(printf, 2, 3)))
 void heap_report_printf(struct heap* self, const char* fmt, ...); 

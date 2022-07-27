@@ -150,7 +150,13 @@ static void* mainThread(void* _self) {
   struct heap* heap = self->heap;
   bool shuttingDown = false;
 
+  pthread_mutex_lock(&self->isGCReadyLock);
+  self->isGCReady = true;
+  pthread_mutex_unlock(&self->isGCReadyLock);
+
   pthread_mutex_lock(&heap->gcMayRunLock);
+  pthread_cond_broadcast(&self->isGCReadyCond);
+
   while (!shuttingDown) {
     enum gc_request_type requestType;
     bool isRequested;
@@ -192,6 +198,10 @@ struct gc_state* gc_init(struct heap* heap) {
   self->statistics.youngGCCount = 0;
   self->statistics.youngGCTime = 0.0f;
   self->isGCThreadRunning = false;
+  self->isGCReady = false;
+
+  pthread_mutex_init(&self->isGCReadyLock, NULL);
+  pthread_cond_init(&self->isGCReadyCond, NULL);
 
   self->profiler = profiler_new();
   if (!self->profiler)
@@ -204,6 +214,11 @@ struct gc_state* gc_init(struct heap* heap) {
   if (pthread_create(&self->gcThread, NULL, mainThread, self) != 0)
     goto failure;
   self->isGCThreadRunning = true; 
+  
+  pthread_mutex_lock(&self->isGCReadyLock);
+  if (!self->isGCReady)
+    pthread_cond_wait(&self->isGCReadyCond, &self->isGCReadyLock);
+  pthread_mutex_unlock(&self->isGCReadyLock);
 
   return self;
 
@@ -215,12 +230,16 @@ struct gc_state* gc_init(struct heap* heap) {
 void gc_cleanup(struct gc_state* self) {
   if (!self)
     return;
-
-  heap_call_gc(self->heap, GC_REQUEST_SHUTDOWN);
+  
+  heap_call_gc_blocking(self->heap, GC_REQUEST_SHUTDOWN);
+  
   if (self->isGCThreadRunning)
     pthread_join(self->gcThread, NULL);
   if (self->profiler)
     profiler_free(self->profiler);
+  
+  pthread_mutex_destroy(&self->isGCReadyLock);
+  pthread_cond_destroy(&self->isGCReadyCond);
 
   free(self->fullGC.oldLookup);
   free(self);

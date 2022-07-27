@@ -8,7 +8,12 @@ struct reference;
 struct region_reference;
 
 struct root_reference {
+  // Used when CONFIG_DEBUG_DONT_REUSE_ROOT_REFERENCE
+  // enabled
+  struct root_reference* refToSelf;
+
   bool isValid;
+  int index;
 
   struct root* owner;
   

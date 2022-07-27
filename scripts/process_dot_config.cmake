@@ -15,6 +15,7 @@ string(REGEX REPLACE "CONFIG" "set(CONFIG" filedata "${filedata}")
 string(REGEX REPLACE "(set[^=]+)=y\n" "\\1, ON)\n" filedata "${filedata}")
 string(REGEX REPLACE "(set[^=]+)=n\n" "\\1, OFF)\n" filedata "${filedata}")
 string(REGEX REPLACE "(set[^=]+)=([^\n]+)\n" "\\1 \\2)\n" filedata "${filedata}")
+string(REGEX REPLACE "(CONFIG_[A-Z0-9a-z_]+)," "\\1" filedata "${filedata}")
 file(WRITE ${PROJECT_BINARY_DIR}/config.cmake "${filedata}")
 
 # Load CMake config

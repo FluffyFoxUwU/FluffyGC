@@ -18,8 +18,14 @@ struct root* root_new(int size) {
     goto failure;
   
   for (int i = 0; i < size; i++) {
+    if (IS_ENABLED(CONFIG_DEBUG_DONT_REUSE_ROOT_REFERENCE))
+      self->entries[i].refToSelf = NULL;
+    else
+      self->entries[i].refToSelf = &self->entries[i];
+    
     self->entries[i].isValid = false;
     self->entries[i].owner = self;
+    self->entries[i].index = i;
   }
   
   return self;
@@ -44,9 +50,23 @@ struct root_reference* root_add(struct root* self, struct region_reference* ref)
   if (freePos >= self->size)
     return NULL;
 
-  struct root_reference* rootRef = &self->entries[freePos];  
+  struct root_reference* rootRef;
+  if (IS_ENABLED(CONFIG_DEBUG_DONT_REUSE_ROOT_REFERENCE)) {
+    rootRef = malloc(sizeof(*rootRef));
+    rootRef->owner = self;
+  } else {
+    rootRef = &self->entries[freePos];
+  }
+
   rootRef->isValid = true;
   rootRef->data = ref;
+  rootRef->index = freePos;
+  rootRef->refToSelf = rootRef;
+
+  // Write back if dont reuse enabled
+  if (IS_ENABLED(CONFIG_DEBUG_DONT_REUSE_ROOT_REFERENCE))
+    self->entries[freePos] = *rootRef;
+  
   return rootRef;
 }
 
@@ -55,42 +75,30 @@ static void remove_entry(struct root* self, struct root_reference* ref){
 
   ref->isValid = false;
   ref->data = NULL;
+
+  if (IS_ENABLED(CONFIG_DEBUG_DONT_REUSE_ROOT_REFERENCE)) {
+    ref->refToSelf = NULL;
+    
+    self->entries[ref->index] = *ref;
+    free(ref);
+  }
 }
 
 void root_remove(struct root* self, struct root_reference* ref) {
   remove_entry(self, ref);
 }
 
-bool root_resize(struct root* self, int newSize) {
-  struct root_reference* newEntries = realloc(self->entries, sizeof(*self->entries) * newSize);
-  if (!newEntries)
-    return false;
-  self->entries = newEntries;
-
-  for (int i = self->size; i < newSize; i++) {
-    self->entries[i].isValid = false;
-    self->entries[i].owner = self;
-    self->entries[i].data = NULL;
-  }
-
-  self->entries = newEntries;
-  return true;
-}
-
 void root_clear(struct root* self) {
   for (int i = 0; i < self->size; i++)
-    root_remove(self, &self->entries[i]);
+    if (self->entries[i].refToSelf)
+      root_remove(self, self->entries[i].refToSelf);
 }
 
 void root_free(struct root* self) {
   if (!self)
     return;
   
-  struct root_reference* current = &self->entries[0];
-  for (int i = 0; i < self->size; i++) {
-    remove_entry(self, current);
-    current = &self->entries[i];
-  }
+  root_clear(self);
   free(self->entries);
   free(self);
 }

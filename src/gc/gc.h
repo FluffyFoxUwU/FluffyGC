@@ -14,6 +14,10 @@ struct gc_state {
   bool isGCThreadRunning;
   pthread_t gcThread;
 
+  bool isGCReady;
+  pthread_cond_t isGCReadyCond;
+  pthread_mutex_t isGCReadyLock;
+
   struct profiler* profiler;
 
   struct {

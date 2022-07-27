@@ -5,8 +5,9 @@ menu Debugging
     bool "Enable debug mode"
     default n
     help
-      Enable all debugging checks and options
-  
+      Enable debugging checks and show debug
+      options
+ 
   choice
     prompt "Additional sanitizer"
     depends on DEBUG
@@ -24,6 +25,20 @@ menu Debugging
     bool "Enable Undefined behavior Sanitizer"
     default n
     depends on DEBUG
+
+  config DEBUG_DONT_REUSE_ROOT_REFERENCE
+    bool "Don't reuse root reference"
+    default n
+    depends on DEBUG
+    help
+      Always allocate new root reference
+      Intended for detecting root reference
+      use after remove (Recommended to use
+      in pair with use-after-free detector
+      to be useful)
+      May creates visible performance loss
+      if application mutate the root very
+      often
 endmenu
 
 menu Allocator
@@ -118,5 +133,59 @@ menu General
     default 10
     help
       Set auto resize step size of list of threads
+  
+  config STRICTLY_POSIX
+    bool "Strict POSIX compliant"
+    default y
+    help
+      Disable any non POSIX 2008 libc or
+      platform specific API usage
+
+  choice PLATFORM
+    prompt "Select platform to target"
+    depends on !STRICTLY_POSIX
+    default PLATFORM_LINUX_5_10
+    help
+      Select platform you are targetting
+      or none to not assume any platform
+      specific features (depends on
+      platform, additional options are
+      shown)
+    
+#     config PLATFORM_LINUX_4_19
+#      bool "Linux version >= 4.19"
+#    config PLATFORM_LINUX_5_10
+#      bool "Linux version >= 5.10"
+    config PLATFORM_NONE
+      bool "None"
+  endchoice
+
+  choice TARGET_LIBC
+    prompt "Select libc to target"
+    depends on !STRICTLY_POSIX
+    default LIBC_GLIBC
+    help
+      Select libc to target and show
+      additional options or none
+      to not use non POSIX 2008 features
+      (Please note that libc REQUIRED to 
+      be POSIX 2008 compliant no matter 
+      what you selects)
+
+#    config LIBC_GLIBC
+#      bool "GLibc"
+#    config LIBC_MUSL
+#      bool "Musl"
+#    config LIBC_BIONIC
+#      bool "Bionic"
+    config LIBC_NONE
+      bool "None"
+  endchoice
 endmenu
+
+config API_ENABLE_V1
+  bool "Enable version 1 API"
+  default y
+
+
 

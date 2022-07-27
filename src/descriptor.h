@@ -18,6 +18,8 @@ enum field_type {
 struct descriptor_field {
   const char* name;
   size_t offset;
+  bool isArray;
+  
   enum field_type type;
 };
 

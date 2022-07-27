@@ -175,9 +175,8 @@ void heap_descriptor_release(struct heap* self, struct descriptor* desc) {
     abort();
 
   size_t descriptorSize = sizeof(struct descriptor) + sizeof(struct descriptor_field) * desc->numFields; 
-  if (!descriptor_release(desc))
-    abort();
-  
+  descriptor_release(desc);
+
   pthread_rwlock_wrlock(&self->lock);
   self->metaspaceUsage -= descriptorSize;
   pthread_rwlock_unlock(&self->lock);
@@ -691,13 +690,13 @@ void heap_report_printf(struct heap* self, const char* fmt, ...) {
 void heap_report_vprintf(struct heap* self, const char* fmt, va_list list) {
   char* buff = NULL;
   size_t buffSize = vsnprintf(NULL, 0, fmt, list);
-  buff = malloc(buffSize);
+  buff = malloc(buffSize + 1);
   if (!buff) {
     fprintf(stderr, "[Heap %p] Error allocating buffer for printing error\n", self);
     return;
   }
   
-  vsnprintf(buff, buffSize, fmt, list);
+  vsnprintf(buff, buffSize + 1, fmt, list);
   fprintf(stderr, "[Heap %p] %s\n", self, buff);
   free(buff);
 }
@@ -728,6 +727,19 @@ void heap_sweep_an_object(struct heap* self, struct object_info* obj) {
   region_dealloc(obj->regionRef->owner, obj->regionRef);
   heap_reset_object_info(self, obj);
   obj->isValid = false;
+}
+
+bool heap_is_array(struct heap* self, struct root_reference* ref) {
+  switch (heap_get_object_info(self, ref->data)->type) {
+    case OBJECT_TYPE_ARRAY:
+      return true;
+    case OBJECT_TYPE_OPAQUE:
+    case OBJECT_TYPE_NORMAL:
+      return false;
+    case OBJECT_TYPE_UNKNOWN:
+      abort();
+  }
+  abort();
 }
 
 
