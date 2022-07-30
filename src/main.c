@@ -11,8 +11,10 @@
 
 struct somedata {
   int someInteger;
-  char arr[32 KiB];
+  char arr[64 KiB];
+
   struct somedata* data;
+  struct somedata** array;
 };
 
 static void* abuser(void* _heap) {
@@ -21,8 +23,14 @@ static void* abuser(void* _heap) {
  
   fluffygc_field fields[] = {
     {
+      .name = "array",
+      .dataType = FLUFFYGC_TYPE_ARRAY,
+      .type = FLUFFYGC_FIELD_STRONG,
+      .offset = offsetof(struct somedata, array)
+    },
+    {
       .name = "data",
-      .isArray = false,
+      .dataType = FLUFFYGC_TYPE_NORMAL,
       .type = FLUFFYGC_FIELD_STRONG,
       .offset = offsetof(struct somedata, data)
     }
@@ -37,19 +45,21 @@ static void* abuser(void* _heap) {
     .fields = fields
   };
   fluffygc_descriptor* desc = fluffygc_v1_descriptor_new(heap, &descriptorArgs);
-  fluffygc_v1_push_frame(heap, 16);
+  //fluffygc_v1_push_frame(heap, 16);
 
   ////////
+  fluffygc_object_array* obj1 = fluffygc_v1_new_object_array(heap, 9);
+  
   fluffygc_object* obj = fluffygc_v1_new_object(heap, desc);
-  fluffygc_object* obj1 = fluffygc_v1_new_object(heap, desc);
+  fluffygc_object* global = fluffygc_v1_new_global_ref(heap, obj);
+  fluffygc_v1_delete_local_ref(heap, obj);
 
-  fluffygc_v1_set_object_field(heap, obj, offsetof(struct somedata, data), obj1);
+  fluffygc_v1_set_array_field(heap, global, offsetof(struct somedata, array), obj1);
   
   fluffygc_v1_delete_local_ref(heap, obj1);
-  fluffygc_v1_delete_local_ref(heap, obj);
+  fluffygc_v1_delete_global_ref(heap, global);
   ////////
-  
-  fluffygc_v1_pop_frame(heap, NULL);
+ 
   fluffygc_v1_descriptor_delete(heap, desc);
 
   fluffygc_v1_detach_thread(heap);
@@ -64,7 +74,8 @@ static int main2() {
         24 MiB,
         32 KiB,
         100,
-        0.45f
+        0.45f,
+        65536
       );
 
   int abuserCount = 6;

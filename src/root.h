@@ -1,6 +1,7 @@
 #ifndef header_1656115493_root_h
 #define header_1656115493_root_h
 
+#include <pthread.h>
 #include <stddef.h>
 #include <stdbool.h>
 
@@ -21,6 +22,8 @@ struct root_reference {
   // reiterate all root entry and
   // update this
   struct region_reference* volatile data;
+
+  pthread_t creator;
 };
 
 // Root is not thread safe

@@ -133,6 +133,11 @@ menu General
     default 10
     help
       Set auto resize step size of list of threads
+
+  config DEFAULT_THREAD_STACK_SIZE
+    int "Default thread frame stack size"
+    range 1 200
+    default 16
   
   config STRICTLY_POSIX
     bool "Strict POSIX compliant"

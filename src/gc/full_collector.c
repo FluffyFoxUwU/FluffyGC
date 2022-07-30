@@ -5,7 +5,6 @@
 
 #include "../root_iterator.h"
 #include "../root.h"
-#include "../reference.h"
 #include "../heap.h"
 #include "../config.h"
 #include "../region.h"

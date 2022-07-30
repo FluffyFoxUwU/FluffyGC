@@ -10,12 +10,11 @@
 #include "gc/gc_enums.h"
 #include "heap.h"
 #include "config.h"
-#include "reference.h"
 #include "region.h"
 #include "root.h"
 #include "thread.h"
 
-struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, int localFrameStackSize, float concurrentOldGCThreshold) {
+struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, int localFrameStackSize, float concurrentOldGCThreshold, int globalRootSize) {
   struct heap* self = malloc(sizeof(*self));
   if (!self)
     return NULL;
@@ -28,8 +27,17 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
   self->threadsCount = 0;
   self->threadsListSize = 0;
   self->localFrameStackSize = localFrameStackSize;
-  self->preTenurSize = youngSize-1;//64 * 1024;
+  self->preTenurSize = 64 * 1024;
   self->concurrentOldGCthreshold = concurrentOldGCThreshold;
+  self->youngGeneration = NULL;
+  self->oldGeneration = NULL;
+  self->threads = NULL;
+  self->oldToYoungCardTable = NULL;
+  self->youngToOldCardTable = NULL;
+  self->youngObjects = NULL;
+  self->oldObjects = NULL;
+  self->globalRoot = NULL;
+  self->metaspaceSize = metaspaceSize;
 
   pthread_mutex_init(&self->gcCompletedLock, NULL);
   pthread_mutex_init(&self->gcMayRunLock, NULL);
@@ -40,10 +48,14 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
  
   pthread_rwlock_init(&self->lock, NULL);
   pthread_rwlock_init(&self->gcUnsafeRwlock, NULL);
+  pthread_rwlock_init(&self->globalRootRWLock, NULL);
   
   pthread_key_create(&self->currentThreadKey, NULL);
-  
-  self->metaspaceSize = metaspaceSize;
+
+  self->globalRoot = root_new(globalRootSize);
+  if (!self->globalRoot)
+    goto failure;
+
   self->youngGeneration = region_new(youngSize);
   if (!self->youngGeneration)
     goto failure;
@@ -121,6 +133,8 @@ void heap_free(struct heap* self) {
       descriptor_release(obj->typeSpecific.normal.desc);
   }
 
+  root_free(self->globalRoot);
+
   free(self->threads);
   free(self->oldToYoungCardTable);
   free(self->youngToOldCardTable);
@@ -132,6 +146,7 @@ void heap_free(struct heap* self) {
   
   pthread_rwlock_destroy(&self->lock);
   pthread_rwlock_destroy(&self->gcUnsafeRwlock);
+  pthread_rwlock_destroy(&self->globalRootRWLock);
   
   pthread_mutex_destroy(&self->gcCompletedLock);
   pthread_mutex_destroy(&self->gcMayRunLock);
@@ -208,7 +223,7 @@ struct object_info* heap_get_object_info(struct heap* self, struct region_refere
     objects = self->oldObjects;
   else
     return NULL;
-
+  
   return &objects[ref->id];
 }
 
@@ -326,6 +341,7 @@ bool heap_attach_thread(struct heap* self) {
   // Find free entry
   // TODO: Make this not O(n) at worse
   //       (maybe some free space bitmap)
+  pthread_rwlock_rdlock(&self->gcUnsafeRwlock);
   pthread_rwlock_wrlock(&self->lock);
   int freePos = 0;
   for (; freePos < self->threadsListSize; freePos++)
@@ -356,14 +372,14 @@ bool heap_attach_thread(struct heap* self) {
 
   pthread_setspecific(self->currentThreadKey, data);
   pthread_rwlock_unlock(&self->lock);
+  pthread_rwlock_unlock(&self->gcUnsafeRwlock);
   return true;
 
   failure:
-  if (thread)
-    thread_free(thread);
-  if (data)
-    free(data);
+  thread_free(thread);
+  free(data);
   pthread_rwlock_unlock(&self->lock);
+  pthread_rwlock_unlock(&self->gcUnsafeRwlock);
   return false;
 }
 
@@ -418,16 +434,16 @@ void heap_wait_gc(struct heap* self) {
 
 void heap_enter_unsafe_gc(struct heap* self) {
   struct thread_data* data = heap_get_thread_data(self);
-  data->numberOfTimeEnteredUnsafeGC++;
-  if (data->numberOfTimeEnteredUnsafeGC == 1)
+  if (data->numberOfTimeEnteredUnsafeGC == 0)
     pthread_rwlock_rdlock(&self->gcUnsafeRwlock);
+  data->numberOfTimeEnteredUnsafeGC++;
 }
 
 void heap_exit_unsafe_gc(struct heap* self) {
   struct thread_data* data = heap_get_thread_data(self);
-  data->numberOfTimeEnteredUnsafeGC--;
-  if (data->numberOfTimeEnteredUnsafeGC == 0)
+  if (data->numberOfTimeEnteredUnsafeGC == 1)
     pthread_rwlock_unlock(&self->gcUnsafeRwlock);
+  data->numberOfTimeEnteredUnsafeGC--;
 }
 
 void heap_call_gc(struct heap* self, enum gc_request_type requestType) {
@@ -551,7 +567,7 @@ void heap_reset_object_info(struct heap* self, struct object_info* object) {
   object->owner = self;
 
   object->typeSpecific.normal.desc = NULL;
-  object->typeSpecific.pointerArray.size = 0;
+  object->typeSpecific.array.size = 0;
 
   object->type = OBJECT_TYPE_UNKNOWN;
   object->finalizer = NULL;
@@ -622,7 +638,8 @@ struct root_reference* heap_obj_opaque_new(struct heap* self, size_t size) {
   struct region_reference* regionRef = rootRef->data;
 
   struct object_info* objInfo = heap_get_object_info(self, regionRef); 
-  objInfo->type = OBJECT_TYPE_OPAQUE;
+  objInfo->type = OBJECT_TYPE_NORMAL;
+  objInfo->typeSpecific.normal.desc = NULL;
 
   heap_exit_unsafe_gc(self);
   pthread_mutex_unlock(&self->allocLock);
@@ -667,17 +684,26 @@ struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc) 
 struct root_reference* heap_array_new(struct heap* self, int size) {
   pthread_mutex_lock(&self->allocLock);
   heap_enter_unsafe_gc(self);
+
   struct root_reference* rootRef = commonNew(self, sizeof(void*) * size);
+  if (!rootRef)
+    goto failure;
+  
   struct region_reference* regionRef = rootRef->data;
 
   struct object_info* objInfo = heap_get_object_info(self, regionRef); 
   objInfo->type = OBJECT_TYPE_ARRAY;
-  objInfo->typeSpecific.pointerArray.size = size;
+  objInfo->typeSpecific.array.size = size;
   memset(regionRef->data, 0, regionRef->dataSize);
 
   heap_exit_unsafe_gc(self);
   pthread_mutex_unlock(&self->allocLock);
   return rootRef;
+  
+  failure:
+  heap_exit_unsafe_gc(self);
+  pthread_mutex_unlock(&self->allocLock);
+  return NULL;
 }
 
 void heap_report_printf(struct heap* self, const char* fmt, ...) {
@@ -718,7 +744,6 @@ void heap_sweep_an_object(struct heap* self, struct object_info* obj) {
       descriptor_release(obj->typeSpecific.normal.desc);
       break;
     case OBJECT_TYPE_ARRAY:
-    case OBJECT_TYPE_OPAQUE:
       break;
     case OBJECT_TYPE_UNKNOWN:
       abort();
@@ -733,11 +758,19 @@ bool heap_is_array(struct heap* self, struct root_reference* ref) {
   switch (heap_get_object_info(self, ref->data)->type) {
     case OBJECT_TYPE_ARRAY:
       return true;
-    case OBJECT_TYPE_OPAQUE:
     case OBJECT_TYPE_NORMAL:
       return false;
     case OBJECT_TYPE_UNKNOWN:
       abort();
+  }
+  abort();
+}
+
+const char* heap_tostring_object_type(struct heap* self, enum object_type type) {
+  switch (type) {
+#   define X(t, str, ...) case t: return str;
+    OBJECT_TYPES
+#   undef X
   }
   abort();
 }

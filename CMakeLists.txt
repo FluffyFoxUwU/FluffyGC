@@ -42,7 +42,6 @@ if (DEFINED CONFIG_UBSAN)
   set(ENABLE_UBSAN ON)
 endif()
 
-#src/reference.c
 add_executable(FluffyGC src/main.c
                         src/region.c
                         src/asan_stuff.c
@@ -65,7 +64,7 @@ add_executable(FluffyGC src/main.c
                         src/binary_search.c
                         src/gc/cardtable_iterator.c
                         src/api_layer/v1.c
-                        )
+)
 
 target_compile_options(FluffyGC PRIVATE "-g")
 target_compile_options(FluffyGC PRIVATE "-O0")

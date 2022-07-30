@@ -13,9 +13,11 @@ static int compareByOffset(const void* _a, const void* _b) {
   const struct descriptor_field* a = _a;
   const struct descriptor_field* b = _b;
 
-  if (a->offset > b->offset)
+  // 'b' should be located after 'a'
+  if (a->offset < b->offset)
     return 1;
-  else if (a->offset < b->offset)
+  // 'b' should be located before 'a'
+  else if (a->offset > b->offset)
     return -1;
   else
     return 0;
@@ -31,15 +33,14 @@ struct descriptor* descriptor_new(struct descriptor_typeid id, size_t objectSize
   atomic_init(&self->counter, 1);
   self->id = id;
   self->id.name = strdup(id.name);
+  self->objectSize = objectSize;
 
   for (int i = 0; i < numFields; i++) {
     self->fields[i] = offsets[i];
     self->fields[i].name = strdup(offsets[i].name);
   }
 
-  qsort(self->fields, numFields, sizeof(*self->fields), compareByOffset);
-  
-  self->objectSize = objectSize;
+  qsort(self->fields, numFields, sizeof(*self->fields), compareByOffset); 
   return self;
 }
 
@@ -48,6 +49,9 @@ void descriptor_acquire(struct descriptor* self) {
 }
 
 bool descriptor_release(struct descriptor* self) {
+  if (!self)
+    return true;
+
   if (atomic_fetch_sub(&self->counter, 1) != 1)
     return false;
 
@@ -77,8 +81,6 @@ void* descriptor_read_ptr(struct descriptor* self, struct region* region, struct
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
   struct descriptor_field toSearch = {
     .offset = offset,
-    .name = NULL,
-    .type = DESCRIPTOR_FIELD_TYPE_UNKNOWN
   };
 
   return binary_search_do(self->fields, self->numFields, sizeof(*self->fields), compareByOffset, &toSearch);

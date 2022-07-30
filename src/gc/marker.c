@@ -3,7 +3,6 @@
 #include <stdatomic.h>
 
 #include "marker.h"
-#include "../reference.h"
 #include "../heap.h"
 #include "../region.h"
 #include "../descriptor.h"
@@ -50,7 +49,7 @@ static void markNormalObject(const struct mark_context self) {
 
 static void markArrayObject(const struct mark_context self) {
   void** array = self.objectInfo->regionRef->data;
-  for (int i = 0; i < self.objectInfo->typeSpecific.pointerArray.size; i++) {
+  for (int i = 0; i < self.objectInfo->typeSpecific.array.size; i++) {
     if (!array[i])
       continue;
 
@@ -79,8 +78,6 @@ static void mark(const struct mark_context self) {
       break;
     case OBJECT_TYPE_ARRAY:
       markArrayObject(self);
-      break;
-    case OBJECT_TYPE_OPAQUE:
       break;
     case OBJECT_TYPE_UNKNOWN:
       abort();

@@ -12,6 +12,7 @@
 #include "gc/gc_enums.h"
 
 struct thread;
+struct root;
 struct descriptor;
 struct region;
 struct region_reference;
@@ -20,12 +21,15 @@ struct root_reference;
 struct descriptor_typeid;
 struct descriptor_field;
 
-enum object_type {
-  OBJECT_TYPE_UNKNOWN,
+#define OBJECT_TYPES \
+  X(OBJECT_TYPE_UNKNOWN, "unknown") \
+  X(OBJECT_TYPE_NORMAL, "object") \
+  X(OBJECT_TYPE_ARRAY, "reference array")
 
-  OBJECT_TYPE_NORMAL,
-  OBJECT_TYPE_ARRAY,
-  OBJECT_TYPE_OPAQUE
+enum object_type {
+# define X(t, ...) t,
+  OBJECT_TYPES
+# undef X
 };
 
 #define REPORT_TYPES \
@@ -65,7 +69,7 @@ struct object_info {
   union {
     struct {
       int size; 
-    } pointerArray;
+    } array;
 
     struct {
        struct descriptor* desc;
@@ -148,6 +152,9 @@ struct heap {
   // Metaspace size
   size_t metaspaceSize;
   
+  pthread_rwlock_t globalRootRWLock;
+  struct root* globalRoot;
+
   // All fields below this rwlock are protected
   // by it 
   pthread_rwlock_t lock;
@@ -164,7 +171,8 @@ struct heap {
 struct heap* heap_new(size_t youngSize, size_t oldSize,
                       size_t metaspaceSize,
                       int localFrameStackSize,
-                      float concurrentOldGCthreshold);
+                      float concurrentOldGCthreshold,
+                      int globalRootSize);
 void heap_free(struct heap* self);
 
 struct descriptor* heap_descriptor_new(struct heap* self, struct descriptor_typeid id, size_t objectSize, int numFields, struct descriptor_field* fields);
@@ -232,6 +240,9 @@ ATTRIBUTE((format(printf, 2, 3)))
 void heap_report_printf(struct heap* self, const char* fmt, ...); 
 void heap_report_vprintf(struct heap* self, const char* fmt, va_list list); 
 void heap_report_gc_cause(struct heap* self, enum report_type type);
+
+// Misc
+const char* heap_tostring_object_type(struct heap* self, enum object_type type);
 
 #endif
 

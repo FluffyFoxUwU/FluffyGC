@@ -9,7 +9,6 @@
 #include <sys/prctl.h>
 
 #include "config.h"
-#include "reference.h"
 #include "region.h"
 #include "descriptor.h"
 #include "heap.h"
@@ -84,10 +83,6 @@ static void* abuser(void* _heap) {
   struct thread* currentThread = heap_get_thread_data(heap)->thread;
   
   //////////////////////
-  heap_enter_unsafe_gc(heap);
-  thread_push_frame(currentThread, 16);
-  heap_exit_unsafe_gc(heap);
-
   struct root_reference* grandfather = heap_obj_new(heap, desc); 
   struct root_reference* grandson = heap_obj_new(heap, desc); 
   heap_obj_write_ptr(heap, grandfather, offsetof(struct somedata, data), grandson);
@@ -136,10 +131,6 @@ static void* abuser(void* _heap) {
     heap_obj_read_data(heap, grandson, offsetof(struct somedata, someInteger), &integer, sizeof(integer));
     printf("Main: grandson->someInteger = %d\n", integer);
   }
-  
-  heap_enter_unsafe_gc(heap);
-  thread_pop_frame(currentThread, NULL);
-  heap_exit_unsafe_gc(heap);
   //////////////////////
   
   heap_descriptor_release(heap, desc);
@@ -157,7 +148,7 @@ int main2() {
 
   // Young is 1/3 of total
   // Old   is 2/3 of total
-  struct heap* heap = heap_new(8 MiB, 24 MiB, 32 KiB, 100, 0.45f);
+  struct heap* heap = heap_new(8 MiB, 24 MiB, 32 KiB, 100, 0.45f, 65536);
   assert(heap);
   
   int abuserCount = 6;

@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include "reference.h"
 #include "region.h"
 #include "root.h"
 #include "config.h"
@@ -12,7 +11,7 @@ struct root* root_new(int size) {
     goto failure;
   
   self->size = size;
-  
+
   self->entries = malloc(size * sizeof(*self->entries));
   if (!self->entries)
     goto failure;
@@ -62,11 +61,13 @@ struct root_reference* root_add(struct root* self, struct region_reference* ref)
   rootRef->data = ref;
   rootRef->index = freePos;
   rootRef->refToSelf = rootRef;
+  rootRef->creator = pthread_self();
 
-  // Write back if dont reuse enabled
-  if (IS_ENABLED(CONFIG_DEBUG_DONT_REUSE_ROOT_REFERENCE))
-    self->entries[freePos] = *rootRef;
-  
+  if (IS_ENABLED(CONFIG_DEBUG_DONT_REUSE_ROOT_REFERENCE)) {
+    self->entries[freePos].refToSelf = rootRef;
+    self->entries[freePos].isValid = true;
+  }
+
   return rootRef;
 }
 

@@ -167,8 +167,7 @@ static void* mainThread(void* _self) {
 
     isRequested = heap->gcRequested;
     requestType = heap->gcRequestedType;
-    
-    
+     
     pthread_rwlock_wrlock(&heap->gcUnsafeRwlock); 
     size_t prevYoungSize = atomic_load(&heap->youngGeneration->usage);
     size_t prevOldSize = atomic_load(&heap->oldGeneration->usage);
@@ -199,6 +198,8 @@ struct gc_state* gc_init(struct heap* heap) {
   self->statistics.youngGCTime = 0.0f;
   self->isGCThreadRunning = false;
   self->isGCReady = false;
+  self->fullGC.oldLookup = NULL;
+  self->profiler = NULL;
 
   pthread_mutex_init(&self->isGCReadyLock, NULL);
   pthread_cond_init(&self->isGCReadyCond, NULL);
@@ -247,6 +248,7 @@ void gc_cleanup(struct gc_state* self) {
 
 void gc_fix_root(struct gc_state* self) {
   root_iterator_run2(self->heap, NULL, ^void (struct root_reference* ref, struct object_info* info) {
+    assert(ref);
     if (!info->isMoved)
       return;
     
@@ -300,7 +302,7 @@ static void* defaultFixer(struct fixer_context* self, void* ptr) {
 static void fixObjectRefsArray(struct fixer_context* self, struct object_info* objectInfo) {
   void** array = objectInfo->regionRef->data;
 
-  for (int i = 0; i < objectInfo->typeSpecific.pointerArray.size; i++)
+  for (int i = 0; i < objectInfo->typeSpecific.array.size; i++)
     array[i] = self->fixer(array[i]);
 }
 
@@ -326,8 +328,6 @@ static void fixObjectRefs(struct fixer_context* self, struct object_info* object
       return;
     case OBJECT_TYPE_ARRAY:
       fixObjectRefsArray(self, objectInfo);
-      return;
-    case OBJECT_TYPE_OPAQUE:
       return;
     case OBJECT_TYPE_UNKNOWN:
       abort();

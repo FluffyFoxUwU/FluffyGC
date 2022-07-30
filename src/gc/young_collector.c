@@ -5,7 +5,6 @@
 
 #include "../root_iterator.h"
 #include "../root.h"
-#include "../reference.h"
 #include "../heap.h"
 #include "../config.h"
 #include "../region.h"
@@ -125,7 +124,7 @@ void gc_young_collect(struct gc_state* self) {
       heap_sweep_an_object(heap, currentObjectInfo);
       continue;
     }
-
+    
     struct region_reference* relocatedLocation = region_alloc_or_fit(self->heap->oldGeneration, currentObject->dataSize);
     if (relocatedLocation)
       goto promotion_success;
@@ -156,7 +155,6 @@ void gc_young_collect(struct gc_state* self) {
   profiler_end(self->profiler); 
   
   profiler_begin(self->profiler, "reset-relocation-info"); 
-  region_wipe(self->heap->youngGeneration);
   gc_clear_old_to_young_card_table(self);
   
   for (int i = 0; i < self->heap->youngGeneration->sizeInCells; i++) {
@@ -175,7 +173,10 @@ void gc_young_collect(struct gc_state* self) {
   }
   profiler_end(self->profiler); 
 
+  profiler_begin(self->profiler, "clearing-young-gen"); 
+  region_wipe(self->heap->youngGeneration);
   region_move_bump_pointer_to_last(self->heap->youngGeneration);
+  profiler_end(self->profiler); 
 }
 
 void gc_young_post_collect(struct gc_state* self) {

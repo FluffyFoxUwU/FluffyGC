@@ -17,7 +17,9 @@ static struct profiler_section* newSection(struct profiler* self, const char* na
   section->totalDuration = 0.0f;
   section->owner = self;
   section->thisNode = NULL;
-  
+  section->name = NULL;
+  section->insertionOrder = NULL;
+
   section->name = strdup(name);
   if (!section->name)
     goto failure;
@@ -119,8 +121,11 @@ struct profiler* profiler_new() {
   if (!self)
     goto failure;
   
-  self->stack = list_new();
   self->currentlyProfiling = false;
+  self->root = NULL;
+  self->stack = NULL;
+
+  self->stack = list_new();
   if (!self->stack)
     goto failure;
 

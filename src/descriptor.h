@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <stdatomic.h>
 
+#include "heap.h"
+
 struct region;
 struct region_reference;
 
@@ -18,8 +20,8 @@ enum field_type {
 struct descriptor_field {
   const char* name;
   size_t offset;
-  bool isArray;
-  
+
+  enum object_type dataType;
   enum field_type type;
 };
 
