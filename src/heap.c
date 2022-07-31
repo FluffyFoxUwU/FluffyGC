@@ -568,12 +568,14 @@ void heap_reset_object_info(struct heap* self, struct object_info* object) {
 
   object->typeSpecific.normal.desc = NULL;
   object->typeSpecific.array.size = 0;
+  object->typeSpecific.array.strength = REFERENCE_STRENGTH_STRONG;
 
   object->type = OBJECT_TYPE_UNKNOWN;
   object->finalizer = NULL;
   object->regionRef = NULL;
   object->isMoved = false;
   object->justMoved = false;
+  object->justSweeped = false;
   object->moveData.oldLocation = NULL;
   object->moveData.oldLocationInfo = NULL;
   object->moveData.newLocation = NULL;
@@ -694,6 +696,7 @@ struct root_reference* heap_array_new(struct heap* self, int size) {
   struct object_info* objInfo = heap_get_object_info(self, regionRef); 
   objInfo->type = OBJECT_TYPE_ARRAY;
   objInfo->typeSpecific.array.size = size;
+  objInfo->typeSpecific.array.strength = REFERENCE_STRENGTH_STRONG;
   memset(regionRef->data, 0, regionRef->dataSize);
 
   heap_exit_unsafe_gc(self);
@@ -752,6 +755,7 @@ void heap_sweep_an_object(struct heap* self, struct object_info* obj) {
   region_dealloc(obj->regionRef->owner, obj->regionRef);
   heap_reset_object_info(self, obj);
   obj->isValid = false;
+  obj->justSweeped = true;
 }
 
 bool heap_is_array(struct heap* self, struct root_reference* ref) {

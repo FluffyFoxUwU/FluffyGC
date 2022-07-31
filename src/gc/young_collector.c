@@ -25,14 +25,33 @@ static void markPhase(struct gc_state* self) {
   profiler_begin(self->profiler, "mark");
   
   struct heap* heap = self->heap;  
+  struct gc_marker_args defaultArgs = gc_marker_builder()
+            ->gc_state(self)
+            ->ignore_weak(true)
+            ->only_in(heap->youngGeneration)
+            ->build();
 
   // Marking phase
-  root_iterator_run(heap, heap->youngGeneration, ^void (struct object_info* info) {
-    gc_marker_mark(self, heap->youngGeneration, info);
-  });
+  root_iterator_run(root_iterator_builder()
+      ->heap(heap)
+      ->only_in(heap->youngGeneration)
+      ->ignore_weak(true)
+      ->consumer(^void (struct root_reference* ref, struct object_info* info) {
+        gc_marker_mark(gc_marker_builder()
+            ->copy_from(defaultArgs)
+            ->object_info(info)
+            ->build()
+        );
+      })
+      ->build()
+  ); 
 
   cardtable_iterator_do(heap, heap->oldObjects, heap->oldToYoungCardTable, heap->oldToYoungCardTableSize, ^void (struct object_info* info, int cardTableIndex) {
-    gc_marker_mark(self, heap->youngGeneration, info);
+    gc_marker_mark(gc_marker_builder()
+        ->copy_from(defaultArgs)
+        ->object_info(info)
+        ->build()
+    );
   });
   
   profiler_end(self->profiler);
@@ -84,15 +103,15 @@ static void fixAddr(struct gc_state* self, bool aboutToCallOldGC) {
       assert(currentObjectInfo->moveData.newLocationInfo->justMoved);
       assert(currentObjectInfo->moveData.newLocationInfo->moveData.oldLocationInfo == currentObjectInfo);
 
-      gc_fix_object_refs(self, heap->youngGeneration, currentObjectInfo->moveData.newLocationInfo);
+      gc_fix_object_refs(self, currentObjectInfo->moveData.newLocationInfo);
     } else {
       if (aboutToCallOldGC && currentObjectInfo->isValid)
-        gc_fix_object_refs(self, heap->youngGeneration, currentObjectInfo);
+        gc_fix_object_refs(self, currentObjectInfo);
     }
   }  
 
   cardtable_iterator_do(heap, heap->oldObjects, heap->oldToYoungCardTable, heap->oldToYoungCardTableSize, ^void (struct object_info* info, int cardTableIndex) {
-    gc_fix_object_refs(self, self->heap->youngGeneration, info);
+    gc_fix_object_refs(self, info);
   });
   
   gc_fix_root(self);

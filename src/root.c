@@ -57,6 +57,7 @@ struct root_reference* root_add(struct root* self, struct region_reference* ref)
     rootRef = &self->entries[freePos];
   }
 
+  rootRef->isWeak = false;
   rootRef->isValid = true;
   rootRef->data = ref;
   rootRef->index = freePos;

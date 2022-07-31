@@ -1,91 +1,125 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdatomic.h>
+#include <threads.h>
 
 #include "marker.h"
 #include "../heap.h"
 #include "../region.h"
 #include "../descriptor.h"
 
-struct mark_context {
-  struct region* onlyIn;
-  struct object_info* objectInfo;
-  struct gc_state* gcState;
-};
-
-static struct mark_context makeContext(struct gc_state* gcState, struct region* onlyIn, struct object_info* objectInfo) {
-  struct mark_context tmp = {
-    .onlyIn = onlyIn,
-    .objectInfo = objectInfo,
-    .gcState = gcState
-  };
-  return tmp;
-}
-
-static void mark(const struct mark_context self);
-static void markNormalObject(const struct mark_context self) {
-  struct descriptor* desc = self.objectInfo->typeSpecific.normal.desc;
+static void mark(const struct gc_marker_args ctx);
+static void markNormalObject(const struct gc_marker_args ctx) {
+  struct descriptor* desc = ctx.objectInfo->typeSpecific.normal.desc;
+  
+  // Opaque object
+  if (!desc)
+    return;
 
   for (int i = 0; i < desc->numFields; i++) {
-    size_t offset = desc->fields[i].offset;
+    struct descriptor_field* field = &desc->fields[i];
+    if (ctx.ignoreWeak && field->strength == REFERENCE_STRENGTH_WEAK)
+      continue;
+    if (ctx.ignoreSoft && field->strength == REFERENCE_STRENGTH_SOFT)
+      continue;
+
     void* ptr;
-    region_read(self.objectInfo->regionRef->owner, self.objectInfo->regionRef, offset, &ptr, sizeof(void*));
+    region_read(ctx.objectInfo->regionRef->owner, ctx.objectInfo->regionRef, field->offset, &ptr, sizeof(void*));
     if (!ptr)
       continue;
     
-    struct region_reference* ref = heap_get_region_ref(self.objectInfo->owner, ptr);
+    struct region_reference* ref = heap_get_region_ref(ctx.objectInfo->owner, ptr);
     assert(ref);
-    struct object_info* objectInfo = heap_get_object_info(self.objectInfo->owner, ref);
+    struct object_info* objectInfo = heap_get_object_info(ctx.objectInfo->owner, ref);
     assert(objectInfo);
     
-    if (ref->owner != self.onlyIn)
+    if (ref->owner != ctx.onlyIn)
       continue;
 
-    //printf("[Marking: Ref: %p] Name: '%s' (offset: %zu  ptr: %p)\n", self.objectInfo->regionRef, desc->fields[i].name, offset, ptr);
+    //printf("[Marking: Ref: %p] Name: '%s' (offset: %zu  ptr: %p)\n", ctx.objectInfo->regionRef, desc->fields[i].name, offset, ptr);
     
-    mark(makeContext(self.gcState, self.onlyIn, objectInfo));
+    mark(gc_marker_builder()
+        ->copy_from(ctx)
+        ->object_info(objectInfo)
+        ->build()
+    );
   }
 }
 
-static void markArrayObject(const struct mark_context self) {
-  void** array = self.objectInfo->regionRef->data;
-  for (int i = 0; i < self.objectInfo->typeSpecific.array.size; i++) {
+static void markArrayObject(const struct gc_marker_args ctx) {
+  enum reference_strength strength = ctx.objectInfo->typeSpecific.array.strength;
+  if (ctx.ignoreWeak && strength == REFERENCE_STRENGTH_WEAK)
+    return;
+  if (ctx.ignoreSoft && strength == REFERENCE_STRENGTH_SOFT)
+    return;
+
+  void** array = ctx.objectInfo->regionRef->data;
+  for (int i = 0; i < ctx.objectInfo->typeSpecific.array.size; i++) {
     if (!array[i])
       continue;
 
-    struct region_reference* ref = heap_get_region_ref(self.objectInfo->owner, array[i]);
+    struct region_reference* ref = heap_get_region_ref(ctx.objectInfo->owner, array[i]);
     assert(ref);
-    struct object_info* objectInfo = heap_get_object_info(self.objectInfo->owner, ref);
+    struct object_info* objectInfo = heap_get_object_info(ctx.objectInfo->owner, ref);
     assert(objectInfo);
     
-    if (ref->owner != self.onlyIn)
+    if (ref->owner != ctx.onlyIn)
       continue;
 
-    //printf("[Marking: Ref: %p] Name: '%s' (offset: %zu  ptr: %p)\n", self.objectInfo->regionRef, desc->fields[i].name, offset, ptr);
+    //printf("[Marking: Ref: %p] Name: '%s' (offset: %zu  ptr: %p)\n", ctx.objectInfo->regionRef, desc->fields[i].name, offset, ptr);
     
-    mark(makeContext(self.gcState, self.onlyIn, objectInfo));
+    mark(gc_marker_builder()
+        ->copy_from(ctx)
+        ->object_info(objectInfo)
+        ->build()
+    );
   } 
 }
 
-static void mark(const struct mark_context self) {
-  if (self.objectInfo->regionRef->owner == self.onlyIn || self.onlyIn == NULL)
-    if (atomic_exchange(&self.objectInfo->isMarked, true) == true)
+static void mark(const struct gc_marker_args ctx) {
+  if (ctx.objectInfo->regionRef->owner == ctx.onlyIn || ctx.onlyIn == NULL)
+    if (atomic_exchange(&ctx.objectInfo->isMarked, true) == true)
       return;
 
-  switch (self.objectInfo->type) {
+  switch (ctx.objectInfo->type) {
     case OBJECT_TYPE_NORMAL:
-      markNormalObject(self);
+      markNormalObject(ctx);
       break;
     case OBJECT_TYPE_ARRAY:
-      markArrayObject(self);
+      markArrayObject(ctx);
       break;
     case OBJECT_TYPE_UNKNOWN:
       abort();
   }
 }
 
-void gc_marker_mark(struct gc_state* self, struct region* onlyIn, struct object_info* objectInfo) {
-  mark(makeContext(self, onlyIn, objectInfo));
+void gc_marker_mark(struct gc_marker_args args) {
+  mark(args);
+}
+
+static thread_local struct gc_marker_builder_struct builder = {
+  .data = {},
+  
+  BUILDER_SETTER(builder, struct gc_state*, gcState, gc_state),
+  BUILDER_SETTER(builder, struct object_info*, objectInfo, object_info),
+  BUILDER_SETTER(builder, struct region*, onlyIn, only_in),
+  BUILDER_SETTER(builder, bool, ignoreSoft, ignore_soft),
+  BUILDER_SETTER(builder, bool, ignoreWeak, ignore_weak),
+  
+  .copy_from = ^struct gc_marker_builder_struct* (struct gc_marker_args data) {
+    builder.data = data;
+    return &builder;
+  },
+
+  .build = ^struct gc_marker_args () {
+    return builder.data;
+  }
+};
+
+struct gc_marker_builder_struct* gc_marker_builder() {
+  struct gc_marker_args tmp = {};
+  builder.data = tmp;
+  return &builder;
 }
 
 

@@ -25,14 +25,33 @@ static void markPhase(struct gc_state* self) {
   profiler_begin(self->profiler, "mark");
   
   struct heap* heap = self->heap;  
+  struct gc_marker_args defaultArgs = gc_marker_builder()
+            ->gc_state(self)
+            ->ignore_weak(true)
+            ->only_in(heap->oldGeneration)
+            ->build();
 
   // Marking phase
-  root_iterator_run(heap, heap->oldGeneration, ^void (struct object_info* info) {
-    gc_marker_mark(self, heap->oldGeneration, info);
-  });
+  root_iterator_run(root_iterator_builder()
+      ->heap(heap)
+      ->only_in(heap->oldGeneration)
+      ->ignore_weak(true)
+      ->consumer(^void (struct root_reference* ref, struct object_info* info) {
+        gc_marker_mark(gc_marker_builder()
+            ->copy_from(defaultArgs)
+            ->object_info(info)
+            ->build()
+        );
+      })
+      ->build()
+  ); 
 
-  cardtable_iterator_do(heap, heap->youngObjects, heap->youngToOldCardTable, heap->youngToOldCardTableSize, ^void (struct object_info* info, int cardTableIndex) {
-    gc_marker_mark(self, heap->oldGeneration, info);
+  cardtable_iterator_do(heap, heap->oldObjects, heap->oldToYoungCardTable, heap->oldToYoungCardTableSize, ^void (struct object_info* info, int cardTableIndex) {
+    gc_marker_mark(gc_marker_builder()
+        ->copy_from(defaultArgs)
+        ->object_info(info)
+        ->build()
+    );
   });
   
   profiler_end(self->profiler);

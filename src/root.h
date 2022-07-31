@@ -13,6 +13,7 @@ struct root_reference {
   // enabled
   struct root_reference* refToSelf;
 
+  bool isWeak;
   bool isValid;
   int index;
 

@@ -1,3 +1,7 @@
+#if 0
+# include "main2.c"
+#else
+
 #include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -15,6 +19,7 @@ struct somedata {
 
   struct somedata* data;
   struct somedata** array;
+  struct somedata* weakData;
 };
 
 static void* abuser(void* _heap) {
@@ -33,6 +38,12 @@ static void* abuser(void* _heap) {
       .dataType = FLUFFYGC_TYPE_NORMAL,
       .type = FLUFFYGC_FIELD_STRONG,
       .offset = offsetof(struct somedata, data)
+    },
+    {
+      .name = "weakData",
+      .dataType = FLUFFYGC_TYPE_NORMAL,
+      .type = FLUFFYGC_FIELD_WEAK,
+      .offset = offsetof(struct somedata, weakData)
     }
   };
 
@@ -45,7 +56,6 @@ static void* abuser(void* _heap) {
     .fields = fields
   };
   fluffygc_descriptor* desc = fluffygc_v1_descriptor_new(heap, &descriptorArgs);
-  //fluffygc_v1_push_frame(heap, 16);
 
   ////////
   fluffygc_object_array* obj1 = fluffygc_v1_new_object_array(heap, 9);
@@ -79,6 +89,7 @@ static int main2() {
       );
 
   int abuserCount = 6;
+  (void) abuserCount;
   abuser(heap);
   fluffygc_v1_free(heap);
   return 0;
@@ -132,4 +143,4 @@ const char* __msan_default_options() {
 #endif
 
 
-
+#endif

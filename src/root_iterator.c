@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <stdio.h>
+#include <Block.h>
+#include <threads.h>
 
 #include "region.h"
 #include "root_iterator.h"
@@ -10,14 +12,9 @@
 #include "thread.h"
 #include "root.h"
 #include "config.h"
+#include "builder.h"
 
-struct context {
-  root_iterator2_t iterator;
-  struct region* onlyIn;
-  struct heap* heap;
-};
-
-static void iterateRoot(struct root* root, struct context* ctx) {
+static void iterateRoot(struct root* root, struct root_iterator_args* ctx) {
   for (int i = 0; i < root->size; i++) {
     struct root_reference* rootRef = root->entries[i].refToSelf;
 
@@ -29,40 +26,52 @@ static void iterateRoot(struct root* root, struct context* ctx) {
 
     if (ctx->onlyIn && ref->owner != ctx->onlyIn)
       continue;
+    if (ctx->ignoreWeak && rootRef->isWeak)
+      continue;
 
-    ctx->iterator(rootRef, heap_get_object_info(ctx->heap, ref));
+    ctx->consumer(rootRef, heap_get_object_info(ctx->heap, ref));
   }
 }
 
-static void iterateThread(struct thread* thread, struct context* ctx) {
+static void iterateThread(struct thread* thread, struct root_iterator_args* ctx) {
   // Iterate each frame
   for (int i = 0; i < thread->framePointer; i++)
     if (thread->frames[i].isValid)
       iterateRoot(thread->frames[i].root, ctx);
 }
 
-void root_iterator_run2(struct heap* heap, struct region* onlyIn, root_iterator2_t iterator) {
-  struct context ctx = {
-    .iterator = iterator,
-    .onlyIn = onlyIn,
-    .heap = heap
-  };
-
+void root_iterator_run(struct root_iterator_args args) {
   // Iterate common roots (global root)
-  pthread_rwlock_rdlock(&heap->globalRootRWLock);
-  iterateRoot(heap->globalRoot, &ctx);
-  pthread_rwlock_unlock(&heap->globalRootRWLock);
+  pthread_rwlock_rdlock(&args.heap->globalRootRWLock);
+  iterateRoot(args.heap->globalRoot, &args);
+  pthread_rwlock_unlock(&args.heap->globalRootRWLock);
 
   // Iterate each threads
-  for (int i = 0; i < heap->threadsListSize; i++)
-    if (heap->threads[i])
-      iterateThread(heap->threads[i], &ctx);
+  for (int i = 0; i < args.heap->threadsListSize; i++)
+    if (args.heap->threads[i])
+      iterateThread(args.heap->threads[i], &args);
 }
 
-void root_iterator_run(struct heap* heap, struct region* onlyIn, root_iterator_t iterator) {
-  root_iterator_run2(heap, onlyIn, ^void (struct root_reference* ref, struct object_info* obj) {
-    iterator(obj);
-  });
+
+// Its completely fine as long
+// you dont reuse builders
+static thread_local struct root_iterator_builder_struct builder = {
+  .data = {},
+
+  BUILDER_SETTER(builder, struct heap*, heap, heap),
+  BUILDER_SETTER(builder, root_iterator_consumer_t, consumer, consumer),
+  BUILDER_SETTER(builder, struct region*, onlyIn, only_in),
+  BUILDER_SETTER(builder, bool, ignoreWeak, ignore_weak),
+
+  .build = ^struct root_iterator_args () {
+    return builder.data;
+  }
+};
+
+struct root_iterator_builder_struct* root_iterator_builder() {
+  struct root_iterator_args tmp = {};
+  builder.data = tmp;
+  return &builder;
 }
 
 

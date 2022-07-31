@@ -45,12 +45,19 @@ enum report_type {
 # undef X
 };
 
+// How strong is the reference
+enum reference_strength {
+  REFERENCE_STRENGTH_STRONG,
+  REFERENCE_STRENGTH_WEAK,
+  REFERENCE_STRENGTH_SOFT
+};
+
 typedef void (^heap_finalizer)(struct root_reference* reference);
 
 struct object_info {
   struct heap* owner;
   bool isValid;
-  
+
   // Atomic for future parallel marking and sweeping
   atomic_bool isMarked;
 
@@ -66,8 +73,15 @@ struct object_info {
   // recently promoted
   bool justMoved;
 
+  // If this object sweeped
+  bool justSweeped;
+
   union {
     struct {
+      // Like one sized array can be abused
+      // to make weak or soft reference to
+      // anything else UwU
+      enum reference_strength strength;
       int size; 
     } array;
 

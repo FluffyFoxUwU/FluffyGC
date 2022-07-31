@@ -11,18 +11,12 @@
 struct region;
 struct region_reference;
 
-enum field_type {
-  DESCRIPTOR_FIELD_TYPE_UNKNOWN,
-  DESCRIPTOR_FIELD_TYPE_STRONG,
-  DESCRIPTOR_FIELD_TYPE_WEAK
-};
-
 struct descriptor_field {
   const char* name;
   size_t offset;
 
   enum object_type dataType;
-  enum field_type type;
+  enum reference_strength strength;
 };
 
 struct descriptor_typeid {

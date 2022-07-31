@@ -72,7 +72,8 @@ static void* abuser(void* _heap) {
     {
       .name = "data",
       .offset = offsetof(struct somedata, data),
-      .type = DESCRIPTOR_FIELD_TYPE_STRONG
+      .dataType = OBJECT_TYPE_NORMAL,
+      .strength = REFERENCE_STRENGTH_STRONG
     }
   };
  

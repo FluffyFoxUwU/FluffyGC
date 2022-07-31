@@ -149,7 +149,7 @@ FLUFFYGC_DECLARE(fluffygc_descriptor*, descriptor_new,
     fields[i].name = arg->fields[i].name;
     fields[i].offset = arg->fields[i].offset;
     fields[i].dataType = (enum object_type) arg->fields[i].dataType;
-    fields[i].type = (enum field_type) arg->fields[i].type;
+    fields[i].strength = (enum reference_strength) arg->fields[i].type;
   }
   
   struct descriptor_typeid id = {
@@ -284,6 +284,15 @@ FLUFFYGC_DECLARE(fluffygc_object*, get_object_array_element,
   checkType(CAST(self), CAST(array), OBJECT_TYPE_ARRAY);  
   
   return readCommonPtr(self, (fluffygc_object*) array, sizeof(void*) * index, OBJECT_TYPE_NORMAL);
+}
+
+FLUFFYGC_DECLARE(void, set_object_array_element,
+    fluffygc_state* self, fluffygc_object_array* array, int index, fluffygc_object* data) {
+  checkIfInAttachedThread(CAST(self), __func__); 
+  checkType(CAST(self), CAST(array), OBJECT_TYPE_ARRAY);
+  checkType(CAST(self), CAST(data), OBJECT_TYPE_NORMAL);  
+  
+  writeCommonPtr(self, (fluffygc_object*) array, sizeof(void*) * index, data);
 }
 
 FLUFFYGC_DECLARE(fluffygc_object*, _new_global_ref,

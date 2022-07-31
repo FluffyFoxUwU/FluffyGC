@@ -34,11 +34,12 @@ void gc_full_collect(struct gc_state* self, bool isExplicit) {
   profiler_begin(self->profiler, "record-refs");
   for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
     struct object_info* currentObjectInfo = &heap->oldObjects[i];
-    if (currentObjectInfo->isValid) {
-      assert(self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] == NULL ||
-             self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] == currentObjectInfo->regionRef);
-      self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] = currentObjectInfo->regionRef;
-    }
+    if (!currentObjectInfo->isValid)
+      continue;
+    
+    assert(self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] == NULL ||
+           self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] == currentObjectInfo->regionRef);
+    self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] = currentObjectInfo->regionRef;
   }
   profiler_end(self->profiler);
   
@@ -57,7 +58,14 @@ void gc_full_collect(struct gc_state* self, bool isExplicit) {
 
     int id = region_get_cellid(region, ptr);
     struct region_reference* newObject = self->fullGC.oldLookup[id];
-    assert(newObject);
+    
+    // Cant find the reference
+    // probably mean object sweeped
+    // due only weak and soft refs
+    // left
+    if (!newObject)
+      return NULL;
+
     return newObject->data;
   };
   
@@ -94,7 +102,7 @@ void gc_full_collect(struct gc_state* self, bool isExplicit) {
       continue;
     
     assert(currentObjectInfo->type != OBJECT_TYPE_UNKNOWN);
-    gc_fix_object_refs_custom(self, NULL, currentObjectInfo, fixer);
+    gc_fix_object_refs_custom(self, currentObjectInfo, fixer);
   }
   
   for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
@@ -111,7 +119,7 @@ void gc_full_collect(struct gc_state* self, bool isExplicit) {
     }
 
     assert(currentObjectInfo->type != OBJECT_TYPE_UNKNOWN);
-    gc_fix_object_refs_custom(self, NULL, currentObjectInfo, fixer);
+    gc_fix_object_refs_custom(self, currentObjectInfo, fixer);
   }
   profiler_end(self->profiler);
 }

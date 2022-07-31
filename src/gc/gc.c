@@ -247,15 +247,23 @@ void gc_cleanup(struct gc_state* self) {
 }
 
 void gc_fix_root(struct gc_state* self) {
-  root_iterator_run2(self->heap, NULL, ^void (struct root_reference* ref, struct object_info* info) {
-    assert(ref);
-    if (!info->isMoved)
-      return;
-    
-    assert(ref->data == info->moveData.oldLocation);
-    assert(info->moveData.newLocation != info->moveData.oldLocation);
-    ref->data = info->moveData.newLocation;
-  });
+  root_iterator_run(root_iterator_builder()
+      ->heap(self->heap)
+      ->consumer(^void (struct root_reference* ref, struct object_info* info) {
+        if (info->justSweeped) {
+          assert(ref->isWeak == true);
+          ref->data = NULL;
+          return;
+        }
+        if (!info->isMoved)
+          return;
+        
+        assert(ref->data == info->moveData.oldLocation);
+        assert(info->moveData.newLocation != info->moveData.oldLocation);
+        ref->data = info->moveData.newLocation;
+      })
+      ->build()
+  );
 }
 
 void gc_clear_young_to_old_card_table(struct gc_state* self) {
@@ -270,8 +278,6 @@ void gc_clear_old_to_young_card_table(struct gc_state* self) {
 
 struct fixer_context {
   struct gc_state* gcState;
-  struct object_info* objects;
-  struct region* generation;
   gc_fixer_callback fixer;
 };
 
@@ -281,13 +287,18 @@ static void* defaultFixer(struct fixer_context* self, void* ptr) {
   if (!ptr)
     return NULL; 
 
-  struct region_reference* prevObject = region_get_ref(self->generation, ptr);
+  struct region_reference* prevObject = heap_get_region_ref(self->gcState->heap, ptr);
   if (!prevObject)
     return ptr;
 
-  struct object_info* prevObjectInfo = &self->objects[prevObject->id];
+  struct object_info* prevObjectInfo = heap_get_object_info(self->gcState->heap, prevObject);
   struct region_reference* relocatedObject = prevObjectInfo->moveData.newLocation;
   
+  // Object sweeped (usually from soft 
+  // and weak refs)
+  if (prevObjectInfo->justSweeped)
+    return NULL;
+
   // The object not moved so no need
   // to fix it
   if (!prevObjectInfo->isMoved)
@@ -309,6 +320,10 @@ static void fixObjectRefsArray(struct fixer_context* self, struct object_info* o
 static void fixObjectRefsNormal(struct fixer_context* self, struct object_info* objectInfo) {
   struct descriptor* desc = objectInfo->typeSpecific.normal.desc;
   struct region_reference* ref = objectInfo->regionRef;
+  
+  // Opaque object
+  if (!desc)
+    return;
 
   for (int i = 0; i < desc->numFields; i++) {
     size_t offset = desc->fields[i].offset;
@@ -336,39 +351,23 @@ static void fixObjectRefs(struct fixer_context* self, struct object_info* object
   abort();
 }
 
-static struct fixer_context fixObjectCommon(struct gc_state* self, struct region* generation) {
-  struct object_info* objects = NULL;
-
-  if (generation) {
-    if (generation == self->heap->youngGeneration)
-      objects = self->heap->youngObjects;
-    else if (generation == self->heap->oldGeneration)
-      objects = self->heap->oldObjects;
-    else
-      abort();
-  }
-
-  struct fixer_context ctx = {
+void gc_fix_object_refs(struct gc_state* self, struct object_info* ref) {
+  __block struct fixer_context ctx = {
     .gcState = self,
-    .objects = objects,
-    .generation = generation,
     .fixer = NULL
   };
-  return ctx;
-}
-
-void gc_fix_object_refs(struct gc_state* self, struct region* generation, struct object_info* ref) {
-  __block struct fixer_context ctx = fixObjectCommon(self, generation);
-
-  ctx.fixer = ^void* (void* ptr) {
+  ctx.fixer =  ^void* (void* ptr) {
     return defaultFixer(&ctx, ptr);
   };
+
   fixObjectRefs(&ctx, ref);
 }
 
-void gc_fix_object_refs_custom(struct gc_state* self, struct region* generation, struct object_info* ref, gc_fixer_callback call) {
-  struct fixer_context ctx = fixObjectCommon(self, generation);
-  ctx.fixer = call; 
+void gc_fix_object_refs_custom(struct gc_state* self, struct object_info* ref, gc_fixer_callback call) {
+  struct fixer_context ctx = {
+    .gcState = self,
+    .fixer = call
+  };
   fixObjectRefs(&ctx, ref);
 }
 
