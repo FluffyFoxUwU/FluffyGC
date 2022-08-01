@@ -93,11 +93,13 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
 
   for (int i = 0; i < self->youngGeneration->sizeInCells; i++) {
     atomic_init(&self->youngObjects[i].isMarked, false);
+    atomic_init(&self->youngObjects[i].strongRefCount, 0);
     heap_reset_object_info(self, &self->youngObjects[i]);
   }
   
   for (int i = 0; i < self->oldGeneration->sizeInCells; i++) {
     atomic_init(&self->oldObjects[i].isMarked, false);
+    atomic_init(&self->oldObjects[i].strongRefCount, 0);
     heap_reset_object_info(self, &self->oldObjects[i]);
   }
 
@@ -246,20 +248,40 @@ struct region_reference* heap_get_region_ref(struct heap* self, void* data) {
   return region_get_ref(region, data);
 }
 
+bool heap_can_record_in_cardtable(struct heap* self, struct object_info* obj, size_t offset, struct object_info* data) {
+  return true;
+
+  switch (obj->type) {
+    case OBJECT_TYPE_ARRAY:
+      return obj->typeSpecific.array.strength == REFERENCE_STRENGTH_STRONG;
+    case OBJECT_TYPE_NORMAL: 
+    {
+      struct descriptor* desc = obj->typeSpecific.normal.desc;
+      struct descriptor_field* field = &desc->fields[descriptor_get_index_from_offset(desc, offset)];
+      return field->strength == REFERENCE_STRENGTH_STRONG;
+    }
+    case OBJECT_TYPE_UNKNOWN:
+      abort();
+  }
+  abort();
+}
+
 static void writePtrCommon(struct heap* self, struct root_reference* object, size_t offset, struct root_reference* toWrite) {
   struct region_reference* objectAsRegionRef = object->data;
   struct region* objectRegion = objectAsRegionRef->owner;
+  struct object_info* info = heap_get_object_info(self, objectAsRegionRef);
+  assert(info->isValid);
 
-  assert(heap_get_object_info(self, objectAsRegionRef)->isValid);
+  if (heap_can_record_in_cardtable(self, info, offset, heap_get_object_info(self, toWrite->data))) {
+    struct region* childRegion = heap_get_region2(self, toWrite);
+    if (childRegion != objectRegion) {
+      if (childRegion == self->youngGeneration)
+        atomic_store(&self->oldToYoungCardTable[objectAsRegionRef->id / CONFIG_CARD_TABLE_PER_BUCKET_SIZE], true); 
+      else
+        atomic_store(&self->youngToOldCardTable[objectAsRegionRef->id / CONFIG_CARD_TABLE_PER_BUCKET_SIZE], true); 
+    }  
+  }
 
-  struct region* childRegion = heap_get_region2(self, toWrite);
-  if (childRegion != objectRegion) {
-    if (childRegion == self->youngGeneration)
-      atomic_store(&self->oldToYoungCardTable[objectAsRegionRef->id / CONFIG_CARD_TABLE_PER_BUCKET_SIZE], true); 
-    else
-      atomic_store(&self->youngToOldCardTable[objectAsRegionRef->id / CONFIG_CARD_TABLE_PER_BUCKET_SIZE], true); 
-  }  
-  
   region_write(objectRegion, objectAsRegionRef, offset, (void*) &toWrite->data->data, sizeof(void*));  
 }
 
@@ -575,11 +597,11 @@ void heap_reset_object_info(struct heap* self, struct object_info* object) {
   object->regionRef = NULL;
   object->isMoved = false;
   object->justMoved = false;
-  object->justSweeped = false;
   object->moveData.oldLocation = NULL;
   object->moveData.oldLocationInfo = NULL;
   object->moveData.newLocation = NULL;
   object->moveData.newLocationInfo = NULL;
+  atomic_store(&object->strongRefCount, 0);
   atomic_store(&object->isMarked, false);
 }
 
@@ -612,6 +634,9 @@ static struct region_reference* tryAllocate(struct heap* self, size_t size, stru
   return ref;
 }
 
+static void commonAttrInit(struct heap* self, struct object_info* info) {
+}
+
 static struct root_reference* commonNew(struct heap* self, size_t size) {
   struct region* allocRegion = NULL;
   struct region_reference* regionRef = tryAllocate(self, size, &allocRegion);
@@ -642,6 +667,7 @@ struct root_reference* heap_obj_opaque_new(struct heap* self, size_t size) {
   struct object_info* objInfo = heap_get_object_info(self, regionRef); 
   objInfo->type = OBJECT_TYPE_NORMAL;
   objInfo->typeSpecific.normal.desc = NULL;
+  commonAttrInit(self, objInfo);
 
   heap_exit_unsafe_gc(self);
   pthread_mutex_unlock(&self->allocLock);
@@ -659,6 +685,7 @@ struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc) 
   
   pthread_mutex_lock(&self->allocLock);
   heap_enter_unsafe_gc(self);
+  descriptor_acquire(desc);
   struct root_reference* rootRef = commonNew(self, desc->objectSize);
   if (!rootRef)
     goto failure;
@@ -671,7 +698,7 @@ struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc) 
   struct object_info* objInfo = heap_get_object_info(self, regionRef); 
   objInfo->typeSpecific.normal.desc = desc;
   objInfo->type = OBJECT_TYPE_NORMAL;
-  descriptor_acquire(desc);
+  commonAttrInit(self, objInfo);
   
   heap_exit_unsafe_gc(self);
   pthread_mutex_unlock(&self->allocLock);
@@ -697,6 +724,7 @@ struct root_reference* heap_array_new(struct heap* self, int size) {
   objInfo->type = OBJECT_TYPE_ARRAY;
   objInfo->typeSpecific.array.size = size;
   objInfo->typeSpecific.array.strength = REFERENCE_STRENGTH_STRONG;
+  commonAttrInit(self, objInfo);
   memset(regionRef->data, 0, regionRef->dataSize);
 
   heap_exit_unsafe_gc(self);
@@ -755,7 +783,6 @@ void heap_sweep_an_object(struct heap* self, struct object_info* obj) {
   region_dealloc(obj->regionRef->owner, obj->regionRef);
   heap_reset_object_info(self, obj);
   obj->isValid = false;
-  obj->justSweeped = true;
 }
 
 bool heap_is_array(struct heap* self, struct root_reference* ref) {

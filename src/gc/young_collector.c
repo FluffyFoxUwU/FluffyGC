@@ -33,10 +33,11 @@ static void markPhase(struct gc_state* self) {
 
   // Marking phase
   root_iterator_run(root_iterator_builder()
+      ->ignore_weak(true)
       ->heap(heap)
       ->only_in(heap->youngGeneration)
-      ->ignore_weak(true)
       ->consumer(^void (struct root_reference* ref, struct object_info* info) {
+        atomic_fetch_add(&info->strongRefCount, 1);
         gc_marker_mark(gc_marker_builder()
             ->copy_from(defaultArgs)
             ->object_info(info)
@@ -54,6 +55,38 @@ static void markPhase(struct gc_state* self) {
     );
   });
   
+  profiler_end(self->profiler);
+}
+
+static void clearWeakRefs(struct gc_state* self) {
+  profiler_begin(self->profiler, "clear-weak-refs");
+  
+  for (int i = 0; i < self->heap->youngGeneration->sizeInCells; i++) {
+    if (!self->heap->youngObjects[i].isValid)
+      continue;
+    
+    if (self->isExplicit)
+      gc_clear_soft_refs(self, &self->heap->youngObjects[i]);
+    gc_clear_weak_refs(self, &self->heap->youngObjects[i]);
+  }
+  
+  cardtable_iterator_do(self->heap, self->heap->oldObjects, self->heap->oldToYoungCardTable, self->heap->oldToYoungCardTableSize, ^void (struct object_info* info, int cardTableIndex) {
+    if (!info->isValid)
+      return;
+
+    if (self->isExplicit)
+      gc_clear_soft_refs(self, info);
+    gc_clear_weak_refs(self, info);
+  });
+
+  profiler_end(self->profiler);
+}
+
+static void resetRefCounts(struct gc_state* self) {
+  profiler_begin(self->profiler, "reset-ref-counts");
+  for (int i = 0; i < self->heap->youngGeneration->sizeInCells; i++)
+    atomic_store(&self->heap->youngObjects[i].strongRefCount, 0);
+    
   profiler_end(self->profiler);
 }
 
@@ -122,6 +155,10 @@ void gc_young_collect(struct gc_state* self) {
   
   // Mark phase
   markPhase(self);
+
+  // Clear weak refs
+  clearWeakRefs(self);
+  resetRefCounts(self);
 
   // Sweep phase
   profiler_begin(self->profiler, "sweep");

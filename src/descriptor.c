@@ -7,18 +7,15 @@
 
 #include "descriptor.h"
 #include "region.h"
-#include "binary_search.h"
 
 static int compareByOffset(const void* _a, const void* _b) {
   const struct descriptor_field* a = _a;
   const struct descriptor_field* b = _b;
 
-  // 'b' should be located after 'a'
   if (a->offset < b->offset)
-    return 1;
-  // 'b' should be located before 'a'
-  else if (a->offset > b->offset)
     return -1;
+  else if (a->offset > b->offset)
+    return 1;
   else
     return 0;
 }
@@ -41,6 +38,8 @@ struct descriptor* descriptor_new(struct descriptor_typeid id, size_t objectSize
   }
 
   qsort(self->fields, numFields, sizeof(*self->fields), compareByOffset); 
+  for (int i = 0; i < numFields; i++)
+    self->fields[i].index = i;
   return self;
 }
 
@@ -83,7 +82,8 @@ int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
     .offset = offset,
   };
 
-  return binary_search_do(self->fields, self->numFields, sizeof(*self->fields), compareByOffset, &toSearch);
+  struct descriptor_field* result = bsearch(&toSearch, self->fields, self->numFields, sizeof(*self->fields), compareByOffset);
+  return result ? result->index : -1;
 }
 
 

@@ -14,6 +14,7 @@ struct gc_state {
   bool isGCThreadRunning;
   pthread_t gcThread;
 
+  bool isExplicit;
   bool isGCReady;
   pthread_cond_t isGCReadyCond;
   pthread_mutex_t isGCReadyLock;
@@ -49,6 +50,14 @@ typedef void* (^gc_fixer_callback)(void* ptr);
 
 void gc_fix_object_refs(struct gc_state* self, struct object_info* ref);
 void gc_fix_object_refs_custom(struct gc_state* self, struct object_info* ref, gc_fixer_callback fixer);
+
+// Clear weak/soft ref contained
+// in the object
+//
+// Should be called this before 
+// sweep but after marking phase
+void gc_clear_weak_refs(struct gc_state* state, struct object_info* object);
+void gc_clear_soft_refs(struct gc_state* state, struct object_info* object);
 
 #endif
 

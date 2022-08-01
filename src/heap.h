@@ -49,7 +49,7 @@ enum report_type {
 enum reference_strength {
   REFERENCE_STRENGTH_STRONG,
   REFERENCE_STRENGTH_WEAK,
-  REFERENCE_STRENGTH_SOFT
+  REFERENCE_STRENGTH_SOFT,
 };
 
 typedef void (^heap_finalizer)(struct root_reference* reference);
@@ -73,8 +73,13 @@ struct object_info {
   // recently promoted
   bool justMoved;
 
-  // If this object sweeped
-  bool justSweeped;
+  // Counted during marking phase 
+  // and reseted after GC cycle
+  //
+  // Used to determine whether
+  // weak or soft reference should
+  // be cleared
+  atomic_int strongRefCount;
 
   union {
     struct {
@@ -248,6 +253,7 @@ void heap_sweep_an_object(struct heap* self, struct object_info* obj);
 
 // Misc
 bool heap_is_array(struct heap* self, struct root_reference* ref);
+bool heap_can_record_in_cardtable(struct heap* self, struct object_info* obj, size_t offset, struct object_info* data);
 
 // Reports
 ATTRIBUTE((format(printf, 2, 3)))

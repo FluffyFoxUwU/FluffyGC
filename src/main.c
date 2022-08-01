@@ -2,9 +2,11 @@
 # include "main2.c"
 #else
 
+#include <stdint.h>
 #include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include "config.h"
 #include "fluffygc/v1.h"
@@ -14,12 +16,12 @@
 #define GiB * (1024 MiB)
 
 struct somedata {
+  struct somedata* weakData;
   int someInteger;
   char arr[64 KiB];
 
   struct somedata* data;
   struct somedata** array;
-  struct somedata* weakData;
 };
 
 static void* abuser(void* _heap) {
@@ -47,25 +49,59 @@ static void* abuser(void* _heap) {
     }
   };
 
+  static void* testKey;
+  static void* typeKey;
+
   fluffygc_descriptor_args descriptorArgs = {
     .name = "net.fluffyfox.fluffygc.Test",
-    .ownerID = 0,
-    .typeID = 0,
+    .ownerID = (uintptr_t) &testKey,
+    .typeID = (uintptr_t) &typeKey,
     .objectSize = sizeof(struct somedata),
     .fieldCount = sizeof(fields) / sizeof(*fields),
     .fields = fields
   };
   fluffygc_descriptor* desc = fluffygc_v1_descriptor_new(heap, &descriptorArgs);
-
+  
   ////////
   fluffygc_object_array* obj1 = fluffygc_v1_new_object_array(heap, 9);
+  fluffygc_v1_trigger_full_gc(heap);
   
   fluffygc_object* obj = fluffygc_v1_new_object(heap, desc);
+  fluffygc_v1_trigger_full_gc(heap);
+  
   fluffygc_object* global = fluffygc_v1_new_global_ref(heap, obj);
+  fluffygc_v1_trigger_full_gc(heap);
+  assert(fluffygc_v1_is_same_object(heap, obj, global) == true);
   fluffygc_v1_delete_local_ref(heap, obj);
+
+  fluffygc_v1_trigger_full_gc(heap);
 
   fluffygc_v1_set_array_field(heap, global, offsetof(struct somedata, array), obj1);
   
+  fluffygc_object* obj2 = fluffygc_v1_new_object(heap, desc);
+  fluffygc_v1_set_object_field(heap, global, offsetof(struct somedata, weakData), obj2);
+  {
+    fluffygc_object* tmp;
+    assert((tmp = fluffygc_v1_get_object_field(heap, global, offsetof(struct somedata, weakData))) != NULL);
+    fluffygc_v1_delete_local_ref(heap, tmp);
+  }
+  
+  fluffygc_v1_trigger_full_gc(heap);
+  {
+    fluffygc_object* tmp;
+    assert((tmp = fluffygc_v1_get_object_field(heap, global, offsetof(struct somedata, weakData))) != NULL);
+    fluffygc_v1_delete_local_ref(heap, tmp);
+  }
+  fluffygc_v1_delete_local_ref(heap, obj2);
+
+  fluffygc_v1_trigger_full_gc(heap);
+  
+  assert(fluffygc_v1_is_same_object(heap, obj1, fluffygc_v1_get_array_field(heap, global, offsetof(struct somedata, array))) == true);
+  
+  volatile fluffygc_object* tmp;
+  assert((tmp = fluffygc_v1_get_object_field(heap, global, offsetof(struct somedata, weakData))) == NULL);
+  
+  fluffygc_v1_trigger_full_gc(heap);
   fluffygc_v1_delete_local_ref(heap, obj1);
   fluffygc_v1_delete_global_ref(heap, global);
   ////////

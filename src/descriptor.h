@@ -14,6 +14,7 @@ struct region_reference;
 struct descriptor_field {
   const char* name;
   size_t offset;
+  int index;
 
   enum object_type dataType;
   enum reference_strength strength;

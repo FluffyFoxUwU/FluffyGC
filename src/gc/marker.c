@@ -32,10 +32,13 @@ static void markNormalObject(const struct gc_marker_args ctx) {
     assert(ref);
     struct object_info* objectInfo = heap_get_object_info(ctx.objectInfo->owner, ref);
     assert(objectInfo);
-    
+     
     if (ref->owner != ctx.onlyIn)
       continue;
 
+    // Add ref count as this strong reference
+    if (field->strength == REFERENCE_STRENGTH_STRONG)
+      atomic_fetch_add(&objectInfo->strongRefCount, 1);
     //printf("[Marking: Ref: %p] Name: '%s' (offset: %zu  ptr: %p)\n", ctx.objectInfo->regionRef, desc->fields[i].name, offset, ptr);
     
     mark(gc_marker_builder()
@@ -61,10 +64,15 @@ static void markArrayObject(const struct gc_marker_args ctx) {
     struct region_reference* ref = heap_get_region_ref(ctx.objectInfo->owner, array[i]);
     assert(ref);
     struct object_info* objectInfo = heap_get_object_info(ctx.objectInfo->owner, ref);
+   
     assert(objectInfo);
     
     if (ref->owner != ctx.onlyIn)
       continue;
+    
+    // Add ref count as this strong reference
+    if (strength == REFERENCE_STRENGTH_STRONG)
+      atomic_fetch_add(&objectInfo->strongRefCount, 1);
 
     //printf("[Marking: Ref: %p] Name: '%s' (offset: %zu  ptr: %p)\n", ctx.objectInfo->regionRef, desc->fields[i].name, offset, ptr);
     

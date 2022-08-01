@@ -1,4 +1,5 @@
 #include "config.h"
+#include "gc/gc_enums.h"
 
 #if IS_ENABLED(CONFIG_API_ENABLE_V1)
 
@@ -90,7 +91,7 @@ static fluffygc_object* _readCommonPtr(fluffygc_state* self, const char* func, f
   struct descriptor* desc = parentInfo->typeSpecific.normal.desc;
   if (desc) {
     int idx = descriptor_get_index_from_offset(desc, offset);
-    apiAssert(CAST(self), idx > 0, "Read from non pointer field");
+    apiAssert(CAST(self), idx >= 0, "Read from non pointer field");
     struct descriptor_field* field = &desc->fields[idx];
     _checkType2(CAST(self), func, field->dataType, expect);
   }
@@ -148,7 +149,11 @@ FLUFFYGC_DECLARE(fluffygc_descriptor*, descriptor_new,
   for (int i = 0; i < arg->fieldCount; i++) {
     fields[i].name = arg->fields[i].name;
     fields[i].offset = arg->fields[i].offset;
+    
+    apiAssert(CAST(self), arg->fields[i].dataType >= 0 && arg->fields[i].dataType < FLUFFYGC_TYPE_COUNT, "invalid field data type");
     fields[i].dataType = (enum object_type) arg->fields[i].dataType;
+
+    apiAssert(CAST(self), arg->fields[i].type >= 0 && arg->fields[i].type < FLUFFYGC_FIELD_COUNT, "invalid field type");
     fields[i].strength = (enum reference_strength) arg->fields[i].type;
   }
   
@@ -316,6 +321,21 @@ FLUFFYGC_DECLARE(void, _delete_global_ref,
   root_remove(CAST(self)->globalRoot, CAST(obj));
   pthread_rwlock_unlock(&CAST(self)->globalRootRWLock);
   heap_exit_unsafe_gc(CAST(self));
+}
+
+FLUFFYGC_DECLARE(void, trigger_full_gc,
+    fluffygc_state* self) {
+  checkIfInAttachedThread(CAST(self), __func__); 
+  heap_call_gc_blocking(CAST(self), GC_REQUEST_COLLECT_FULL);
+}
+
+FLUFFYGC_DECLARE(bool, _is_same_object,
+    fluffygc_state* self, fluffygc_object* a, fluffygc_object* b) {
+  checkIfInAttachedThread(CAST(self), __func__); 
+  heap_enter_unsafe_gc(CAST(self));
+  bool result = CAST(a)->data == CAST(b)->data;
+  heap_exit_unsafe_gc(CAST(self));
+  return result;
 }
 
 #endif // IS_ENABLED(CONFIG_API_ENABLE_V1)

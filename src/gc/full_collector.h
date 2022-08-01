@@ -4,12 +4,12 @@
 #include <stdbool.h>
 
 struct gc_state;
-bool gc_full_pre_collect(struct gc_state* state, bool isExplicit);
+bool gc_full_pre_collect(struct gc_state* state);
 
 // Start the collection
-void gc_full_collect(struct gc_state* state, bool isExplicit);
+void gc_full_collect(struct gc_state* state);
 
-void gc_full_post_collect(struct gc_state* state, bool isExplicit);
+void gc_full_post_collect(struct gc_state* state);
 
 #endif
 

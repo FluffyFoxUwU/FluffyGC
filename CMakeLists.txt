@@ -61,9 +61,9 @@ add_executable(FluffyGC src/main.c
                         src/collection/list.c
                         src/collection/list_node.c
                         src/collection/list_iterator.c
-                        src/binary_search.c
                         src/gc/cardtable_iterator.c
                         src/api_layer/v1.c
+                        src/reference_iterator.c
 )
 
 target_compile_options(FluffyGC PRIVATE "-g")

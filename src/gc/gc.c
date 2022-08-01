@@ -8,6 +8,7 @@
 
 #include "gc.h"
 #include "gc_enums.h"
+#include "reference_iterator.h"
 #include "young_collector.h"
 #include "old_collector.h"
 #include "full_collector.h"
@@ -67,10 +68,13 @@ static void gcTriggerOldCollection(struct gc_state* self) {
 }
 
 static void gcTriggerFullCollection(struct gc_state* self, bool isExplicit) {
+  bool prev = self->isExplicit;
+  self->isExplicit = isExplicit;
+  
   profiler_begin(self->profiler, "full-gc");
   
   profiler_begin(self->profiler, "pre-collect"); 
-  bool res = gc_full_pre_collect(self, isExplicit);
+  bool res = gc_full_pre_collect(self);
   profiler_end(self->profiler); 
 
   if (!res) {
@@ -79,15 +83,16 @@ static void gcTriggerFullCollection(struct gc_state* self, bool isExplicit) {
   }
 
   profiler_begin(self->profiler, "collect"); 
-  gc_full_collect(self, isExplicit);
+  gc_full_collect(self);
   profiler_end(self->profiler); 
   
   profiler_begin(self->profiler, "post-collect"); 
-  gc_full_post_collect(self, isExplicit);
+  gc_full_post_collect(self);
   profiler_end(self->profiler);
   
   failure:
   profiler_end(self->profiler);
+  self->isExplicit = prev;
 }
 
 void gc_trigger_old_collection(struct gc_state* self, enum report_type reason) {
@@ -130,7 +135,8 @@ static void serve(struct gc_state* self, enum gc_request_type requestType, bool*
     case GC_REQUEST_UNKNOWN:
       abort();
   }
-  
+
+  self->isExplicit = false;
   profiler_stop(self->profiler);
  
   if (canSignalCompletion) {
@@ -200,6 +206,7 @@ struct gc_state* gc_init(struct heap* heap) {
   self->isGCReady = false;
   self->fullGC.oldLookup = NULL;
   self->profiler = NULL;
+  self->isExplicit = false;
 
   pthread_mutex_init(&self->isGCReadyLock, NULL);
   pthread_cond_init(&self->isGCReadyCond, NULL);
@@ -250,11 +257,6 @@ void gc_fix_root(struct gc_state* self) {
   root_iterator_run(root_iterator_builder()
       ->heap(self->heap)
       ->consumer(^void (struct root_reference* ref, struct object_info* info) {
-        if (info->justSweeped) {
-          assert(ref->isWeak == true);
-          ref->data = NULL;
-          return;
-        }
         if (!info->isMoved)
           return;
         
@@ -293,11 +295,7 @@ static void* defaultFixer(struct fixer_context* self, void* ptr) {
 
   struct object_info* prevObjectInfo = heap_get_object_info(self->gcState->heap, prevObject);
   struct region_reference* relocatedObject = prevObjectInfo->moveData.newLocation;
-  
-  // Object sweeped (usually from soft 
-  // and weak refs)
-  if (prevObjectInfo->justSweeped)
-    return NULL;
+  assert(prevObjectInfo);
 
   // The object not moved so no need
   // to fix it
@@ -310,64 +308,71 @@ static void* defaultFixer(struct fixer_context* self, void* ptr) {
   return relocatedObject->data;
 }
 
-static void fixObjectRefsArray(struct fixer_context* self, struct object_info* objectInfo) {
-  void** array = objectInfo->regionRef->data;
-
-  for (int i = 0; i < objectInfo->typeSpecific.array.size; i++)
-    array[i] = self->fixer(array[i]);
-}
-
-static void fixObjectRefsNormal(struct fixer_context* self, struct object_info* objectInfo) {
-  struct descriptor* desc = objectInfo->typeSpecific.normal.desc;
-  struct region_reference* ref = objectInfo->regionRef;
-  
-  // Opaque object
-  if (!desc)
-    return;
-
-  for (int i = 0; i < desc->numFields; i++) {
-    size_t offset = desc->fields[i].offset;
-    void* ptr;
-    region_read(ref->owner, ref, offset, &ptr, sizeof(void*));
- 
-    void* tmp = self->fixer(ptr);
-    region_write(ref->owner, ref, offset, &tmp, sizeof(void*));
-  }
-}
-
-static void fixObjectRefs(struct fixer_context* self, struct object_info* objectInfo) {
-  assert(objectInfo->isValid);
-  switch (objectInfo->type) {
-    case OBJECT_TYPE_NORMAL:
-      fixObjectRefsNormal(self, objectInfo);
-      return;
-    case OBJECT_TYPE_ARRAY:
-      fixObjectRefsArray(self, objectInfo);
-      return;
-    case OBJECT_TYPE_UNKNOWN:
-      abort();
-  }
-
-  abort();
-}
-
 void gc_fix_object_refs(struct gc_state* self, struct object_info* ref) {
   __block struct fixer_context ctx = {
     .gcState = self,
     .fixer = NULL
   };
-  ctx.fixer =  ^void* (void* ptr) {
+  ctx.fixer = ^void* (void* ptr) {
     return defaultFixer(&ctx, ptr);
   };
-
-  fixObjectRefs(&ctx, ref);
+  
+  reference_iterator_run(reference_iterator_builder()
+      ->object(ref)
+      ->heap(self->heap)
+      ->consumer(^void (struct object_info* child, void* ptr, size_t offset) {
+        void* tmp = ctx.fixer(ptr);
+        region_write(ref->regionRef->owner, ref->regionRef, offset, &tmp, sizeof(void*));
+      })
+      ->build()
+  );
 }
 
 void gc_fix_object_refs_custom(struct gc_state* self, struct object_info* ref, gc_fixer_callback call) {
-  struct fixer_context ctx = {
-    .gcState = self,
-    .fixer = call
-  };
-  fixObjectRefs(&ctx, ref);
+  reference_iterator_run(reference_iterator_builder()
+      ->object(ref)
+      ->heap(self->heap)
+      ->consumer(^void (struct object_info* child, void* ptr, size_t offset) {
+        void* tmp = call(ptr);
+        region_write(ref->regionRef->owner, ref->regionRef, offset, &tmp, sizeof(void*));
+      })
+      ->build()
+  );
+}
+
+void gc_clear_weak_refs(struct gc_state* self, struct object_info* object) {
+  reference_iterator_run(reference_iterator_builder()
+      ->object(object)
+      ->heap(self->heap)
+      ->ignore_soft(true)
+      ->ignore_strong(true)
+      ->consumer(^void (struct object_info* child, void* ptr, size_t offset) {
+        assert(child);
+
+        if (child->strongRefCount == 0) {
+          void* tmp = NULL;
+          region_write(object->regionRef->owner, object->regionRef, offset, &tmp, sizeof(void*));
+        }
+      })
+      ->build()
+  );
+}
+
+void gc_clear_soft_refs(struct gc_state* self, struct object_info* object) {
+  reference_iterator_run(reference_iterator_builder()
+      ->object(object)
+      ->heap(self->heap)
+      ->ignore_weak(true)
+      ->ignore_strong(true)
+      ->consumer(^void (struct object_info* child, void* ptr, size_t offset) {
+        assert(child);
+
+        if (child->strongRefCount == 0) {
+          void* tmp = NULL;
+          region_write(object->regionRef->owner, object->regionRef, offset, &tmp, sizeof(void*));
+        }
+      })
+      ->build()
+  );
 }
 

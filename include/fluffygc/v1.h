@@ -16,14 +16,20 @@ typedef struct _2aaee2d4_2f50_4685_97f4_63296ae1f585 fluffygc_descriptor;
 typedef enum _90ad4423_2321_4c8b_bb78_e43d180aa295 {
   FLUFFYGC_FIELD_STRONG = 0,
   FLUFFYGC_FIELD_WEAK = 1,
-  FLUFFYGC_FIELD_SOFT = 2
+  FLUFFYGC_FIELD_SOFT = 2,
+  
+  // Except this
+  FLUFFYGC_FIELD_COUNT = 3
 } fluffygc_field_type;
 
 // Keep this in sync with ./src/heap.h
 typedef enum _4d122aef_0de1_497d_8865_231241cdb3a9 {
   FLUFFYGC_TYPE_UNKNOWN = 0,
   FLUFFYGC_TYPE_NORMAL = 1,
-  FLUFFYGC_TYPE_ARRAY = 2
+  FLUFFYGC_TYPE_ARRAY = 2,
+  
+  // Except this
+  FLUFFYGC_TYPE_COUNT = 3
 } fluffygc_type;
 
 typedef struct _6fe1c279_5c9b_4f5f_8147_fab168b6d75c {
@@ -36,7 +42,14 @@ typedef struct _6fe1c279_5c9b_4f5f_8147_fab168b6d75c {
 
 typedef struct b2697c83_e79f_464e_99e3_12bd6c374286 {
   const char* name;
-  
+
+  // Identification of the object
+  // owner and type (its recommended
+  // that you use pointer to static
+  // variable as the value for these)
+  //
+  // GC never use these except for
+  // heap dumps
   uintptr_t ownerID;
   uintptr_t typeID;
 
@@ -64,6 +77,9 @@ FLUFFYGC_DECLARE(fluffygc_state*, new,
     float concurrentOldGCthreshold,
     int globalRootSize);
 FLUFFYGC_DECLARE(void, free,
+    fluffygc_state* self);
+
+FLUFFYGC_DECLARE(void, trigger_full_gc,
     fluffygc_state* self);
 
 // Descriptor creation and deletion
@@ -122,11 +138,16 @@ FLUFFYGC_DECLARE(fluffygc_object*, get_object_array_element,
 FLUFFYGC_DECLARE(void, set_object_array_element,
     fluffygc_state* self, fluffygc_object_array* array, int index, fluffygc_object* data);
 
+// Comparisons
+FLUFFYGC_DECLARE(bool, _is_same_object,
+    fluffygc_state* self, fluffygc_object* a, fluffygc_object* b);
+
 // Macro wrappers for type safety
 #define fluffygc_v1_new_local_ref(_, obj) ((typeof(obj)) fluffygc_v1__new_local_ref((_), FLUFFYGC_AS_OBJECT(obj)))
 #define fluffygc_v1_delete_local_ref(_, obj) fluffygc_v1__delete_local_ref((_), FLUFFYGC_AS_OBJECT(obj))
 #define fluffygc_v1_new_global_ref(_, obj) ((typeof(obj)) fluffygc_v1__new_global_ref((_), FLUFFYGC_AS_OBJECT(obj)))
 #define fluffygc_v1_delete_global_ref(_, obj) fluffygc_v1__delete_global_ref((_), FLUFFYGC_AS_OBJECT(obj))
+#define fluffygc_v1_is_same_object(_, objA, objB) fluffygc_v1__is_same_object((_), FLUFFYGC_AS_OBJECT(objA), FLUFFYGC_AS_OBJECT(objB))
 
 #endif
 
