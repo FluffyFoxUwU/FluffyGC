@@ -79,6 +79,7 @@ static void* abuser(void* _heap) {
   fluffygc_v1_set_array_field(heap, global, offsetof(struct somedata, array), obj1);
   
   fluffygc_object* obj2 = fluffygc_v1_new_object(heap, desc);
+  fluffygc_weak_object* obj2Weak = fluffygc_v1_new_weak_global_ref(heap, obj2);
   fluffygc_v1_set_object_field(heap, global, offsetof(struct somedata, weakData), obj2);
   {
     fluffygc_object* tmp;
@@ -104,6 +105,8 @@ static void* abuser(void* _heap) {
   fluffygc_v1_trigger_full_gc(heap);
   fluffygc_v1_delete_local_ref(heap, obj1);
   fluffygc_v1_delete_global_ref(heap, global);
+  fluffygc_v1_delete_weak_global_ref(heap, obj2Weak);
+  fluffygc_v1_trigger_full_gc(heap);
   ////////
  
   fluffygc_v1_descriptor_delete(heap, desc);

@@ -20,6 +20,9 @@ static void iterateRoot(struct root* root, struct root_iterator_args* ctx) {
 
     if (!rootRef || !rootRef->isValid)
       continue;
+
+    if (rootRef->isWeak && rootRef->data)
+      continue;
     
     struct region_reference* ref = (struct region_reference*) rootRef->data;
     assert(ref);
@@ -35,7 +38,7 @@ static void iterateRoot(struct root* root, struct root_iterator_args* ctx) {
 
 static void iterateThread(struct thread* thread, struct root_iterator_args* ctx) {
   // Iterate each frame
-  for (int i = 0; i < thread->framePointer; i++)
+  for (int i = 0; i < thread->topFramePointer; i++)
     if (thread->frames[i].isValid)
       iterateRoot(thread->frames[i].root, ctx);
 }

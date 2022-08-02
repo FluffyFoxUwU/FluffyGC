@@ -1,5 +1,6 @@
 #include "config.h"
 #include "gc/gc_enums.h"
+#include "region.h"
 
 #if IS_ENABLED(CONFIG_API_ENABLE_V1)
 
@@ -25,7 +26,9 @@
       (struct root_reference*) (val), \
     struct _2aaee2d4_2f50_4685_97f4_63296ae1f585*: \
       (struct descriptor*) (val), \
-     \
+    struct _3573f4a3_e6d9_4d8f_9176_f5b95a418ecf*: \
+      (struct root_reference*) (val), \
+      \
     struct root_reference*: \
       (struct _7ca2fe74_2f67_4a70_a55d_ba9f6acb6f43*) (val), \
     struct heap*: \
@@ -201,7 +204,7 @@ FLUFFYGC_DECLARE(fluffygc_object*, pop_frame,
   checkIfInAttachedThread(CAST(self), __func__);
   
   heap_enter_unsafe_gc(CAST(self));
-  apiAssert(CAST(self), getThread(CAST(self))->framePointer > 1, "cannot pop last frame (unbalanced pop and push?)");
+  apiAssert(CAST(self), getThread(CAST(self))->topFramePointer > 1, "cannot pop last frame (unbalanced pop and push?)");
   
   struct root_reference* ref = thread_pop_frame(getThread(CAST(self)), CAST(obj));
   heap_exit_unsafe_gc(CAST(self));
@@ -219,7 +222,10 @@ FLUFFYGC_DECLARE(fluffygc_object*, _new_local_ref,
   checkIfInAttachedThread(CAST(self), __func__); 
   
   heap_enter_unsafe_gc(CAST(self));
-  struct root_reference* ref = thread_local_add(getThread(CAST(self)), CAST(obj)->data);
+  struct root_reference* ref = NULL;
+  if (CAST(obj)->data)
+    ref = thread_local_add(getThread(CAST(self)), CAST(obj)->data);
+  
   heap_exit_unsafe_gc(CAST(self));
   return CAST(ref);
 }
@@ -306,7 +312,11 @@ FLUFFYGC_DECLARE(fluffygc_object*, _new_global_ref,
   
   heap_enter_unsafe_gc(CAST(self));
   pthread_rwlock_wrlock(&CAST(self)->globalRootRWLock);
-  struct root_reference* ref = root_add(CAST(self)->globalRoot, CAST(obj)->data);
+  apiAssert(CAST(self), CAST(self)->globalRoot->usage >= CAST(self)->globalRoot->size, "Global references table overflowing");
+
+  struct root_reference* ref = NULL;
+  if (CAST(obj)->data)
+    ref = root_add(CAST(self)->globalRoot, CAST(obj)->data);
   pthread_rwlock_unlock(&CAST(self)->globalRootRWLock);
   heap_exit_unsafe_gc(CAST(self));
   return CAST(ref);
@@ -333,9 +343,36 @@ FLUFFYGC_DECLARE(bool, _is_same_object,
     fluffygc_state* self, fluffygc_object* a, fluffygc_object* b) {
   checkIfInAttachedThread(CAST(self), __func__); 
   heap_enter_unsafe_gc(CAST(self));
-  bool result = CAST(a)->data == CAST(b)->data;
+  struct region_reference* data = NULL;
+  if (b)
+    data = CAST(b)->data;
+
+  bool result = CAST(a)->data == data;
   heap_exit_unsafe_gc(CAST(self));
   return result;
+}
+
+FLUFFYGC_DECLARE(int, get_current_frame_id,
+    fluffygc_state* self) {
+  checkIfInAttachedThread(CAST(self), __func__); 
+  return getThread(CAST(self))->topFramePointer;
+}
+
+FLUFFYGC_DECLARE(fluffygc_weak_object*, _new_weak_global_ref,
+    fluffygc_state* self, fluffygc_object* obj) {
+  checkIfInAttachedThread(CAST(self), __func__); 
+  heap_enter_unsafe_gc(CAST(self));
+  struct root_reference* ref = CAST(fluffygc_v1_new_global_ref(self, obj));
+  if (ref)
+    ref->isWeak = true;
+  heap_exit_unsafe_gc(CAST(self));
+  return (fluffygc_weak_object*) ref;
+}
+
+FLUFFYGC_DECLARE(void, delete_weak_global_ref,
+    fluffygc_state* self, fluffygc_weak_object* obj) {
+  checkIfInAttachedThread(CAST(self), __func__); 
+  fluffygc_v1_delete_global_ref(self, (fluffygc_object*) obj);
 }
 
 #endif // IS_ENABLED(CONFIG_API_ENABLE_V1)

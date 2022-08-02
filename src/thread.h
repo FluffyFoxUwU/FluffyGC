@@ -15,7 +15,7 @@ struct thread {
   struct heap* heap;
 
   int frameStackSize;
-  int framePointer;
+  int topFramePointer;
   struct thread_frame* topFrame;
   struct thread_frame* frames;
 };

@@ -11,7 +11,7 @@ struct thread* thread_new(struct heap* heap, int id, int frameStackSize) {
   if (!self)
     return NULL;
 
-  self->framePointer = 0;
+  self->topFramePointer = 0;
   self->frameStackSize = frameStackSize;
   self->heap = heap;
   self->id = id;
@@ -42,10 +42,10 @@ void thread_free(struct thread* self) {
 }
 
 bool thread_push_frame(struct thread* self, int frameSize) {
-  if (self->framePointer + 1 >= self->frameStackSize)
+  if (self->topFramePointer + 1 >= self->frameStackSize)
     goto stack_overflow;
 
-  struct thread_frame* frame = &self->frames[self->framePointer];
+  struct thread_frame* frame = &self->frames[self->topFramePointer];
   assert(!frame->isValid);
 
   if (frame->root == NULL) {
@@ -56,7 +56,7 @@ bool thread_push_frame(struct thread* self, int frameSize) {
 
   frame->isValid = true;
   self->topFrame = frame;
-  self->framePointer++;
+  self->topFramePointer++;
   return true;
 
   stack_overflow:
@@ -69,7 +69,7 @@ struct root_reference* thread_pop_frame(struct thread* self, struct root_referen
   // its needed to keep stuff simple by
   // guarante-ing that there atleast one
   // frame left
-  if (self->framePointer <= 1)
+  if (self->topFramePointer <= 1)
     abort();
   
   // Reference come from somewhere else that is
@@ -77,12 +77,12 @@ struct root_reference* thread_pop_frame(struct thread* self, struct root_referen
   if (result)
     assert(result->owner == self->topFrame->root);
 
-  self->framePointer--;
-  struct thread_frame* frame = &self->frames[self->framePointer];
+  self->topFramePointer--;
+  struct thread_frame* frame = &self->frames[self->topFramePointer];
   frame->isValid = false;
 
   struct root_reference* newRef = NULL;
-  self->topFrame = &self->frames[self->framePointer - 1];
+  self->topFrame = &self->frames[self->topFramePointer - 1];
   if (result)
     newRef = root_add(self->topFrame->root, (struct region_reference*) result->data);
   

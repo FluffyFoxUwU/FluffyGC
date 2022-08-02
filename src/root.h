@@ -30,6 +30,7 @@ struct root_reference {
 // Root is not thread safe
 struct root {
   int size;
+  int usage;
   struct root_reference* entries;
 };
 

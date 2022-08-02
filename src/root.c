@@ -11,6 +11,7 @@ struct root* root_new(int size) {
     goto failure;
   
   self->size = size;
+  self->usage = 0;
 
   self->entries = malloc(size * sizeof(*self->entries));
   if (!self->entries)
@@ -57,6 +58,8 @@ struct root_reference* root_add(struct root* self, struct region_reference* ref)
     rootRef = &self->entries[freePos];
   }
 
+  self->usage++;
+  
   rootRef->isWeak = false;
   rootRef->isValid = true;
   rootRef->data = ref;
@@ -75,6 +78,7 @@ struct root_reference* root_add(struct root* self, struct region_reference* ref)
 static void remove_entry(struct root* self, struct root_reference* ref){
   assert(self == ref->owner);
 
+  self->usage--;
   ref->isValid = false;
   ref->data = NULL;
 

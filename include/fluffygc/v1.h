@@ -11,6 +11,7 @@ typedef struct _7ca2fe74_2f67_4a70_a55d_ba9f6acb6f43 fluffygc_object;
 typedef struct _431d5fb5_4c3f_45e2_9f89_59521ff5cb07 fluffygc_object_array;
 typedef struct _c2e9d5e4_e9c3_492a_a874_6c5c5ca70dec fluffygc_state;
 typedef struct _2aaee2d4_2f50_4685_97f4_63296ae1f585 fluffygc_descriptor;
+typedef struct _3573f4a3_e6d9_4d8f_9176_f5b95a418ecf fluffygc_weak_object;
 
 // Keep this in sync with ./src/descriptor.h
 typedef enum _90ad4423_2321_4c8b_bb78_e43d180aa295 {
@@ -63,11 +64,10 @@ typedef struct b2697c83_e79f_464e_99e3_12bd6c374286 {
 #define FLUFFYGC_DECLARE(ret, name, ...) \
   FLUFFYGC_EXPORT ret FLUFFYGC_SYM(name)(__VA_ARGS__)
 
-// fluffygc_object and fluffygc_object_array can
-// be casted to fluffygc_object
 #define FLUFFYGC_AS_OBJECT(obj) (_Generic((obj), \
   fluffygc_object*: (obj), \
-  fluffygc_object_array*: (fluffygc_object*) obj))
+  fluffygc_object_array*: (fluffygc_object*) obj, \
+  fluffygc_weak_object*: (fluffygc_object*) obj))
 
 // State creation and deletion
 FLUFFYGC_DECLARE(fluffygc_state*, new, 
@@ -142,12 +142,23 @@ FLUFFYGC_DECLARE(void, set_object_array_element,
 FLUFFYGC_DECLARE(bool, _is_same_object,
     fluffygc_state* self, fluffygc_object* a, fluffygc_object* b);
 
+// Weak globals
+FLUFFYGC_DECLARE(fluffygc_weak_object*, _new_weak_global_ref,
+    fluffygc_state* self, fluffygc_object* obj);
+FLUFFYGC_DECLARE(void, delete_weak_global_ref,
+    fluffygc_state* self, fluffygc_weak_object* obj);
+
+// Misc
+FLUFFYGC_DECLARE(int, get_current_frame_id,
+    fluffygc_state* self);
+
 // Macro wrappers for type safety
 #define fluffygc_v1_new_local_ref(_, obj) ((typeof(obj)) fluffygc_v1__new_local_ref((_), FLUFFYGC_AS_OBJECT(obj)))
 #define fluffygc_v1_delete_local_ref(_, obj) fluffygc_v1__delete_local_ref((_), FLUFFYGC_AS_OBJECT(obj))
 #define fluffygc_v1_new_global_ref(_, obj) ((typeof(obj)) fluffygc_v1__new_global_ref((_), FLUFFYGC_AS_OBJECT(obj)))
 #define fluffygc_v1_delete_global_ref(_, obj) fluffygc_v1__delete_global_ref((_), FLUFFYGC_AS_OBJECT(obj))
 #define fluffygc_v1_is_same_object(_, objA, objB) fluffygc_v1__is_same_object((_), FLUFFYGC_AS_OBJECT(objA), FLUFFYGC_AS_OBJECT(objB))
+#define fluffygc_v1_new_weak_global_ref(_, obj) fluffygc_v1__new_weak_global_ref((_), FLUFFYGC_AS_OBJECT(obj))
 
 #endif
 

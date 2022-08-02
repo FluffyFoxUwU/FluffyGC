@@ -70,6 +70,17 @@ static void clearWeakRefs(struct gc_state* self) {
     gc_clear_weak_refs(self, &self->heap->youngObjects[i]);
   }
   
+  root_iterator_run(root_iterator_builder()
+      ->ignore_weak(true)
+      ->heap(self->heap)
+      ->only_in(self->heap->youngGeneration)
+      ->consumer(^void (struct root_reference* ref, struct object_info* info) {
+        if (info->strongRefCount == 0)
+          ref->data = NULL;
+      })
+      ->build()
+  ); 
+  
   cardtable_iterator_do(self->heap, self->heap->oldObjects, self->heap->oldToYoungCardTable, self->heap->oldToYoungCardTableSize, ^void (struct object_info* info, int cardTableIndex) {
     if (!info->isValid)
       return;
