@@ -148,9 +148,41 @@ int main2() {
 
   // Young is 1/3 of total
   // Old   is 2/3 of total
-  struct heap* heap = heap_new(16 MiB, 48 MiB, 32 KiB, 100, 0.45f, 65536);
+  // ------------------------------------
+  // | Total     | Young     | Old      |
+  // ------------------------------------
+  // |  16 MiB   |  5 MiB    | 11 MiB   |
+  // |  64 MiB   | 21 MiB    | 43 MiB   |
+  // | 128 MiB   | 43 MiB    | 85 MiB   |
+  // ------------------------------------
+  struct heap* heap = heap_new(43 MiB, 85 MiB, 32 KiB, 100, 0.45f, 65536);
   assert(heap);
   
+  /*
+  Statistics
+
+  Sorted by real time
+  ------------------------------------------------------
+  | Total      | Real time    | User time    | Workers |
+  ------------------------------------------------------
+  | 128 MiB    |  6.606 sec   |  6.370 sec   | 1       |
+  | 128 MiB    |  6.924 sec   | 11.200 sec   | 2       |
+  | 128 MiB    |  8.558 sec   | 24.640 sec   | 4       |
+  |  64 MiB    |  8.846 sec   |  7.970 sec   | 1       |
+  | 128 MiB    |  9.393 sec   | 41.990 sec   | 8       |
+  |  64 MiB    |  9.743 sec   | 25.610 sec   | 8       |
+  |  64 MiB    | 10.054 sec   | 15.040 sec   | 2       | 
+  |  64 MiB    | 10.697 sec   | 25.270 sec   | 4       | 
+  |  16 MiB    | 17.881 sec   | 14.570 sec   | 1       |
+  |  16 MiB    | 18.562 sec   | 17.980 sec   | 2       |
+  |  16 MiB    | 19.841 sec   | 20.420 sec   | 4       |
+  |  16 MiB    | 24.059 sec   | 19.550 sec   | 8       |
+  ------------------------------------------------------
+  
+  Why would lower the worker threads makes
+  the collector can keep up with allocations???
+  */
+
   int abuserCount = 6;
   pthread_t* abusers = calloc(abuserCount, sizeof(*abusers));
 

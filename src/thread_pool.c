@@ -57,12 +57,12 @@ struct thread_pool* thread_pool_new(int poolSize, const char* prefix) {
     struct thread_pool_work_unit work = {
       .canRelease = false,
       .intData = self->threadsCreated + 1,
-      .worker = ^void (struct thread_pool_work_unit work) {
+      .worker = ^void (const struct thread_pool_work_unit* work) {
         pthread_barrier_wait(&barrier);
         
-        size_t bufSize = snprintf(NULL, 0, "%s%d", prefix2, work.intData) + 1;
+        size_t bufSize = snprintf(NULL, 0, "%s%d", prefix2, work->intData) + 1;
         char* name = malloc(bufSize);
-        snprintf(name, bufSize, "%s%d", prefix2, work.intData);
+        snprintf(name, bufSize, "%s%d", prefix2, work->intData);
         util_set_thread_name(name);
         free(name);
       }
@@ -183,7 +183,7 @@ static void* worker(void* _self) {
       break;
 
     if (work.worker) {
-      work.worker(work);
+      work.worker(&work);
 
       if (work.canRelease)
         Block_release(work.worker);

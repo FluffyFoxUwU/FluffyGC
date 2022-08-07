@@ -42,7 +42,7 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
 
   pthread_mutex_init(&self->gcCompletedLock, NULL);
   pthread_mutex_init(&self->gcMayRunLock, NULL);
-  pthread_mutex_init(&self->allocLock, NULL);
+  pthread_mutex_init(&self->memoryExhaustionLock, NULL);
   pthread_mutex_init(&self->callGCLock, NULL); 
    
   pthread_cond_init(&self->gcCompletedCond, NULL);
@@ -154,7 +154,7 @@ void heap_free(struct heap* self) {
   
   pthread_mutex_destroy(&self->gcCompletedLock);
   pthread_mutex_destroy(&self->gcMayRunLock);
-  pthread_mutex_destroy(&self->allocLock);
+  pthread_mutex_destroy(&self->memoryExhaustionLock);
   
   pthread_cond_destroy(&self->gcCompletedCond);
   pthread_cond_destroy(&self->gcMayRunCond);
@@ -527,9 +527,15 @@ static void tryFixOldExhaustion(struct heap* self) {
   heap_call_gc_blocking(self, GC_REQUEST_COLLECT_OLD);
 }
 
-static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {   
-  struct region_reference* regionRef;
- 
+static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {
+  struct region_reference* regionRef = region_alloc_or_fit(self->oldGeneration, size);
+  if (regionRef != NULL)
+    goto allocation_success_first_try;
+  
+  heap_exit_unsafe_gc(self);
+  pthread_mutex_lock(&self->memoryExhaustionLock);
+  heap_enter_unsafe_gc(self);
+  
   regionRef = region_alloc_or_fit(self->oldGeneration, size);
   if (regionRef != NULL)
     goto allocation_success;
@@ -549,15 +555,26 @@ static struct region_reference* tryAllocateOld(struct heap* self, size_t size) {
   regionRef = region_alloc_or_fit(self->oldGeneration, size);
   if (!regionRef) {
     onHeapExhaustion(self);
+  pthread_mutex_unlock(&self->memoryExhaustionLock);
     return NULL;
   }
 
   allocation_success:
+  pthread_mutex_unlock(&self->memoryExhaustionLock);
+  allocation_success_first_try:
   return regionRef; 
 }
 
 static struct region_reference* tryAllocateYoung(struct heap* self, size_t size) {   
   struct region_reference* regionRef = region_alloc(self->youngGeneration, size);
+  if (regionRef != NULL)
+    goto allocation_success_first_try;
+  
+  heap_exit_unsafe_gc(self);
+  pthread_mutex_lock(&self->memoryExhaustionLock);
+  heap_enter_unsafe_gc(self);
+  
+  regionRef = region_alloc(self->youngGeneration, size);
   if (regionRef != NULL)
     goto allocation_success;
   
@@ -578,8 +595,10 @@ static struct region_reference* tryAllocateYoung(struct heap* self, size_t size)
     onHeapExhaustion(self);
     return NULL;
   }
-
+  
   allocation_success:
+  pthread_mutex_unlock(&self->memoryExhaustionLock);
+  allocation_success_first_try:
   return regionRef; 
 }
 
@@ -654,7 +673,6 @@ static struct root_reference* commonNew(struct heap* self, size_t size) {
 }
 
 struct root_reference* heap_obj_opaque_new(struct heap* self, size_t size) {
-  pthread_mutex_lock(&self->allocLock);
   heap_enter_unsafe_gc(self);
   struct root_reference* rootRef = commonNew(self, size);
   if (!rootRef)
@@ -668,12 +686,10 @@ struct root_reference* heap_obj_opaque_new(struct heap* self, size_t size) {
   commonAttrInit(self, objInfo);
 
   heap_exit_unsafe_gc(self);
-  pthread_mutex_unlock(&self->allocLock);
   return rootRef;
   
   failure:
   heap_exit_unsafe_gc(self);
-  pthread_mutex_unlock(&self->allocLock);
   return NULL;
 }
 
@@ -681,7 +697,6 @@ struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc) 
   if (atomic_load(&desc->alreadyUnregistered) == true)
     abort();
   
-  pthread_mutex_lock(&self->allocLock);
   heap_enter_unsafe_gc(self);
   descriptor_acquire(desc);
   struct root_reference* rootRef = commonNew(self, desc->objectSize);
@@ -699,17 +714,14 @@ struct root_reference* heap_obj_new(struct heap* self, struct descriptor* desc) 
   commonAttrInit(self, objInfo);
   
   heap_exit_unsafe_gc(self);
-  pthread_mutex_unlock(&self->allocLock);
   return rootRef;
   
   failure:
   heap_exit_unsafe_gc(self);
-  pthread_mutex_unlock(&self->allocLock);
   return NULL;
 }
 
 struct root_reference* heap_array_new(struct heap* self, int size) {
-  pthread_mutex_lock(&self->allocLock);
   heap_enter_unsafe_gc(self);
 
   struct root_reference* rootRef = commonNew(self, sizeof(void*) * size);
@@ -726,12 +738,10 @@ struct root_reference* heap_array_new(struct heap* self, int size) {
   memset(regionRef->data, 0, regionRef->dataSize);
 
   heap_exit_unsafe_gc(self);
-  pthread_mutex_unlock(&self->allocLock);
   return rootRef;
   
   failure:
   heap_exit_unsafe_gc(self);
-  pthread_mutex_unlock(&self->allocLock);
   return NULL;
 }
 

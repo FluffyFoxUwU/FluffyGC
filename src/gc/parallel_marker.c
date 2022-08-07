@@ -31,10 +31,10 @@ void gc_parallel_marker(struct gc_state* gcState, bool isYoung) {
   
   // Each worker thread
   __block gc_mark_executor executor;
-  __block thread_pool_worker workerTask = ^void (struct thread_pool_work_unit work) {
+  __block thread_pool_worker workerTask = ^void (const struct thread_pool_work_unit* work) {
     __block int workCount = 0;
 
-    struct gc_marker_args args = *((struct gc_marker_args*) work.data);
+    struct gc_marker_args args = *((struct gc_marker_args*) work->data);
     args = gc_marker_builder()
       ->copy_from(args)
       ->executor(^void (struct gc_marker_args args) {
@@ -45,7 +45,7 @@ void gc_parallel_marker(struct gc_state* gcState, bool isYoung) {
         executor(args);
       })
       ->build();
-    free(work.data);
+    free(work->data);
     gc_marker_mark(args);
   };
 
@@ -59,7 +59,7 @@ void gc_parallel_marker(struct gc_state* gcState, bool isYoung) {
     *((struct gc_marker_args*) workUnit.data) = args;
 
     if (!thread_pool_try_submit_work(gcState->workerPool, &workUnit))
-      workerTask(workUnit);
+      workerTask(&workUnit);
   };
   
   struct gc_marker_args defaultArgs = gc_marker_builder()

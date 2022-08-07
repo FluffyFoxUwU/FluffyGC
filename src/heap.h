@@ -112,8 +112,10 @@ struct thread_data {
 struct heap {
   struct gc_state* gcState;
   
-  // Allocation lock
-  pthread_mutex_t allocLock;
+  // Increases concurrency of allocations
+  // by not forcing serialization on every
+  // allocation unless needed
+  pthread_mutex_t memoryExhaustionLock;
 
   struct region* youngGeneration;
   struct region* oldGeneration;

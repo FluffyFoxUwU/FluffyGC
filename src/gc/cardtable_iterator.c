@@ -11,7 +11,7 @@ void cardtable_iterator_do(struct heap* heap, struct object_info* objects, atomi
   atomic_init(&current, 0);
 
   struct thread_pool_work_unit work = {
-    .worker = ^void (struct thread_pool_work_unit work) {
+    .worker = ^void (const struct thread_pool_work_unit* work) {
       int i = 0;
       while ((i = atomic_fetch_add(&current, 1)) < cardTableSize) {  
         if (atomic_load(&cardTable[i]) == false)

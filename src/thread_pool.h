@@ -9,7 +9,7 @@
 // thread pool
 
 struct thread_pool_work_unit;
-typedef void (^thread_pool_worker)(struct thread_pool_work_unit workUnit);
+typedef void (^thread_pool_worker)(const struct thread_pool_work_unit* workUnit);
 
 struct thread_pool_work_unit {
   void* data;
