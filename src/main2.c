@@ -1,4 +1,3 @@
-#include <linux/prctl.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -6,7 +5,6 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/prctl.h>
 
 #include "config.h"
 #include "region.h"
@@ -16,6 +14,7 @@
 #include "root.h"
 #include "config.h"
 #include "profiler.h"
+#include "util.h"
 
 #define KiB * (1024)
 #define MiB * (1024 KiB)
@@ -61,7 +60,7 @@ struct somedata {
 };
 
 static void* abuser(void* _heap) {
-  prctl(PR_SET_NAME, "Abuser");
+  util_set_thread_name("Abuser");
   
   struct descriptor_typeid id = {
     .name = "net.fluffyfox.bettergc.Test",
@@ -109,13 +108,13 @@ static void* abuser(void* _heap) {
   thread_local_remove(currentThread, grandson);
   heap_exit_unsafe_gc(heap);
   
-  for (int i = 0; i < 50000; i++) {
+  for (int i = 0; i < 10000; i++) {
     grandson = heap_array_read(heap, arr, 2);
   
     struct root_reference* obj = heap_obj_new(heap, desc); 
     heap_obj_write_ptr(heap, grandson, offsetof(struct somedata, data), obj);
 
-    struct root_reference* opaque = heap_obj_opaque_new(heap, 1 MiB);
+    struct root_reference* opaque = heap_obj_opaque_new(heap, 32 KiB);
     heap_enter_unsafe_gc(heap);
     thread_local_remove(currentThread, opaque);
 
@@ -141,7 +140,7 @@ static void* abuser(void* _heap) {
 }
 
 int main2() {
-  prctl(PR_SET_NAME, "Main");
+  util_set_thread_name("Main");
 
   puts("Hello World!");
   printf("FluffyGC Ver %d.%d.%d\n", CONFIG_VERSION_MAJOR, CONFIG_VERSION_MINOR, CONFIG_VERSION_PATCH);
@@ -149,7 +148,7 @@ int main2() {
 
   // Young is 1/3 of total
   // Old   is 2/3 of total
-  struct heap* heap = heap_new(8 MiB, 24 MiB, 32 KiB, 100, 0.45f, 65536);
+  struct heap* heap = heap_new(16 MiB, 48 MiB, 32 KiB, 100, 0.45f, 65536);
   assert(heap);
   
   int abuserCount = 6;
@@ -167,52 +166,6 @@ int main2() {
   return 0;
 }
 
-static void* testWorker(void* res) {
-  *((int*) res) = main2();
-  return NULL;
-}
-
-int main() {
-  int res = 0;
-  pthread_t tmp;
-  pthread_create(&tmp, NULL, testWorker, &res);
-  pthread_join(tmp, NULL);
-
-  puts("Exiting :3");
-  return res;
-}
-
-#if IS_ENABLED(CONFIG_ASAN)
-const char* __asan_default_options() {
-  return "fast_unwind_on_malloc=0:"
-         "detect_invalid_pointer_pairs=10:"
-         "strict_string_checks=1:"
-         "strict_init_order=1:"
-         "check_initialization_order=1:"
-         "print_stats=1:"
-         "detect_stack_use_after_return=1:"
-         "atexit=1";
-}
-#endif
-
-#if IS_ENABLED(CONFIG_UBSAN)
-const char* __ubsan_default_options() {
-  return "print_stacktrace=1:"
-         "suppressions=suppressions/UBSan.supp";
-}
-#endif
-
-#if IS_ENABLED(CONFIG_TSAN)
-const char* __tsan_default_options() {
-  return "second_deadlock_stack=1";
-}
-#endif
-
-#if IS_ENABLED(CONFIG_MSAN)
-const char* __msan_default_options() {
-  return "";
-}
-#endif
 
 
 

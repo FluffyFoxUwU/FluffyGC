@@ -25,6 +25,10 @@ menu Debugging
     bool "Enable Undefined behavior Sanitizer"
     default n
     depends on DEBUG
+  
+  config LLVM_XRAY
+    bool "Enable LLVM's XRay instrumentation"
+    default n
 
   config DEBUG_DONT_REUSE_ROOT_REFERENCE
     bool "Don't reuse root reference"
@@ -44,13 +48,16 @@ endmenu
 menu Allocator
   choice
     prompt "Select cell size"
-    default ALLOCATOR_CELL_SIZE_512
+    default ALLOCATOR_CELL_SIZE_128
     help 
       Depends average object size in your
       program, setting to larger or lower 
       value may improve performance
-      Default is 512 bytes
 
+   config ALLOCATOR_CELL_SIZE_32
+     bool "32 bytes"
+   config ALLOCATOR_CELL_SIZE_64
+     bool "64 bytes"
    config ALLOCATOR_CELL_SIZE_128
      bool "128 bytes"
    config ALLOCATOR_CELL_SIZE_256
@@ -65,6 +72,8 @@ menu Allocator
 
   config ALLOCATOR_CELL_SIZE
     int
+    default 32      if ALLOCATOR_CELL_SIZE_32
+    default 64      if ALLOCATOR_CELL_SIZE_64
     default 128     if ALLOCATOR_CELL_SIZE_128
     default 256     if ALLOCATOR_CELL_SIZE_256
     default 512     if ALLOCATOR_CELL_SIZE_512
@@ -186,6 +195,18 @@ menu General
     config LIBC_NONE
       bool "None"
   endchoice
+endmenu
+
+menu "Garbage Collector"
+  config GC_MARK_WORK_SIZE
+    int "Work size for each parallel mark worker tasl"
+    range 1 1000000
+    default 1000
+    help
+      Number of work before broadcasting a new
+      marking job to be ran on a thread. 
+      Potentially improve CPU utilization for 
+      parallel collector if configured correctly
 endmenu
 
 config API_ENABLE_V1

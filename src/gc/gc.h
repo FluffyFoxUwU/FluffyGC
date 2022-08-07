@@ -11,6 +11,9 @@ struct profiler;
 struct gc_state {
   struct heap* heap;
 
+  // Workers
+  struct thread_pool* workerPool;
+  
   bool isGCThreadRunning;
   pthread_t gcThread;
 
@@ -31,7 +34,7 @@ struct gc_state {
   } statistics;
 };
 
-struct gc_state* gc_init(struct heap* heap);
+struct gc_state* gc_init(struct heap* heap, int workerCount);
 void gc_cleanup(struct gc_state* self);
 
 // Fix roots

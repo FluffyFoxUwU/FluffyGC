@@ -320,18 +320,6 @@ static void region_move_cell(struct region* self, int src, int dest) {
    *
    */
 
-  if (isOverlap) {
-    printf("Old[0]: %d\n", x1);
-    printf("Old[1]: %d\n", x2);
-    printf("New[0]: %d\n", y1);
-    printf("New[1]: %d\n", y2);
-    printf("Overlap[0]: %d\n", overlapStart);
-    printf("Overlap[1]: %d\n", overlapEnd);
-    printf("Overlap size: %d\n", overlapSize);
-    printf("Left zone size: %d\n", leftZoneSize);
-    printf("Right zone size: %d\n", rightZoneSize);
-  }
-
   if (isOverlap && leftZoneSize > 0)
     region_make_usable_no_unpoison(self, dest, leftZoneSize);
   else
@@ -373,6 +361,8 @@ void region_compact(struct region* self) {
   int dest = 0;
   int src = 0;
 
+  // TODO: Possible candidate for parallelization
+  // by making src and dest atomic operation
   // Anything after bumpPointer is just free cells
   while (src < self->bumpPointer) {
     if (self->regionUsageLookup[src]) {
@@ -394,7 +384,7 @@ void region_compact(struct region* self) {
     }
   }
 
-  region_move_bump_pointer_to_last_no_lock(self);
+  atomic_store(&self->bumpPointer, dest);
   pthread_rwlock_unlock(&self->compactionAndWipingLock);
 }
 

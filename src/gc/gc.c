@@ -4,11 +4,12 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <sys/prctl.h>
 
 #include "gc.h"
 #include "gc_enums.h"
 #include "reference_iterator.h"
+#include "thread_pool.h"
+#include "util.h"
 #include "young_collector.h"
 #include "old_collector.h"
 #include "full_collector.h"
@@ -111,12 +112,9 @@ void gc_trigger_full_collection(struct gc_state* self, enum report_type reason, 
 }
 
 static void serve(struct gc_state* self, enum gc_request_type requestType, bool* shuttingDown) {
-  struct heap* heap = self->heap;
   profiler_reset(self->profiler);
   profiler_start(self->profiler);
    
-  bool canSignalCompletion = true;
-
   switch (requestType) {
     case GC_REQUEST_SHUTDOWN:
       *shuttingDown = true;
@@ -138,19 +136,12 @@ static void serve(struct gc_state* self, enum gc_request_type requestType, bool*
 
   self->isExplicit = false;
   profiler_stop(self->profiler);
- 
-  if (canSignalCompletion) {
-    profiler_dump(self->profiler, stderr);
-    
-    pthread_mutex_lock(&heap->gcCompletedLock);
-    heap->gcCompleted = true;
-    pthread_mutex_unlock(&heap->gcCompletedLock);
-    pthread_cond_broadcast(&heap->gcCompletedCond);
-  }
+  
+  profiler_dump(self->profiler, stderr);
 }
 
 static void* mainThread(void* _self) {
-  prctl(PR_SET_NAME, "GC-Thread");
+  util_set_thread_name("GC-Thread");
   
   struct gc_state* self = _self;
   struct heap* heap = self->heap;
@@ -159,11 +150,10 @@ static void* mainThread(void* _self) {
   pthread_mutex_lock(&self->isGCReadyLock);
   self->isGCReady = true;
   pthread_mutex_unlock(&self->isGCReadyLock);
-
-  pthread_mutex_lock(&heap->gcMayRunLock);
+    
+  pthread_mutex_lock(&heap->gcMayRunLock);  
   pthread_cond_broadcast(&self->isGCReadyCond);
-
-  while (!shuttingDown) {
+  while (!shuttingDown) { 
     enum gc_request_type requestType;
     bool isRequested;
     
@@ -173,7 +163,7 @@ static void* mainThread(void* _self) {
 
     isRequested = heap->gcRequested;
     requestType = heap->gcRequestedType;
-     
+
     pthread_rwlock_wrlock(&heap->gcUnsafeRwlock); 
     size_t prevYoungSize = atomic_load(&heap->youngGeneration->usage);
     size_t prevOldSize = atomic_load(&heap->oldGeneration->usage);
@@ -188,13 +178,18 @@ static void* mainThread(void* _self) {
     printf("[GC] Old   usage: %.2f -> %.2f MiB\n", (double) prevOldSize / 1024 / 1024,
                                                  (double) oldSize / 1024/ 1024);
     pthread_rwlock_unlock(&heap->gcUnsafeRwlock);
+
+    pthread_mutex_lock(&heap->gcCompletedLock);
+    heap->gcCompleted = true;
+    pthread_mutex_unlock(&heap->gcCompletedLock);
+    pthread_cond_broadcast(&heap->gcCompletedCond);
   }
   pthread_mutex_unlock(&heap->gcMayRunLock);
 
   return NULL;
 }
 
-struct gc_state* gc_init(struct heap* heap) {
+struct gc_state* gc_init(struct heap* heap, int workerCount) {
   struct gc_state* self = malloc(sizeof(*self));
   if (!self)
     return NULL;
@@ -207,6 +202,7 @@ struct gc_state* gc_init(struct heap* heap) {
   self->fullGC.oldLookup = NULL;
   self->profiler = NULL;
   self->isExplicit = false;
+  self->workerPool= NULL; 
 
   pthread_mutex_init(&self->isGCReadyLock, NULL);
   pthread_cond_init(&self->isGCReadyCond, NULL);
@@ -217,6 +213,10 @@ struct gc_state* gc_init(struct heap* heap) {
 
   self->fullGC.oldLookup = calloc(heap->oldGeneration->sizeInCells, sizeof(struct region_reference*));
   if (!self->fullGC.oldLookup)
+    goto failure;
+  
+  self->workerPool = thread_pool_new(workerCount, "GC-Worker-");
+  if (!self->workerPool)
     goto failure;
 
   if (pthread_create(&self->gcThread, NULL, mainThread, self) != 0)
@@ -243,6 +243,8 @@ void gc_cleanup(struct gc_state* self) {
   
   if (self->isGCThreadRunning)
     pthread_join(self->gcThread, NULL);
+  
+  thread_pool_free(self->workerPool);
   if (self->profiler)
     profiler_free(self->profiler);
   
@@ -347,8 +349,6 @@ void gc_clear_weak_refs(struct gc_state* self, struct object_info* object) {
       ->ignore_soft(true)
       ->ignore_strong(true)
       ->consumer(^void (struct object_info* child, void* ptr, size_t offset) {
-        assert(child);
-
         if (child->strongRefCount == 0) {
           void* tmp = NULL;
           region_write(object->regionRef->owner, object->regionRef, offset, &tmp, sizeof(void*));
@@ -365,9 +365,7 @@ void gc_clear_soft_refs(struct gc_state* self, struct object_info* object) {
       ->ignore_weak(true)
       ->ignore_strong(true)
       ->consumer(^void (struct object_info* child, void* ptr, size_t offset) {
-        assert(child);
-
-        if (child->strongRefCount == 0) {
+        if (atomic_load(&child->strongRefCount) == 0) {
           void* tmp = NULL;
           region_write(object->regionRef->owner, object->regionRef, offset, &tmp, sizeof(void*));
         }

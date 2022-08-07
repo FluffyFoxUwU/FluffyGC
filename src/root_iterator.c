@@ -29,9 +29,7 @@ static void iterateRoot(struct root* root, struct root_iterator_args* ctx) {
 
     if (ctx->onlyIn && ref->owner != ctx->onlyIn)
       continue;
-    if (ctx->ignoreWeak && rootRef->isWeak)
-      continue;
-
+    
     ctx->consumer(rootRef, heap_get_object_info(ctx->heap, ref));
   }
 }

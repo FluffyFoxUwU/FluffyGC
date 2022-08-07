@@ -1,11 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
 
-#option(ENABLE_ASAN "Enable ASAN instrumentation" OFF)
-#option(ENABLE_MSAN "Enable MSAN instrumentation" ON)
-#option(ENABLE_TSAN "Enable TSAN instrumentation" OFF)
-#option(ENABLE_XRAY "Enable LLVM's xray instrumentation" OFF)
-
-
 project(FluffyGC VERSION 1.0.0
                  LANGUAGES C)
 
@@ -14,7 +8,7 @@ if (NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
 endif()
 
 # C standard checks
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -24,6 +18,7 @@ include(scripts/process_dot_config.cmake)
 set(ENABLE_ASAN OFF)
 set(ENABLE_MSAN OFF)
 set(ENABLE_TSAN OFF)
+set(ENABLE_UBSAN OFF)
 set(ENABLE_XRAY OFF)
 
 if (DEFINED CONFIG_ASAN) 
@@ -36,6 +31,14 @@ endif()
 
 if (DEFINED CONFIG_MSAN) 
   set(ENABLE_MSAN ON)
+endif()
+
+if (DEFINED CONFIG_UBSAN) 
+  set(ENABLE_UBSAN ON)
+endif()
+
+if (DEFINED CONFIG_LLVM_XRAY) 
+  set(ENABLE_XRAY ON)
 endif()
 
 if (DEFINED CONFIG_UBSAN) 
@@ -64,6 +67,12 @@ add_executable(FluffyGC src/main.c
                         src/gc/cardtable_iterator.c
                         src/api_layer/v1.c
                         src/reference_iterator.c
+                        src/thread_pool.c
+                        src/gc/common.c
+                        src/gc/parallel_marker.c
+                        src/gc/parallel_heap_iterator.c
+                        src/specials.c
+                        src/premain.c
 )
 
 target_compile_options(FluffyGC PRIVATE "-g")
@@ -77,14 +86,16 @@ target_compile_options(FluffyGC PRIVATE "-fno-omit-frame-pointer")
 target_compile_options(FluffyGC PRIVATE "-fno-common")
 target_compile_options(FluffyGC PRIVATE "-fno-optimize-sibling-calls")
 
-target_compile_options(FluffyGC PRIVATE "-fsanitize=undefined")
-#target_compile_options(FluffyGC PRIVATE "-fsanitize-address-use-after-return=always")
-target_compile_options(FluffyGC PRIVATE "-fsanitize=float-divide-by-zero")
-target_compile_options(FluffyGC PRIVATE "-fsanitize=implicit-conversion")
-target_compile_options(FluffyGC PRIVATE "-fsanitize=unsigned-integer-overflow")
+if (ENABLE_UBSAN)
+  target_compile_options(FluffyGC PRIVATE "-fsanitize=undefined")
+  #target_compile_options(FluffyGC PRIVATE "-fsanitize-address-use-after-return=always")
+  target_compile_options(FluffyGC PRIVATE "-fsanitize=float-divide-by-zero")
+  target_compile_options(FluffyGC PRIVATE "-fsanitize=implicit-conversion")
+  target_compile_options(FluffyGC PRIVATE "-fsanitize=unsigned-integer-overflow")
 
-target_link_options(FluffyGC PRIVATE "-fsanitize=undefined")
-target_link_options(FluffyGC PRIVATE "-static-libsan")
+  target_link_options(FluffyGC PRIVATE "-fsanitize=undefined")
+  target_link_options(FluffyGC PRIVATE "-static-libsan")
+endif()
 
 target_compile_definitions(FluffyGC PRIVATE "PROCESSED_BY_CMAKE")
 
@@ -100,8 +111,10 @@ if (ENABLE_TSAN)
 endif()
 
 if (ENABLE_XRAY)
-  target_compile_options(FluffyGC PRIVATE "-fxray-instrument -fxray-instruction-threshold=1")
-  target_link_options(FluffyGC PRIVATE "-fxray-instrument -fxray-instruction-threshold=1")
+  target_compile_options(FluffyGC PRIVATE "-fxray-instrument")
+  target_compile_options(FluffyGC PRIVATE "-fxray-instruction-threshold=1")
+  target_link_options(FluffyGC PRIVATE "-fxray-instrument")
+  target_link_options(FluffyGC PRIVATE "-fxray-instruction-threshold=1")
 endif()
 
 if (ENABLE_MSAN)

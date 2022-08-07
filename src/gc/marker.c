@@ -41,7 +41,7 @@ static void markNormalObject(const struct gc_marker_args ctx) {
       atomic_fetch_add(&objectInfo->strongRefCount, 1);
     //printf("[Marking: Ref: %p] Name: '%s' (offset: %zu  ptr: %p)\n", ctx.objectInfo->regionRef, desc->fields[i].name, offset, ptr);
     
-    mark(gc_marker_builder()
+    ctx.executor(gc_marker_builder()
         ->copy_from(ctx)
         ->object_info(objectInfo)
         ->build()
@@ -76,7 +76,7 @@ static void markArrayObject(const struct gc_marker_args ctx) {
 
     //printf("[Marking: Ref: %p] Name: '%s' (offset: %zu  ptr: %p)\n", ctx.objectInfo->regionRef, desc->fields[i].name, offset, ptr);
     
-    mark(gc_marker_builder()
+    ctx.executor(gc_marker_builder()
         ->copy_from(ctx)
         ->object_info(objectInfo)
         ->build()
@@ -105,6 +105,10 @@ void gc_marker_mark(struct gc_marker_args args) {
   mark(args);
 }
 
+static gc_mark_executor defaultExecutor = ^void (struct gc_marker_args args) {
+  mark(args);
+};
+
 static thread_local struct gc_marker_builder_struct builder = {
   .data = {},
   
@@ -113,6 +117,7 @@ static thread_local struct gc_marker_builder_struct builder = {
   BUILDER_SETTER(builder, struct region*, onlyIn, only_in),
   BUILDER_SETTER(builder, bool, ignoreSoft, ignore_soft),
   BUILDER_SETTER(builder, bool, ignoreWeak, ignore_weak),
+  BUILDER_SETTER(builder, gc_mark_executor, executor, executor),
   
   .copy_from = ^struct gc_marker_builder_struct* (struct gc_marker_args data) {
     builder.data = data;
@@ -126,6 +131,7 @@ static thread_local struct gc_marker_builder_struct builder = {
 
 struct gc_marker_builder_struct* gc_marker_builder() {
   struct gc_marker_args tmp = {};
+  tmp.executor = defaultExecutor;
   builder.data = tmp;
   return &builder;
 }

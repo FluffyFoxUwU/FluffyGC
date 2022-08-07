@@ -13,6 +13,7 @@
 #include "region.h"
 #include "root.h"
 #include "thread.h"
+#include "util.h"
 
 struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, int localFrameStackSize, float concurrentOldGCThreshold, int globalRootSize) {
   struct heap* self = malloc(sizeof(*self));
@@ -42,6 +43,7 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
   pthread_mutex_init(&self->gcCompletedLock, NULL);
   pthread_mutex_init(&self->gcMayRunLock, NULL);
   pthread_mutex_init(&self->allocLock, NULL);
+  pthread_mutex_init(&self->callGCLock, NULL); 
    
   pthread_cond_init(&self->gcCompletedCond, NULL);
   pthread_cond_init(&self->gcMayRunCond, NULL);
@@ -103,7 +105,7 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
     heap_reset_object_info(self, &self->oldObjects[i]);
   }
 
-  self->gcState = gc_init(self);
+  self->gcState = gc_init(self, util_get_core_count());
   if (!self->gcState)
     goto failure;
 
@@ -469,9 +471,9 @@ void heap_exit_unsafe_gc(struct heap* self) {
 }
 
 void heap_call_gc(struct heap* self, enum gc_request_type requestType) {
-  pthread_mutex_lock(&self->gcCompletedLock);
-  pthread_mutex_lock(&self->gcMayRunLock);
+  pthread_mutex_lock(&self->callGCLock);
 
+  pthread_mutex_lock(&self->gcMayRunLock);
   if (self->gcRequested && self->gcRequestedType == requestType) {
     pthread_mutex_unlock(&self->gcMayRunLock); 
     goto request_already_sent;
@@ -480,34 +482,30 @@ void heap_call_gc(struct heap* self, enum gc_request_type requestType) {
   self->gcRequested = true;
   self->gcRequestedType = requestType;
 
-  pthread_mutex_unlock(&self->gcMayRunLock); 
-  
+  pthread_mutex_unlock(&self->gcMayRunLock);  
   pthread_cond_broadcast(&self->gcMayRunCond); 
 
   request_already_sent:
-  pthread_mutex_unlock(&self->gcCompletedLock);
+  pthread_mutex_unlock(&self->callGCLock);
 }
 
 void heap_call_gc_blocking(struct heap* self, enum gc_request_type requestType) {
-  pthread_mutex_lock(&self->gcCompletedLock);
-  pthread_mutex_lock(&self->gcMayRunLock);
+  pthread_mutex_lock(&self->callGCLock);
 
-  if (self->gcRequested && self->gcRequestedType == requestType) {
-    heap_wait_gc_no_lock(self);
-    pthread_mutex_unlock(&self->gcMayRunLock); 
+  if (self->gcRequested && self->gcRequestedType == requestType)
     goto request_already_sent;
-  }
-
+  
   self->gcCompleted = false;
+
+  pthread_mutex_lock(&self->gcMayRunLock);
   self->gcRequested = true;
   self->gcRequestedType = requestType;
-
   pthread_mutex_unlock(&self->gcMayRunLock); 
   pthread_cond_broadcast(&self->gcMayRunCond); 
   
   request_already_sent:
-  heap_wait_gc_no_lock(self);
-  pthread_mutex_unlock(&self->gcCompletedLock);
+  heap_wait_gc(self);
+  pthread_mutex_unlock(&self->callGCLock);
 }
 
 static void onHeapExhaustion(struct heap* self) {

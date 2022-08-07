@@ -7,6 +7,9 @@
 struct object_info;
 struct region;
 struct gc_state;
+struct gc_marker_args;
+
+typedef void (^gc_mark_executor)(struct gc_marker_args args);
 
 struct gc_marker_args {
   bool ignoreWeak;
@@ -15,6 +18,8 @@ struct gc_marker_args {
   struct gc_state* gcState; 
   struct region* onlyIn;
   struct object_info* objectInfo;
+  
+  gc_mark_executor executor;
 };
 
 struct gc_marker_builder_struct {
@@ -30,6 +35,8 @@ struct gc_marker_builder_struct {
       bool, ignore_weak);
   BUILDER_DECLARE(struct gc_marker_builder_struct*,
       bool, ignore_soft);
+  BUILDER_DECLARE(struct gc_marker_builder_struct*,
+      gc_mark_executor, executor);
 
   struct gc_marker_builder_struct* (^copy_from)(struct gc_marker_args args);
   struct gc_marker_args (^build)();

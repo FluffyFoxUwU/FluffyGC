@@ -1,4 +1,4 @@
-#if 0
+#if 1
 # include "main2.c"
 #else
 
@@ -7,8 +7,10 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <assert.h>
+#include <unistd.h>
 
 #include "config.h"
+#include "util.h"
 #include "fluffygc/v1.h"
 
 #define KiB * (1024)
@@ -115,7 +117,9 @@ static void* abuser(void* _heap) {
   return NULL;
 }
 
-static int main2() {
+int main2() {
+  util_set_thread_name("Main");
+  
   // Young is 1/3 of total
   // Old   is 2/3 of total
   fluffygc_state* heap = fluffygc_v1_new(
@@ -133,53 +137,5 @@ static int main2() {
   fluffygc_v1_free(heap);
   return 0;
 }
-
-static void* testWorker(void* res) {
-  *((int*) res) = main2();
-  return NULL;
-}
-
-int main() {
-  int res = 0;
-  pthread_t tmp;
-  pthread_create(&tmp, NULL, testWorker, &res);
-  pthread_join(tmp, NULL);
-
-  puts("Exiting :3");
-  return res;
-}
-
-#if IS_ENABLED(CONFIG_ASAN)
-const char* __asan_default_options() {
-  return "fast_unwind_on_malloc=0:"
-         "detect_invalid_pointer_pairs=10:"
-         "strict_string_checks=1:"
-         "strict_init_order=1:"
-         "check_initialization_order=1:"
-         "print_stats=1:"
-         "detect_stack_use_after_return=1:"
-         "atexit=1";
-}
-#endif
-
-#if IS_ENABLED(CONFIG_UBSAN)
-const char* __ubsan_default_options() {
-  return "print_stacktrace=1:"
-         "suppressions=suppressions/UBSan.supp";
-}
-#endif
-
-#if IS_ENABLED(CONFIG_TSAN)
-const char* __tsan_default_options() {
-  return "second_deadlock_stack=1";
-}
-#endif
-
-#if IS_ENABLED(CONFIG_MSAN)
-const char* __msan_default_options() {
-  return "";
-}
-#endif
-
 
 #endif

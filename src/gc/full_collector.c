@@ -11,14 +11,17 @@
 #include "../descriptor.h"
 #include "../profiler.h"
 
+#include "gc/parallel_heap_iterator.h"
 #include "young_collector.h"
 #include "gc.h"
 #include "marker.h"
 
 bool gc_full_pre_collect(struct gc_state* self) {
-  for (int i = 0; i < self->heap->oldGeneration->sizeInCells; i++)
-    self->fullGC.oldLookup[i] = NULL;
-  
+  gc_parallel_heap_iterator_do(self, false, ^bool (struct object_info *info, int idx) {  
+    self->fullGC.oldLookup[idx] = NULL;
+    return false;
+  }, NULL);
+
   return true;
 }
 
@@ -41,38 +44,38 @@ static void fixRefs(struct gc_state* self) {
     return newObject->data;
   };
   
-  for (int i = 0; i < heap->youngGeneration->sizeInCells; i++) {
-    struct object_info* currentObjectInfo = &heap->youngObjects[i];
-
-    if (!currentObjectInfo->isValid)
-      continue;
+  gc_parallel_heap_iterator_do(self, true, ^bool (struct object_info *info, int idx) {
+    if (!info->isValid)
+      return true;
     
-    assert(currentObjectInfo->type != OBJECT_TYPE_UNKNOWN);
-    gc_fix_object_refs_custom(self, currentObjectInfo, fixer);
-  }
+    assert(info->type != OBJECT_TYPE_UNKNOWN);
+    gc_fix_object_refs_custom(self, info, fixer);
+    return true;  
+  }, NULL);
   
-  for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
-    struct object_info* currentObjectInfo = &heap->oldObjects[i];
-    if (!currentObjectInfo->isValid)
-      continue;
+  gc_parallel_heap_iterator_do(self, false, ^bool (struct object_info *info, int idx) {
+    if (!info->isValid)
+      return true;
     
     // Fix move data
-    if (currentObjectInfo->justMoved) {
-      struct object_info* oldInfo = currentObjectInfo->moveData.oldLocationInfo;
+    if (info->justMoved) {
+      struct object_info* oldInfo = info->moveData.oldLocationInfo;
       assert(oldInfo->isMoved);
 
-      oldInfo->moveData.newLocation = currentObjectInfo->regionRef;
-      oldInfo->moveData.newLocationInfo = currentObjectInfo;
+      oldInfo->moveData.newLocation = info->regionRef;
+      oldInfo->moveData.newLocationInfo = info;
     }
 
-    assert(currentObjectInfo->type != OBJECT_TYPE_UNKNOWN);
-    gc_fix_object_refs_custom(self, currentObjectInfo, fixer);
-  }
+    assert(info->type != OBJECT_TYPE_UNKNOWN);
+    gc_fix_object_refs_custom(self, info, fixer);
+    return true;  
+  }, NULL);
 }
 
 static void fixRegistry(struct gc_state* self) {
   struct heap* heap = self->heap;  
-  
+ 
+  // This can't be parallized due line 93 and 97
   for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
     struct object_info* currentObjectInfo = &heap->oldObjects[i];
     if (!currentObjectInfo->isValid || 
@@ -104,15 +107,15 @@ void gc_full_collect(struct gc_state* self) {
 
   // Record previous locations
   profiler_begin(self->profiler, "record-refs");
-  for (int i = 0; i < heap->oldGeneration->sizeInCells; i++) {
-    struct object_info* currentObjectInfo = &heap->oldObjects[i];
-    if (!currentObjectInfo->isValid)
-      continue;
+  gc_parallel_heap_iterator_do(self, false, ^bool (struct object_info *info, int idx) {
+    if (!info->isValid)
+      return true;
     
-    assert(self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] == NULL ||
-           self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] == currentObjectInfo->regionRef);
-    self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, currentObjectInfo->regionRef->data)] = currentObjectInfo->regionRef;
-  }
+    assert(self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, info->regionRef->data)] == NULL ||
+           self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, info->regionRef->data)] == info->regionRef);
+    self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, info->regionRef->data)] = info->regionRef;
+    return true;  
+  }, NULL);
   profiler_end(self->profiler);
   
   profiler_begin(self->profiler, "compact");
@@ -132,6 +135,5 @@ void gc_full_collect(struct gc_state* self) {
 }
 
 void gc_full_post_collect(struct gc_state* self) {
-  region_move_bump_pointer_to_last(self->heap->oldGeneration);
 }
 

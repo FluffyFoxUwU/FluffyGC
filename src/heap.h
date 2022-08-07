@@ -157,6 +157,8 @@ struct heap {
   pthread_mutex_t gcMayRunLock;
   pthread_cond_t gcMayRunCond;
   //////////////////////////////////////////
+ 
+  pthread_mutex_t callGCLock;
 
   // If there any writer
   // GC is not safe to run

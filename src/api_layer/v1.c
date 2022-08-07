@@ -312,7 +312,7 @@ FLUFFYGC_DECLARE(fluffygc_object*, _new_global_ref,
   
   heap_enter_unsafe_gc(CAST(self));
   pthread_rwlock_wrlock(&CAST(self)->globalRootRWLock);
-  apiAssert(CAST(self), CAST(self)->globalRoot->usage >= CAST(self)->globalRoot->size, "Global references table overflowing");
+  apiAssert(CAST(self), CAST(self)->globalRoot->usage < CAST(self)->globalRoot->size, "Global references table overflowing");
 
   struct root_reference* ref = NULL;
   if (CAST(obj)->data)
