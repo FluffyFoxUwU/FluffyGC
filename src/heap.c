@@ -770,7 +770,7 @@ void heap_report_gc_cause(struct heap* self, enum report_type type) {
   switch (type) {
 #   define X(name, str, ...) \
     case name: \
-      heap_report_printf(self, "GC Trigger cause: %s\n", str); \
+      heap_report_printf(self, "GC Trigger cause: %s", str); \
       break;
     REPORT_TYPES
 #   undef X

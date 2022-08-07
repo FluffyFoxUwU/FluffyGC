@@ -65,6 +65,6 @@ void util_set_thread_name(const char* name) {
 int util_get_core_count() {
   // Casting fine for 99.999% of the time
   // due why would 2 billions cores exists
-  return 2; //(int) sysconf(_SC_NPROCESSORS_ONLN);
+  return 4; //(int) sysconf(_SC_NPROCESSORS_ONLN);
 }
 

@@ -30,15 +30,19 @@ bool gc_parallel_heap_iterator_do(struct gc_state* gcState, bool isYoung, gc_par
   atomic_init(&currentPos, 0);
   atomic_init(&failedPos, iterateRegion->sizeInCells);
   
+  int workSize = iterateRegion->sizeInCells / gcState->workerPool->poolSize;
+  workSize += gcState->workerPool->poolSize;
+
   thread_pool_worker worker = ^void (const struct thread_pool_work_unit* workUnit) {
-    int i = 0;
-    while ((i = atomic_fetch_add(&currentPos, 1)) < iterateRegion->sizeInCells) {
-      bool res = consumer(&objects[i], i);
-      if (!res) {
+    int start = atomic_fetch_add(&currentPos, workSize);
+    int end = start + workSize;
+    
+    if (end > iterateRegion->sizeInCells)
+      end = iterateRegion->sizeInCells;
+
+    for (int i = start; i < end; i++)
+      if (!consumer(&objects[i], i))
         util_atomic_min_int(&failedPos, i);
-        break;
-      }
-    } 
   };
  
   struct thread_pool_work_unit work = {

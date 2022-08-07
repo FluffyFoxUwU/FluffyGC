@@ -137,7 +137,7 @@ static void serve(struct gc_state* self, enum gc_request_type requestType, bool*
   self->isExplicit = false;
   profiler_stop(self->profiler);
   
-  profiler_dump(self->profiler, stderr);
+  //profiler_dump(self->profiler, stderr);
 }
 
 static void* mainThread(void* _self) {
@@ -165,18 +165,20 @@ static void* mainThread(void* _self) {
     requestType = heap->gcRequestedType;
 
     pthread_rwlock_wrlock(&heap->gcUnsafeRwlock); 
-    size_t prevYoungSize = atomic_load(&heap->youngGeneration->usage);
-    size_t prevOldSize = atomic_load(&heap->oldGeneration->usage);
+    //size_t prevYoungSize = atomic_load(&heap->youngGeneration->usage);
+    //size_t prevOldSize = atomic_load(&heap->oldGeneration->usage);
     
     // Process the request
     serve(self, requestType, &shuttingDown);
     
+    /*
     size_t youngSize = atomic_load(&heap->youngGeneration->usage);
     size_t oldSize = atomic_load(&heap->oldGeneration->usage);
     printf("[GC] Young usage: %.2f -> %.2f MiB\n", (double) prevYoungSize / 1024 / 1024,
                                                    (double) youngSize / 1024/ 1024);
     printf("[GC] Old   usage: %.2f -> %.2f MiB\n", (double) prevOldSize / 1024 / 1024,
                                                  (double) oldSize / 1024/ 1024);
+    */
     pthread_rwlock_unlock(&heap->gcUnsafeRwlock);
 
     pthread_mutex_lock(&heap->gcCompletedLock);

@@ -10,15 +10,21 @@ void cardtable_iterator_do(struct heap* heap, struct object_info* objects, atomi
   __block atomic_int current;
   atomic_init(&current, 0);
 
+  int workSize = cardTableSize / heap->gcState->workerPool->poolSize;
+  workSize += heap->gcState->workerPool->poolSize;
+
   struct thread_pool_work_unit work = {
     .worker = ^void (const struct thread_pool_work_unit* work) {
-      int i = 0;
-      while ((i = atomic_fetch_add(&current, 1)) < cardTableSize) {  
+      int start = atomic_fetch_add(&current, workSize);
+      int end = start + workSize;
+      if (end > cardTableSize)
+        end = cardTableSize;
+
+      for (int i = start; i < end; i++) {
         if (atomic_load(&cardTable[i]) == false)
           continue;
 
         int rangeStart = i * CONFIG_CARD_TABLE_PER_BUCKET_SIZE;
-
         bool encounterAny = false;    
         for (int j = 0; j < CONFIG_CARD_TABLE_PER_BUCKET_SIZE; j++) {
           struct object_info* info = &objects[rangeStart + j];
