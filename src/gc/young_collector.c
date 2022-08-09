@@ -72,6 +72,7 @@ static void fixAddr(struct gc_state* self, bool aboutToCallOldGC) {
       if (aboutToCallOldGC && currentObjectInfo->isValid)
         gc_fix_object_refs(self, currentObjectInfo);
     }
+
     return true;
   }, NULL);
 
@@ -150,6 +151,22 @@ void gc_young_collect(struct gc_state* self) {
   
   profiler_begin(self->profiler, "reset-relocation-info"); 
   gc_clear_old_to_young_card_table(self);
+  gc_parallel_heap_iterator_do(self, true, ^bool (struct object_info* currentObjectInfo, int idx) {
+    if (!currentObjectInfo->isMoved)
+      return true;
+   
+    currentObjectInfo->isMoved = false;
+    
+    currentObjectInfo->moveData.newLocationInfo->justMoved = false;
+    currentObjectInfo->moveData.newLocationInfo->moveData.oldLocationInfo = NULL;
+    currentObjectInfo->moveData.newLocationInfo->moveData.oldLocation = NULL;
+    
+    currentObjectInfo->moveData.newLocationInfo = NULL;
+    currentObjectInfo->moveData.newLocation = NULL;
+    currentObjectInfo->moveData.oldLocationInfo = NULL;
+    currentObjectInfo->moveData.oldLocation = NULL; 
+    return true;
+  }, NULL);
   profiler_end(self->profiler); 
 
   profiler_begin(self->profiler, "clearing-young-gen"); 

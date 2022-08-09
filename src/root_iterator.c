@@ -30,7 +30,11 @@ static void iterateRoot(struct root* root, struct root_iterator_args* ctx) {
     if (ctx->onlyIn && ref->owner != ctx->onlyIn)
       continue;
     
-    ctx->consumer(rootRef, heap_get_object_info(ctx->heap, ref));
+    struct object_info* objects = ctx->heap->oldObjects;
+    if (ref->owner == ctx->heap->youngGeneration)
+      objects = ctx->heap->youngObjects;
+    struct object_info* info = &objects[ref->id];
+    ctx->consumer(rootRef, info);
   }
 }
 

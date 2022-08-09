@@ -46,6 +46,7 @@ void gc_parallel_marker(struct gc_state* gcState, bool isYoung) {
       })
       ->build();
     free(work->data);
+    
     gc_marker_mark(args);
   };
 

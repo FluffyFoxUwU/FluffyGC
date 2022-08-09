@@ -753,6 +753,9 @@ void heap_report_printf(struct heap* self, const char* fmt, ...) {
 }
 
 void heap_report_vprintf(struct heap* self, const char* fmt, va_list list) {
+  if (1)
+    return;
+
   char* buff = NULL;
   size_t buffSize = vsnprintf(NULL, 0, fmt, list);
   buff = malloc(buffSize + 1);

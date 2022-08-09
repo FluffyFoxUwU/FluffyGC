@@ -1,3 +1,4 @@
+include_guard()
 
 # Process .config files
 # Create header

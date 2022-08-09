@@ -137,7 +137,7 @@ static void serve(struct gc_state* self, enum gc_request_type requestType, bool*
   self->isExplicit = false;
   profiler_stop(self->profiler);
   
-  //profiler_dump(self->profiler, stderr);
+  profiler_dump(self->profiler, stderr);
 }
 
 static void* mainThread(void* _self) {
@@ -294,9 +294,6 @@ static void* defaultFixer(struct fixer_context* self, void* ptr) {
     return NULL; 
 
   struct region_reference* prevObject = heap_get_region_ref(self->gcState->heap, ptr);
-  if (!prevObject)
-    return ptr;
-
   struct object_info* prevObjectInfo = heap_get_object_info(self->gcState->heap, prevObject);
   struct region_reference* relocatedObject = prevObjectInfo->moveData.newLocation;
   assert(prevObjectInfo);

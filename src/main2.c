@@ -152,24 +152,24 @@ int main2() {
   // | Total     | Young     | Old      |
   // ------------------------------------
   // |  16 MiB   |  5 MiB    | 11 MiB   |
+  // |  32 MiB   | 11 MiB    | 21 MiB   |
   // |  64 MiB   | 21 MiB    | 43 MiB   |
   // | 128 MiB   | 43 MiB    | 85 MiB   |
   // ------------------------------------
-  struct heap* heap = heap_new(43 MiB, 85 MiB, 32 KiB, 100, 0.45f, 65536);
+  struct heap* heap = heap_new(5 MiB, 11 MiB, 32 KiB, 100, 0.45f, 65536);
   assert(heap);
   
   /*
   Statistics
-
+  
   Sorted by real time
   ------------------------------------------------------
   | Total      | Real time    | User time    | Workers |
   ------------------------------------------------------
-  | 128 MiB    |  6.606 sec   |  6.370 sec   | 8       |
   ------------------------------------------------------
   */
 
-  int abuserCount = 6;
+  int abuserCount = 4;
   pthread_t* abusers = calloc(abuserCount, sizeof(*abusers));
 
   for (int i = 0; i < abuserCount; i++)
