@@ -44,7 +44,7 @@ add_library(FluffyGCObjects OBJECT
   src/gc/parallel_heap_iterator.c
 )
 
-target_link_libraries(FluffyGCObjects CommonFlags)
+target_link_libraries(FluffyGCObjects FluffyGCCommonFlags)
 target_include_directories(FluffyGCObjects PRIVATE "${PROJECT_SOURCE_DIR}/src/collection")
 
 configure_file(src/config.h src/processed_config.h)
@@ -63,15 +63,14 @@ add_executable(FluffyGCTest
   src/premain.c
   src/main.c
 )
-target_link_libraries(FluffyGCTest CommonFlags)
+target_link_libraries(FluffyGCTest FluffyGCCommonFlags)
 target_link_libraries(FluffyGCTest FluffyGCObjects)
 
 # Suppression files
-add_custom_target(CopySupressionFiles
+add_custom_command(TARGET FluffyGCTest POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy
     ${PROJECT_SOURCE_DIR}/suppressions/UBSan.supp
     ${PROJECT_BINARY_DIR}/suppressions/UBSan.supp
-  DEPENDS FluffyGCTest
 )
 
 
