@@ -66,13 +66,11 @@ add_executable(FluffyGCTest
 target_link_libraries(FluffyGCTest FluffyGCCommonFlags)
 target_link_libraries(FluffyGCTest FluffyGCObjects)
 
-# Suppression files
-add_custom_command(TARGET FluffyGCTest POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy
-    ${PROJECT_SOURCE_DIR}/suppressions/UBSan.supp
-    ${PROJECT_BINARY_DIR}/suppressions/UBSan.supp
+# Suppression files (abusing configure)
+configure_file(
+  ${PROJECT_SOURCE_DIR}/suppressions/UBSan.supp
+  ${PROJECT_BINARY_DIR}/suppressions/UBSan.supp
 )
-
 
 
 
