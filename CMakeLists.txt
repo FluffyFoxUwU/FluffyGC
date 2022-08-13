@@ -1,13 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 
-# Always this version just look at
-# Kconfig for the version
 project(FluffyGC VERSION 1.0.0
                  LANGUAGES C)
-
-include(GNUInstallDirs)
-include(scripts/process_dot_config.cmake)
-include(scripts/compiler_and_link_flags.cmake)
 
 if (NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "Non clang compiler unsupported")
@@ -19,7 +13,10 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_library(FluffyGCObjects OBJECT
+##################################
+## Dont touch anything but this ##
+##################################
+set(FluffyGC_SOURCES
   src/region.c
   src/asan_stuff.c
   src/util.c
@@ -47,50 +44,57 @@ add_library(FluffyGCObjects OBJECT
   src/gc/parallel_heap_iterator.c
 )
 
-target_link_libraries(FluffyGCObjects FluffyGCCommonFlags)
-target_include_directories(FluffyGCObjects PRIVATE "${PROJECT_SOURCE_DIR}/src/collection")
-
-configure_file(src/config.h src/processed_config.h)
-configure_file(${PROJECT_SOURCE_DIR}/.config ${PROJECT_BINARY_DIR}/.config)
-
-add_library(FluffyGCShared SHARED)
-target_link_libraries(FluffyGCShared FluffyGCObjects)
-target_compile_options(FluffyGCShared PRIVATE "-fvisibility=hidden")
-
-add_library(FluffyGCStatic STATIC)
-target_link_libraries(FluffyGCStatic FluffyGCObjects)
-
-# Library stuffs
-#set_target_properties(FluffyGCObjects
-#  PROPERTIES 
-#  VERSION ${CONFIG_VERSION_MAJOR}.${CONFIG_VERSION_MINOR}.${CONFIG_VERSION_PATCH}
-#  SOVERSION ${CONFIG_VERSION_MAJOR})
-#  PUBLIC_HEADER
-#    include/fluffygc/v1.h
-#    include/fluffygc/common.h
-#)
-#
-#install(TARGETS FluffyGCStatic
-#    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/fluffygc/)
-#install(TARGETS FluffyGCShared
-#    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/fluffygc/)
-
-# Test
-add_executable(FluffyGCTest
+set(FluffyGC_TEST_SOURCES
   src/specials.c
   src/premain.c
   src/main.c
 )
-target_link_libraries(FluffyGCTest FluffyGCCommonFlags)
-target_link_libraries(FluffyGCTest FluffyGCObjects)
-
+  
 # Suppression files (abusing configure)
 configure_file(
-  ${PROJECT_SOURCE_DIR}/suppressions/UBSan.supp
+  ${PROJECT_SOURCE_DIR}/suppressions/UBSan.supp 
   ${PROJECT_BINARY_DIR}/suppressions/UBSan.supp
 )
+
+##################################
+include(scripts/process_dot_config.cmake)
+include(scripts/compiler_and_link_flags.cmake)
+
+configure_file(src/config.h src/processed_config.h)
+configure_file(${PROJECT_SOURCE_DIR}/.config ${PROJECT_BINARY_DIR}/.config)
+
+add_library(FluffyGC ${FluffyGC_SOURCES})
+target_link_libraries(FluffyGC FluffyGCCommonFlags)
+target_include_directories(FluffyGC PUBLIC "${PROJECT_SOURCE_DIR}/include")
+target_include_directories(FluffyGC PRIVATE "${PROJECT_SOURCE_DIR}/src/collection")
+
+## Deps here ##
+target_link_libraries(FluffyGC FluffyGCCommonFlags)
+###############
+
+add_executable(FluffyGCTest ${FluffyGC_TEST_SOURCES})
+target_link_libraries(FluffyGCTest FluffyGCCommonFlags)
+target_link_libraries(FluffyGCTest FluffyGC)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
