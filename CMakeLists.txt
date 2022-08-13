@@ -1,7 +1,13 @@
 cmake_minimum_required(VERSION 3.18)
 
+# Always this version just look at
+# Kconfig for the version
 project(FluffyGC VERSION 1.0.0
                  LANGUAGES C)
+
+include(GNUInstallDirs)
+include(scripts/process_dot_config.cmake)
+include(scripts/compiler_and_link_flags.cmake)
 
 if (NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "Non clang compiler unsupported")
@@ -12,9 +18,6 @@ set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-include(scripts/process_dot_config.cmake)
-include(scripts/compiler_and_link_flags.cmake)
 
 add_library(FluffyGCObjects OBJECT
   src/region.c
@@ -56,6 +59,23 @@ target_compile_options(FluffyGCShared PRIVATE "-fvisibility=hidden")
 
 add_library(FluffyGCStatic STATIC)
 target_link_libraries(FluffyGCStatic FluffyGCObjects)
+
+# Library stuffs
+#set_target_properties(FluffyGCObjects
+#  PROPERTIES 
+#  VERSION ${CONFIG_VERSION_MAJOR}.${CONFIG_VERSION_MINOR}.${CONFIG_VERSION_PATCH}
+#  SOVERSION ${CONFIG_VERSION_MAJOR})
+#  PUBLIC_HEADER
+#    include/fluffygc/v1.h
+#    include/fluffygc/common.h
+#)
+#
+#install(TARGETS FluffyGCStatic
+#    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/fluffygc/)
+#install(TARGETS FluffyGCShared
+#    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/fluffygc/)
 
 # Test
 add_executable(FluffyGCTest
