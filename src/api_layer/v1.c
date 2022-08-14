@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "fluffygc/v1.h"
+#include "FluffyGC/v1.h"
 
 #include "heap.h"
 #include "descriptor.h"

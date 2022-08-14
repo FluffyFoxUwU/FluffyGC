@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "fluffygc/common.h"
+#include "FluffyGC/common.h"
 
 typedef struct _7ca2fe74_2f67_4a70_a55d_ba9f6acb6f43 fluffygc_object;
 typedef struct _431d5fb5_4c3f_45e2_9f89_59521ff5cb07 fluffygc_object_array;

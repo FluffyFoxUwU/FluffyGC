@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 
+# Source of truth for version is 
+# NOT HERE its in Kconfig file
 project(FluffyGC VERSION 1.0.0
                  LANGUAGES C)
 
@@ -44,11 +46,17 @@ set(FluffyGC_SOURCES
   src/gc/parallel_heap_iterator.c
 )
 
+set(FluffyGC_PUBLIC_HEADERS
+  include/FluffyGC/common.h
+  include/FluffyGC/v1.h
+)
+
 set(FluffyGC_TEST_SOURCES
   src/specials.c
   src/premain.c
   src/main.c
 )
+##################################
   
 # Suppression files (abusing configure)
 configure_file(
@@ -64,17 +72,45 @@ configure_file(src/config.h src/processed_config.h)
 configure_file(${PROJECT_SOURCE_DIR}/.config ${PROJECT_BINARY_DIR}/.config)
 
 add_library(FluffyGC ${FluffyGC_SOURCES})
-target_link_libraries(FluffyGC FluffyGCCommonFlags)
-target_include_directories(FluffyGC PUBLIC "${PROJECT_SOURCE_DIR}/include")
-target_include_directories(FluffyGC PRIVATE "${PROJECT_SOURCE_DIR}/src/collection")
 
 ## Deps here ##
-target_link_libraries(FluffyGC FluffyGCCommonFlags)
+target_link_libraries(FluffyGC ProjectCommonFlags)
 ###############
 
 add_executable(FluffyGCTest ${FluffyGC_TEST_SOURCES})
-target_link_libraries(FluffyGCTest FluffyGCCommonFlags)
+target_link_libraries(FluffyGCTest ProjectCommonFlags)
 target_link_libraries(FluffyGCTest FluffyGC)
+
+# Installations
+include(GNUInstallDirs)
+
+install(TARGETS ${PROJECT_NAME} DESTINATION lib/${PROJECT_NAME})
+
+# Install library headers
+install(
+  FILES ${FluffyGC_PUBLIC_HEADERS}
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/FluffyGC
+)
+
+# Install library
+install(
+  TARGETS FluffyGC
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/
+)
+
+# Install pkgconfig file
+set(target FluffyGC)
+configure_file(package.pc.in
+  ${CMAKE_BINARY_DIR}/FluffyGC.pc @ONLY)
+install(
+  FILES ${CMAKE_BINARY_DIR}/FluffyGC.pc
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig/
+)
+
+
+
+
+
 
 
 
