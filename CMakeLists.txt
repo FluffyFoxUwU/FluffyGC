@@ -55,7 +55,6 @@ set(PROJECT_TEST_SOURCES
   src/specials.c
   src/premain.c
   src/main.c
-  src/util.c
 )
 ##################################
   
@@ -72,7 +71,9 @@ include(scripts/compiler_and_link_flags.cmake)
 configure_file(src/config.h src/processed_config.h)
 configure_file(${PROJECT_SOURCE_DIR}/.config ${PROJECT_BINARY_DIR}/.config)
 
-add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCES})
+add_library(${PROJECT_NAME}_Objects OBJECT ${PROJECT_SOURCES})
+add_library(${PROJECT_NAME} SHARED)
+
 set_target_properties(${PROJECT_NAME}
   PROPERTIES
   VERSION ${CONFIG_VERSION_MAJOR}.${CONFIG_VERSION_MINOR}.${CONFIG_VERSION_PATCH}${VERSION_LOCAL_VERSION}
@@ -88,12 +89,13 @@ function (AddPkgConfigLib name spec)
 endfunction()
 
 ## Deps here ##
-target_link_libraries(${PROJECT_NAME} ProjectCommonFlags)
+target_link_libraries(${PROJECT_NAME}_Objects ProjectCommonFlags)
+target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}_Objects)
 ###############
 
 add_executable(TestExecutable ${PROJECT_TEST_SOURCES})
 target_link_libraries(TestExecutable ProjectCommonFlags)
-target_link_libraries(TestExecutable ${PROJECT_NAME})
+target_link_libraries(TestExecutable ${PROJECT_NAME}_Objects)
 
 # Installations
 include(GNUInstallDirs)

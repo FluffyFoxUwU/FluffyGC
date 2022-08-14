@@ -1,4 +1,4 @@
-#if 0
+#if 1
 # include "main2.c"
 #else
 
