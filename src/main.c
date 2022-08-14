@@ -1,4 +1,4 @@
-#if 1
+#if 0
 # include "main2.c"
 #else
 
@@ -11,7 +11,7 @@
 
 #include "config.h"
 #include "util.h"
-#include "fluffygc/v1.h"
+#include "FluffyGC/v1.h"
 
 #define KiB * (1024)
 #define MiB * (1024 KiB)
