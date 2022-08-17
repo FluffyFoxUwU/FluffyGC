@@ -147,6 +147,7 @@ struct heap {
   // For sending signal that request completed //
   ///////////////////////////////////////////////
   volatile bool gcCompleted; 
+  
   pthread_mutex_t gcCompletedLock;
   pthread_cond_t gcCompletedCond;
   ///////////////////////////////////////////////
@@ -156,6 +157,7 @@ struct heap {
   //////////////////////////////////////////
   volatile bool gcRequested; 
   volatile enum gc_request_type gcRequestedType;
+  
   pthread_mutex_t gcMayRunLock;
   pthread_cond_t gcMayRunCond;
   //////////////////////////////////////////
@@ -189,6 +191,17 @@ struct heap {
   int threadsCount;
   int threadsListSize;
   struct thread** threads;
+  
+  bool memoryExhaustionLockInited;
+  bool gcCompletedLockInited;
+  bool gcCompletedCondInited;
+  bool gcMayRunLockInited;
+  bool gcMayRunCondInited;
+  bool callGCLockInited;
+  bool gcUnsafeRwlockInited;
+  bool currentThreadKeyInited;
+  bool globalRootRWLockInited;
+  bool lockInited;
 };
 
 struct heap* heap_new(size_t youngSize, size_t oldSize,

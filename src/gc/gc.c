@@ -204,10 +204,16 @@ struct gc_state* gc_init(struct heap* heap, int workerCount) {
   self->fullGC.oldLookup = NULL;
   self->profiler = NULL;
   self->isExplicit = false;
-  self->workerPool= NULL; 
+  self->workerPool = NULL; 
+  self->isGCReadyCondInited = false;
+  self->isGCReadyLockInited = false;
 
-  pthread_mutex_init(&self->isGCReadyLock, NULL);
-  pthread_cond_init(&self->isGCReadyCond, NULL);
+  if (pthread_mutex_init(&self->isGCReadyLock, NULL) != 0)
+    goto failure;
+  self->isGCReadyLockInited = true;
+  if (pthread_cond_init(&self->isGCReadyCond, NULL) != 0)
+    goto failure;
+  self->isGCReadyCondInited = true;
 
   self->profiler = profiler_new();
   if (!self->profiler)
@@ -250,8 +256,10 @@ void gc_cleanup(struct gc_state* self) {
   if (self->profiler)
     profiler_free(self->profiler);
   
-  pthread_mutex_destroy(&self->isGCReadyLock);
-  pthread_cond_destroy(&self->isGCReadyCond);
+  if ((self->isGCReadyLockInited && pthread_mutex_destroy(&self->isGCReadyLock) != 0) ||
+      (self->isGCReadyCondInited && pthread_cond_destroy(&self->isGCReadyCond) != 0)) {
+    abort();
+  }
 
   free(self->fullGC.oldLookup);
   free(self);

@@ -39,20 +39,56 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
   self->oldObjects = NULL;
   self->globalRoot = NULL;
   self->metaspaceSize = metaspaceSize;
+  self->gcCompletedLockInited = false;
+  self->gcMayRunLockInited = false;
+  self->memoryExhaustionLockInited = false;
+  self->callGCLockInited = false;
+  self->gcCompletedCondInited = false;
+  self->gcMayRunCondInited = false;
+  self->lockInited = false;
+  self->gcUnsafeRwlockInited = false;
+  self->globalRootRWLockInited = false;
+  self->currentThreadKeyInited = false;
 
-  pthread_mutex_init(&self->gcCompletedLock, NULL);
-  pthread_mutex_init(&self->gcMayRunLock, NULL);
-  pthread_mutex_init(&self->memoryExhaustionLock, NULL);
-  pthread_mutex_init(&self->callGCLock, NULL); 
-   
-  pthread_cond_init(&self->gcCompletedCond, NULL);
-  pthread_cond_init(&self->gcMayRunCond, NULL);
- 
-  pthread_rwlock_init(&self->lock, NULL);
-  pthread_rwlock_init(&self->gcUnsafeRwlock, NULL);
-  pthread_rwlock_init(&self->globalRootRWLock, NULL);
+  if (pthread_mutex_init(&self->gcCompletedLock, NULL) != 0)
+    goto failure;
+  self->gcCompletedLockInited = true;
+
+  if (pthread_mutex_init(&self->gcMayRunLock, NULL) != 0)
+    goto failure;
+  self->gcMayRunLockInited = true;
   
-  pthread_key_create(&self->currentThreadKey, NULL);
+  if (pthread_mutex_init(&self->memoryExhaustionLock, NULL) != 0)
+    goto failure;
+  self->memoryExhaustionLockInited = true;
+  
+  if (pthread_mutex_init(&self->callGCLock, NULL) != 0)
+    goto failure; 
+  self->callGCLockInited = true;
+   
+  if (pthread_cond_init(&self->gcCompletedCond, NULL) != 0)
+    goto failure;
+  self->gcCompletedCondInited = true;
+  
+  if (pthread_cond_init(&self->gcMayRunCond, NULL) != 0)
+    goto failure;
+  self->gcMayRunLockInited = true;
+ 
+  if (pthread_rwlock_init(&self->lock, NULL) != 0)
+    goto failure;
+  self->lockInited = true;
+  
+  if (pthread_rwlock_init(&self->gcUnsafeRwlock, NULL) != 0)
+    goto failure;
+  self->gcUnsafeRwlockInited = true;
+  
+  if (pthread_rwlock_init(&self->globalRootRWLock, NULL) != 0)
+    goto failure;
+  self->globalRootRWLockInited = true;
+  
+  if (pthread_key_create(&self->currentThreadKey, NULL) != 0)
+    goto failure;
+  self->currentThreadKeyInited = true;
 
   self->globalRoot = root_new(globalRootSize);
   if (!self->globalRoot)
@@ -148,18 +184,20 @@ void heap_free(struct heap* self) {
   region_free(self->youngGeneration);
   region_free(self->oldGeneration);
   
-  pthread_rwlock_destroy(&self->lock);
-  pthread_rwlock_destroy(&self->gcUnsafeRwlock);
-  pthread_rwlock_destroy(&self->globalRootRWLock);
-  
-  pthread_mutex_destroy(&self->gcCompletedLock);
-  pthread_mutex_destroy(&self->gcMayRunLock);
-  pthread_mutex_destroy(&self->memoryExhaustionLock);
-  
-  pthread_cond_destroy(&self->gcCompletedCond);
-  pthread_cond_destroy(&self->gcMayRunCond);
-  
-  pthread_key_delete(self->currentThreadKey);
+  if ((self->lockInited && pthread_rwlock_destroy(&self->lock) != 0) ||
+      (self->gcUnsafeRwlockInited && pthread_rwlock_destroy(&self->gcUnsafeRwlock) != 0) ||
+      (self->globalRootRWLockInited && pthread_rwlock_destroy(&self->globalRootRWLock) != 0) ||
+      
+      (self->gcCompletedLockInited && pthread_mutex_destroy(&self->gcCompletedLock) != 0) ||
+      (self->gcMayRunLockInited && pthread_mutex_destroy(&self->gcMayRunLock) != 0) ||
+      (self->memoryExhaustionLockInited && pthread_mutex_destroy(&self->memoryExhaustionLock) != 0) ||
+
+      (self->gcCompletedCondInited && pthread_cond_destroy(&self->gcCompletedCond) != 0) ||
+      (self->gcMayRunCondInited && pthread_cond_destroy(&self->gcMayRunCond) != 0) ||
+    
+      (self->currentThreadKeyInited && pthread_key_delete(self->currentThreadKey) != 0)) {
+    abort();
+  }
   
   free(self);
 }

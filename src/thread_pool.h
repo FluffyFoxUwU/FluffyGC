@@ -21,6 +21,7 @@ struct thread_pool_work_unit {
 struct thread_pool {
   atomic_bool shuttingDown;
   
+  bool submitWorkMutexInited;
   pthread_mutex_t submitWorkMutex;
 
   // Number of threads available
@@ -31,6 +32,7 @@ struct thread_pool {
   
   volatile bool taskArrived;
   volatile struct thread_pool_work_unit workUnit;
+  
   pthread_cond_t taskArrivedCond;
   pthread_mutex_t taskArrivedMutex;
   
@@ -41,6 +43,13 @@ struct thread_pool {
   int poolSize;
   int threadsCreated;
   pthread_t* threads;
+  
+  bool taskArrivedMutexInited;
+  bool taskCompletedCondInited;
+  bool taskCompletedMutexInited;
+  bool taskArrivedCondInited;
+  bool itsSafeToContinueUwUCondInited;
+  bool itsSafeToContinueUwUMutexInited;
 };
 
 struct thread_pool* thread_pool_new(int poolSize, const char* prefix);

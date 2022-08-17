@@ -30,14 +30,34 @@ struct thread_pool* thread_pool_new(int poolSize, const char* prefix) {
   self->taskArrived = false;
   self->workUnit.worker = NULL;
   self->workUnit.data = NULL;
+  self->taskArrivedMutexInited = false;
+  self->taskCompletedCondInited = false;
+  self->taskCompletedMutexInited = false;
+  self->taskArrivedCondInited = false;
+  self->itsSafeToContinueUwUCondInited = false;
+  self->itsSafeToContinueUwUMutexInited = false;
 
-  pthread_cond_init(&self->taskArrivedCond, NULL);
-  pthread_cond_init(&self->taskCompletedCond, NULL);
-  pthread_cond_init(&self->itsSafeToContinueUwUCond, NULL);
-  pthread_mutex_init(&self->taskArrivedMutex, NULL);
-  pthread_mutex_init(&self->taskCompletedMutex, NULL);
-  pthread_mutex_init(&self->submitWorkMutex, NULL);
-  pthread_mutex_init(&self->itsSafeToContinueUwUMutex, NULL);
+  if (pthread_cond_init(&self->taskArrivedCond, NULL) != 0)
+    goto failure;
+  self->taskArrivedCondInited = true;
+  if (pthread_cond_init(&self->taskCompletedCond, NULL) != 0)
+    goto failure;
+  self->taskCompletedCondInited = true;
+  if (pthread_cond_init(&self->itsSafeToContinueUwUCond, NULL) != 0)
+    goto failure;
+  self->itsSafeToContinueUwUCondInited = true;
+  if (pthread_mutex_init(&self->taskArrivedMutex, NULL) != 0)
+    goto failure;
+  self->taskArrivedMutexInited = true;
+  if (pthread_mutex_init(&self->taskCompletedMutex, NULL) != 0)
+    goto failure;
+  self->taskCompletedMutexInited = true;
+  if (pthread_mutex_init(&self->submitWorkMutex, NULL) != 0)
+    goto failure;
+  self->submitWorkMutexInited = true;
+  if (pthread_mutex_init(&self->itsSafeToContinueUwUMutex, NULL) != 0)
+    goto failure;
+  self->itsSafeToContinueUwUMutexInited = true;
 
   self->threads = calloc(poolSize, sizeof(*self->threads));
   if (!self->threads)
@@ -94,13 +114,16 @@ void thread_pool_free(struct thread_pool* self) {
   for (int i = 0; i < self->threadsCreated; i++)
     pthread_join(self->threads[i], NULL);
 
-  pthread_cond_destroy(&self->taskArrivedCond);
-  pthread_cond_destroy(&self->taskCompletedCond);
-  pthread_cond_destroy(&self->itsSafeToContinueUwUCond);
-  pthread_mutex_destroy(&self->taskArrivedMutex);
-  pthread_mutex_destroy(&self->taskCompletedMutex);
-  pthread_mutex_destroy(&self->submitWorkMutex);
-  pthread_mutex_destroy(&self->itsSafeToContinueUwUMutex);
+  if ((self->taskArrivedCondInited && pthread_cond_destroy(&self->taskArrivedCond) != 0) ||
+      (self->taskCompletedCondInited && pthread_cond_destroy(&self->taskCompletedCond) != 0) ||
+      (self->itsSafeToContinueUwUCondInited && pthread_cond_destroy(&self->itsSafeToContinueUwUCond) != 0) ||
+
+      (self->taskArrivedMutexInited && pthread_mutex_destroy(&self->taskArrivedMutex) != 0) ||
+      (self->taskCompletedMutexInited && pthread_mutex_destroy(&self->taskCompletedMutex) != 0) ||
+      (self->submitWorkMutexInited && pthread_mutex_destroy(&self->submitWorkMutex) != 0) ||
+      (self->itsSafeToContinueUwUMutexInited && pthread_mutex_destroy(&self->itsSafeToContinueUwUMutex) != 0)) {
+    abort();  
+  }
   
   free(self->threads);
   free(self);

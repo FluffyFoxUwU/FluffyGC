@@ -19,6 +19,7 @@ struct gc_state {
 
   bool isExplicit;
   bool isGCReady;
+
   pthread_cond_t isGCReadyCond;
   pthread_mutex_t isGCReadyLock;
 
@@ -32,6 +33,9 @@ struct gc_state {
     float youngGCTime;
     int youngGCCount;
   } statistics;
+  
+  bool isGCReadyCondInited;
+  bool isGCReadyLockInited;
 };
 
 struct gc_state* gc_init(struct heap* heap, int workerCount);
