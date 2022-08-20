@@ -83,7 +83,7 @@ int region_get_cellid(struct region* self, void* data);
 size_t region_get_actual_allocated_size(size_t size);
 
 void region_read(struct region* self, struct region_reference* data, size_t offset, void* buffer, size_t size);
-void region_write(struct region* self, struct region_reference* data, size_t offset, void* buffer, size_t size);
+void region_write(struct region* self, struct region_reference* data, size_t offset, const void* buffer, size_t size);
 struct region_reference* region_get_ref(struct region* self, void* data);
 
 void region_free(struct region* self);

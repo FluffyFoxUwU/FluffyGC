@@ -269,7 +269,7 @@ struct object_info* heap_get_object_info(struct heap* self, struct region_refere
   return &objects[ref->id];
 }
 
-void heap_obj_write_data(struct heap* self, struct root_reference* object, size_t offset, void* data, size_t size) {
+void heap_obj_write_data(struct heap* self, struct root_reference* object, size_t offset, const void* data, size_t size) {
   heap_enter_unsafe_gc(self);
   region_write(heap_get_region2(self, object), object->data, offset, data, size);
   heap_exit_unsafe_gc(self);
@@ -791,9 +791,6 @@ void heap_report_printf(struct heap* self, const char* fmt, ...) {
 }
 
 void heap_report_vprintf(struct heap* self, const char* fmt, va_list list) {
-  if (1)
-    return;
-
   char* buff = NULL;
   size_t buffSize = vsnprintf(NULL, 0, fmt, list);
   buff = malloc(buffSize + 1);

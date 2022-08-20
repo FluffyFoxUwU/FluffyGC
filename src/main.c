@@ -1,4 +1,4 @@
-#if 1
+#if 0
 # include "main2.c"
 #else
 
@@ -69,8 +69,9 @@ static void* abuser(void* _heap) {
   fluffygc_v1_trigger_full_gc(heap);
   
   fluffygc_object* obj = fluffygc_v1_new_object(heap, desc);
+  fluffygc_write_data(heap, obj, struct somedata, someInteger, 9);
   fluffygc_v1_trigger_full_gc(heap);
-  
+
   fluffygc_object* global = fluffygc_v1_new_global_ref(heap, obj);
   fluffygc_v1_trigger_full_gc(heap);
   assert(fluffygc_v1_is_same_object(heap, obj, global) == true);
@@ -103,8 +104,15 @@ static void* abuser(void* _heap) {
   
   volatile fluffygc_object* tmp;
   assert((tmp = fluffygc_v1_get_object_field(heap, global, offsetof(struct somedata, weakData))) == NULL);
-  
   fluffygc_v1_trigger_full_gc(heap);
+  
+  {
+    int tmp = -1;
+    fluffygc_read_data(heap, &tmp, global, struct somedata, someInteger);
+    printf("%d\n", tmp);
+    assert(tmp == 9);
+  }
+  
   fluffygc_v1_delete_local_ref(heap, obj1);
   fluffygc_v1_delete_global_ref(heap, global);
   fluffygc_v1_delete_weak_global_ref(heap, obj2Weak);

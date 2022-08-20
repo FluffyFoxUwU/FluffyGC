@@ -222,7 +222,7 @@ struct root_reference* heap_obj_read_ptr(struct heap* self, struct root_referenc
 // undefined behaviour when 
 // write/read is overlaps 
 // with a pointer field
-void heap_obj_write_data(struct heap* self, struct root_reference* object, size_t offset, void* data, size_t size);
+void heap_obj_write_data(struct heap* self, struct root_reference* object, size_t offset, const void* data, size_t size);
 void heap_obj_read_data(struct heap* self, struct root_reference* object, size_t offset, void* data, size_t size);
 
 void heap_array_write(struct heap* self, struct root_reference* object, int index, struct root_reference* child);

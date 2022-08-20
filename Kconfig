@@ -23,8 +23,8 @@ menu Debugging
   
   config UBSAN
     bool "Enable Undefined behavior Sanitizer"
-    default n
     depends on DEBUG
+    default n
   
   config LLVM_XRAY
     bool "Enable LLVM's XRay instrumentation"
@@ -32,8 +32,8 @@ menu Debugging
 
   config DEBUG_DONT_REUSE_ROOT_REFERENCE
     bool "Don't reuse root reference"
-    default n
     depends on DEBUG
+    default n
     help
       Always allocate new root reference
       Intended for detecting root reference

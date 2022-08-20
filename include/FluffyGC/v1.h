@@ -130,6 +130,11 @@ FLUFFYGC_DECLARE(fluffygc_object_array*, get_array_field,
 FLUFFYGC_DECLARE(void, set_array_field,
     fluffygc_state* self, fluffygc_object* obj, size_t offset, fluffygc_object_array* data);
 
+FLUFFYGC_DECLARE(void, obj_read_data,
+    fluffygc_state* self, fluffygc_object* obj, size_t offset, size_t size, void* result);
+FLUFFYGC_DECLARE(void, obj_write_data,
+    fluffygc_state* self, fluffygc_object* obj, size_t offset, size_t size, const void* data);
+
 // Array operations
 FLUFFYGC_DECLARE(int, get_array_length,
     fluffygc_state* self, fluffygc_object_array* array);
@@ -159,6 +164,20 @@ FLUFFYGC_DECLARE(int, get_current_frame_id,
 #define fluffygc_v1_delete_global_ref(_, obj) fluffygc_v1__delete_global_ref((_), FLUFFYGC_AS_OBJECT(obj))
 #define fluffygc_v1_is_same_object(_, objA, objB) fluffygc_v1__is_same_object((_), FLUFFYGC_AS_OBJECT(objA), FLUFFYGC_AS_OBJECT(objB))
 #define fluffygc_v1_new_weak_global_ref(_, obj) fluffygc_v1__new_weak_global_ref((_), FLUFFYGC_AS_OBJECT(obj))
+
+// Convenience wrapper
+#define fluffygc_read_data(heap, result, obj, structure, member) do { \
+  static_assert(_Generic((*result), \
+    typeof(typeof(((structure*) 0)->member)): true,\
+    default: false\
+  ), "Destination type is not the same as source type"); \
+  fluffygc_v1_obj_read_data((heap), (obj), offsetof(structure, member), sizeof(((structure*) 0)->member), (result)); \
+} while(0)
+
+#define fluffygc_write_data(heap, obj, structure, member, data) do { \
+  typeof(((structure*) 0)->member) tmp = (data); \
+  fluffygc_v1_obj_write_data((heap), (obj), offsetof(structure, member), sizeof(tmp), &tmp); \
+} while (0)
 
 #endif
 

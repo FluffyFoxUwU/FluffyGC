@@ -390,12 +390,14 @@ void region_compact(struct region* self) {
 
 void region_read(struct region* self, struct region_reference* ref, size_t offset, void* buffer, size_t size) {
   pthread_rwlock_rdlock(&self->compactionAndWipingLock);
+  assert(offset <= ref->dataSize);
   memcpy(buffer, ref->data + offset, size);
   pthread_rwlock_unlock(&self->compactionAndWipingLock);
 }
 
-void region_write(struct region* self, struct region_reference* ref, size_t offset, void* buffer, size_t size) {
+void region_write(struct region* self, struct region_reference* ref, size_t offset, const void* buffer, size_t size) {
   pthread_rwlock_rdlock(&self->compactionAndWipingLock);
+  assert(offset <= ref->dataSize);
   memcpy(ref->data + offset, buffer, size);
   pthread_rwlock_unlock(&self->compactionAndWipingLock); 
 }

@@ -82,8 +82,10 @@ static void _checkType(struct heap* heap, const char* func, struct root_referenc
   assert(expect != OBJECT_TYPE_UNKNOWN);
   assert(data != NULL);
 
+  heap_enter_unsafe_gc(heap);
   struct object_info* info = heap_get_object_info(heap, data->data);
   _checkType2(heap, func, info->type, expect);
+  heap_exit_unsafe_gc(heap);
 }
 
 #define checkType(heap, data, expect) _checkType(heap, __func__, data, expect)
@@ -123,6 +125,55 @@ static void _writeCommonPtr(fluffygc_state* self, const char* func, fluffygc_obj
 
 #define writeCommonPtr(self, obj, offset, data) _writeCommonPtr(self, __func__, obj, offset, data);
 #define readCommonPtr(self, obj, offset, expect) _readCommonPtr(self, __func__, obj, offset, expect);
+
+// Ensure access not overlapping with pointers
+// else abort
+static void ensureSafeAccess(struct heap* heap, struct root_reference* obj, size_t offset, size_t size) {
+  heap_enter_unsafe_gc(heap);
+  bool isSafe = true;
+
+  struct object_info* objInfo = heap_get_object_info(heap, obj->data); 
+  if (objInfo->type != OBJECT_TYPE_NORMAL) {
+    isSafe = false;
+    goto quit;
+  }
+
+  struct descriptor* desc = objInfo->typeSpecific.normal.desc;
+  
+  // Low priority
+  // TODO: Optimize the worst
+  //       time complexity
+  //
+  // Time complexity: 
+  //   Worst  : O(n) (when cant find ovelapping
+  //                  or found at the end)
+  //   Best   : O(1) (first entry overlapping)
+  for (int i = 0; i < desc->numFields; i++) {
+    struct descriptor_field* field = &desc->fields[i];
+
+    // [x1, y1]
+    size_t x1 = field->offset;
+    size_t y1 = field->offset + sizeof(void*) - 1;
+    
+    // [x2, y2]
+    size_t x2 = offset;
+    size_t y2 = offset + size - 1;
+
+    // Smallest range to contain two ranges
+    // [min, max]
+    size_t min = x1 < x2 ? x1 : x2;
+    size_t max = y1 > y2 ? y1 : y2;
+
+    if (max - min < sizeof(void*) + size - 1) {
+      isSafe = false;
+      break;
+    }
+  }
+
+  quit:
+  apiAssert(heap, isSafe, "Unsafe access (access region is overlapping with one or more pointers field)");
+  heap_exit_unsafe_gc(heap);
+}
 
 FLUFFYGC_DECLARE(fluffygc_state*, new, 
     size_t youngSize, size_t oldSize,
@@ -373,6 +424,28 @@ FLUFFYGC_DECLARE(void, delete_weak_global_ref,
     fluffygc_state* self, fluffygc_weak_object* obj) {
   checkIfInAttachedThread(CAST(self), __func__); 
   fluffygc_v1_delete_global_ref(self, (fluffygc_object*) obj);
+}
+
+FLUFFYGC_DECLARE(void, obj_read_data,
+    fluffygc_state* self, fluffygc_object* obj, size_t offset, size_t size, void* result) {
+  checkIfInAttachedThread(CAST(self), __func__); 
+  checkType(CAST(self), CAST(obj), OBJECT_TYPE_NORMAL);  
+
+  heap_enter_unsafe_gc(CAST(self));
+  ensureSafeAccess(CAST(self), CAST(obj), offset, size);
+  heap_obj_read_data(CAST(self), CAST(obj), offset, result, size);
+  heap_exit_unsafe_gc(CAST(self));
+}
+
+FLUFFYGC_DECLARE(void, obj_write_data,
+    fluffygc_state* self, fluffygc_object* obj, size_t offset, size_t size, const void* data) {
+  checkIfInAttachedThread(CAST(self), __func__); 
+  checkType(CAST(self), CAST(obj), OBJECT_TYPE_NORMAL);  
+
+  heap_enter_unsafe_gc(CAST(self));
+  ensureSafeAccess(CAST(self), CAST(obj), offset, size);
+  heap_obj_write_data(CAST(self), CAST(obj), offset, data, size);
+  heap_exit_unsafe_gc(CAST(self));
 }
 
 #endif // IS_ENABLED(CONFIG_API_ENABLE_V1)
