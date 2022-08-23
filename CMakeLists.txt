@@ -122,9 +122,9 @@ install(
 # Install pkgconfig file
 set(target ${PROJECT_NAME})
 configure_file(package.pc.in
-  ${CMAKE_BINARY_DIR}/ExampleProject.pc @ONLY)
+  ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.pc @ONLY)
 install(
-  FILES ${CMAKE_BINARY_DIR}/ExampleProject.pc
+  FILES ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.pc
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig/
 )
 
