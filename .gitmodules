@@ -4,3 +4,6 @@
 [submodule "libs/list"]
 	path = libs/list
 	url = https://github.com/clibs/list
+[submodule "buildsystem"]
+	path = buildsystem
+	url = https://github.com/FluffyFoxUwU/common-cmake
