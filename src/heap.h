@@ -170,6 +170,7 @@ struct heap {
   // honestly i never success making
   // this without abusing rwlock
   pthread_rwlock_t gcUnsafeRwlock;
+  atomic_int unsafeCount;
 
   // Thread informations
   pthread_key_t currentThreadKey;

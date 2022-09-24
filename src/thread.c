@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <assert.h>
+#include <errno.h>
 
 #include "region.h"
 #include "thread.h"
@@ -22,7 +23,10 @@ struct thread* thread_new(struct heap* heap, int id, int frameStackSize) {
   if (!self->frames)
     goto failure;
 
-  thread_push_frame(self, CONFIG_DEFAULT_THREAD_STACK_SIZE);
+  int res = thread_push_frame(self, CONFIG_DEFAULT_THREAD_STACK_SIZE);
+  if (res < 0)
+    abort();
+
   return self;
   
   failure:
@@ -41,7 +45,7 @@ void thread_free(struct thread* self) {
   free(self);
 }
 
-bool thread_push_frame(struct thread* self, int frameSize) {
+int thread_push_frame(struct thread* self, int frameSize) {
   if (self->topFramePointer + 1 >= self->frameStackSize)
     goto stack_overflow;
 
@@ -57,11 +61,13 @@ bool thread_push_frame(struct thread* self, int frameSize) {
   frame->isValid = true;
   self->topFrame = frame;
   self->topFramePointer++;
-  return true;
+  return 0;
 
   stack_overflow:
+  return -EOVERFLOW;
+
   root_alloc_failed:
-  return false;
+  return -ENOMEM;
 }
 
 struct root_reference* thread_pop_frame(struct thread* self, struct root_reference* result) {

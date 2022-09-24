@@ -50,6 +50,8 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
   self->globalRootRWLockInited = false;
   self->currentThreadKeyInited = false;
 
+  atomic_init(&self->unsafeCount, 0);
+
   if (pthread_mutex_init(&self->gcCompletedLock, NULL) != 0)
     goto failure;
   self->gcCompletedLockInited = true;
@@ -499,6 +501,8 @@ void heap_enter_unsafe_gc(struct heap* self) {
   if (data->numberOfTimeEnteredUnsafeGC == 0)
     pthread_rwlock_rdlock(&self->gcUnsafeRwlock);
   data->numberOfTimeEnteredUnsafeGC++;
+
+  atomic_fetch_add(&self->unsafeCount, 1);
 }
 
 void heap_exit_unsafe_gc(struct heap* self) {
@@ -506,6 +510,8 @@ void heap_exit_unsafe_gc(struct heap* self) {
   if (data->numberOfTimeEnteredUnsafeGC == 1)
     pthread_rwlock_unlock(&self->gcUnsafeRwlock);
   data->numberOfTimeEnteredUnsafeGC--;
+
+  atomic_fetch_sub(&self->unsafeCount, 1);
 }
 
 void heap_call_gc(struct heap* self, enum gc_request_type requestType) {

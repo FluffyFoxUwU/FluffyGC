@@ -34,7 +34,7 @@ struct root_reference* thread_local_add(struct thread* self, struct region_refer
 struct root_reference* thread_local_add2(struct thread* self, struct root_reference* ref);
 void thread_local_remove(struct thread* self, struct root_reference* ref);
 
-bool thread_push_frame(struct thread* self, int frameSize);
+int thread_push_frame(struct thread* self, int frameSize);
 struct root_reference* thread_pop_frame(struct thread* self, struct root_reference* result);
 
 #endif

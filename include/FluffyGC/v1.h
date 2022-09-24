@@ -97,7 +97,11 @@ FLUFFYGC_DECLARE(void, detach_thread,
     fluffygc_state* self);
 
 // Frames
-FLUFFYGC_DECLARE(bool, push_frame,
+//
+// -EINVAL is `frameSize` is invalid
+// -EOVERFLOW if stack overflowed
+// -ENOMEM if memory exhausted
+FLUFFYGC_DECLARE(int, push_frame,
     fluffygc_state* self, int frameSize);
 FLUFFYGC_DECLARE(fluffygc_object*, pop_frame,
     fluffygc_state* self, fluffygc_object* obj);
@@ -156,6 +160,11 @@ FLUFFYGC_DECLARE(void, delete_weak_global_ref,
 // Misc
 FLUFFYGC_DECLARE(int, get_current_frame_id,
     fluffygc_state* self);
+
+// Get object critical 
+// You shall not modify the pointer fields
+FLUFFYGC_DECLARE(void*, get_object_critical, fluffygc_state* self, fluffygc_object* obj, bool* isCopy);
+FLUFFYGC_DECLARE(void, release_object_critical, fluffygc_state* self, fluffygc_object* obj, void* ptr);
 
 // Macro wrappers for type safety
 #define fluffygc_v1_new_local_ref(_, obj) ((typeof(obj)) fluffygc_v1__new_local_ref((_), FLUFFYGC_AS_OBJECT(obj)))

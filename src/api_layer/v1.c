@@ -1,6 +1,4 @@
 #include "config.h"
-#include "gc/gc_enums.h"
-#include "region.h"
 
 #if IS_ENABLED(CONFIG_API_ENABLE_V1)
 
@@ -8,6 +6,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #include "FluffyGC/v1.h"
 
@@ -16,6 +15,8 @@
 #include "root.h"
 #include "thread.h"
 #include "util.h"
+#include "gc/gc_enums.h"
+#include "region.h"
 
 #define CAST(val) (_Generic((val), \
     struct _7ca2fe74_2f67_4a70_a55d_ba9f6acb6f43*: \
@@ -175,6 +176,14 @@ static void ensureSafeAccess(struct heap* heap, struct root_reference* obj, size
   heap_exit_unsafe_gc(heap);
 }
 
+static void ensureNotInCritical(struct heap* heap, const char* func) {
+  checkIfInAttachedThread(heap, func);
+  if (atomic_load(&heap->unsafeCount) == 0)
+    return;
+
+  abortWithMessageFormatted(heap, "This function cant be called in critical region!");
+}
+
 FLUFFYGC_DECLARE(fluffygc_state*, new, 
     size_t youngSize, size_t oldSize,
     size_t metaspaceSize,
@@ -198,8 +207,12 @@ FLUFFYGC_DECLARE(fluffygc_descriptor*, descriptor_new,
     fluffygc_state* self,
     fluffygc_descriptor_args* arg) {
   checkIfInAttachedThread(CAST(self), __func__);
+  ensureNotInCritical(CAST(self), __func__);
 
   struct descriptor_field* fields = calloc(arg->fieldCount, sizeof(*fields));
+  if (!fields)
+    goto failure;
+
   for (int i = 0; i < arg->fieldCount; i++) {
     fields[i].name = arg->fields[i].name;
     fields[i].offset = arg->fields[i].offset;
@@ -219,12 +232,16 @@ FLUFFYGC_DECLARE(fluffygc_descriptor*, descriptor_new,
   struct descriptor* desc = heap_descriptor_new(CAST(self), id, arg->objectSize, arg->fieldCount, fields);
   free(fields);
   return CAST(desc);
+
+  failure:
+  return NULL;
 }
 
 FLUFFYGC_DECLARE(void, descriptor_delete, 
     fluffygc_state* self,
     fluffygc_descriptor* desc) {
   checkIfInAttachedThread(CAST(self), __func__);
+  ensureNotInCritical(CAST(self), __func__);
   heap_descriptor_release(CAST(self), CAST(desc));
 }
 
@@ -240,12 +257,15 @@ FLUFFYGC_DECLARE(void, detach_thread,
   heap_detach_thread(CAST(self));
 }
 
-FLUFFYGC_DECLARE(bool, push_frame,
+FLUFFYGC_DECLARE(int, push_frame,
     fluffygc_state* self, int frameSize) {
   checkIfInAttachedThread(CAST(self), __func__);
-  
+  ensureNotInCritical(CAST(self), __func__);
+  if (frameSize <= 0)
+    return -EINVAL;
+
   heap_enter_unsafe_gc(CAST(self));
-  bool res = thread_push_frame(getThread(CAST(self)), frameSize);
+  int res = thread_push_frame(getThread(CAST(self)), frameSize);
   heap_exit_unsafe_gc(CAST(self));
   return res;
 }
@@ -253,6 +273,7 @@ FLUFFYGC_DECLARE(bool, push_frame,
 FLUFFYGC_DECLARE(fluffygc_object*, pop_frame,
     fluffygc_state* self, fluffygc_object* obj) {
   checkIfInAttachedThread(CAST(self), __func__);
+  ensureNotInCritical(CAST(self), __func__);
   
   heap_enter_unsafe_gc(CAST(self));
   apiAssert(CAST(self), getThread(CAST(self))->topFramePointer > 1, "cannot pop last frame (unbalanced pop and push?)");
