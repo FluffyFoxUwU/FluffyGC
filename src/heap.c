@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 
 #include "descriptor.h"
 #include "gc/gc.h"
@@ -143,7 +144,11 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
     heap_reset_object_info(self, &self->oldObjects[i]);
   }
 
-  self->gcState = gc_init(self, util_get_core_count());
+  int parallelThreads = heap_calc_default_parallel_thread_count(util_get_core_count());
+  if (parallelThreads < 0)
+    goto failure;
+
+  self->gcState = gc_init(self, parallelThreads);
   if (!self->gcState)
     goto failure;
 
@@ -152,6 +157,33 @@ struct heap* heap_new(size_t youngSize, size_t oldSize, size_t metaspaceSize, in
   failure:
   heap_free(self);
   return NULL;
+}
+
+// https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/parallel.html
+int heap_calc_default_parallel_thread_count(int hardwareThreads) {
+  if (hardwareThreads <= 0)
+    return -EINVAL;
+  int threads = hardwareThreads;
+  if (threads > 8)
+    threads = (threads * 5) / 8;
+  
+  if (threads == 0)
+    threads = 1;
+  return threads;
+}
+
+// https://blog.codecentric.de/en/2013/10/useful-jvm-flags-part-7-cms-collector/
+int heap_calc_default_concurrent_thread_count(int hardwareThreads) {
+  if (hardwareThreads <= 0)
+    return -EINVAL;
+  int threads = heap_calc_default_parallel_thread_count(hardwareThreads);
+  if (threads < 0)
+    return 0;
+  
+  threads = (threads + 3) / 4;
+  if (threads == 0)
+    threads = 1;
+  return threads;
 }
 
 void heap_free(struct heap* self) {
@@ -291,8 +323,6 @@ struct region_reference* heap_get_region_ref(struct heap* self, void* data) {
 }
 
 bool heap_can_record_in_cardtable(struct heap* self, struct object_info* obj, size_t offset, struct object_info* data) {
-  return true;
-
   switch (obj->type) {
     case OBJECT_TYPE_ARRAY:
       return obj->typeSpecific.array.strength == REFERENCE_STRENGTH_STRONG;
@@ -303,7 +333,7 @@ bool heap_can_record_in_cardtable(struct heap* self, struct object_info* obj, si
       return field->strength == REFERENCE_STRENGTH_STRONG;
     }
     case OBJECT_TYPE_UNKNOWN:
-      abort();
+      break;
   }
   abort();
 }
@@ -317,11 +347,11 @@ static void writePtrCommon(struct heap* self, struct root_reference* object, siz
   if (heap_can_record_in_cardtable(self, info, offset, heap_get_object_info(self, toWrite->data))) {
     struct region* childRegion = heap_get_region2(self, toWrite);
     if (childRegion != objectRegion) {
-      if (childRegion == self->youngGeneration)
-        atomic_store(&self->oldToYoungCardTable[objectAsRegionRef->id / CONFIG_CARD_TABLE_PER_BUCKET_SIZE], true); 
-      else
-        atomic_store(&self->youngToOldCardTable[objectAsRegionRef->id / CONFIG_CARD_TABLE_PER_BUCKET_SIZE], true); 
-    }  
+      atomic_bool* cardTable = self->oldToYoungCardTable;
+      if (childRegion == self->oldGeneration)
+        cardTable = self->youngToOldCardTable;
+      atomic_store(&cardTable[objectAsRegionRef->id / CONFIG_CARD_TABLE_PER_BUCKET_SIZE], true); 
+    }
   }
 
   region_write(objectRegion, objectAsRegionRef, offset, (void*) &toWrite->data->data, sizeof(void*));  
@@ -514,40 +544,34 @@ void heap_exit_unsafe_gc(struct heap* self) {
   atomic_fetch_sub(&self->unsafeCount, 1);
 }
 
-void heap_call_gc(struct heap* self, enum gc_request_type requestType) {
-  pthread_mutex_lock(&self->callGCLock);
-
+static void commonCallGC(struct heap* self, enum gc_request_type requestType) {
   pthread_mutex_lock(&self->gcMayRunLock);
   if (self->gcRequested && self->gcRequestedType == requestType) {
     pthread_mutex_unlock(&self->gcMayRunLock); 
-    goto request_already_sent;
+    return;
   }
+  
+  pthread_mutex_lock(&self->gcCompletedLock);
+  self->gcCompleted = false;
+  pthread_mutex_unlock(&self->gcCompletedLock);
   
   self->gcRequested = true;
   self->gcRequestedType = requestType;
 
   pthread_mutex_unlock(&self->gcMayRunLock);  
-  pthread_cond_broadcast(&self->gcMayRunCond); 
+  pthread_cond_broadcast(&self->gcMayRunCond);
+}
 
-  request_already_sent:
+void heap_call_gc(struct heap* self, enum gc_request_type requestType) {
+  pthread_mutex_lock(&self->callGCLock);
+  commonCallGC(self, requestType);
   pthread_mutex_unlock(&self->callGCLock);
 }
 
 void heap_call_gc_blocking(struct heap* self, enum gc_request_type requestType) {
   pthread_mutex_lock(&self->callGCLock);
-
-  if (self->gcRequested && self->gcRequestedType == requestType)
-    goto request_already_sent;
+  commonCallGC(self, requestType);
   
-  self->gcCompleted = false;
-
-  pthread_mutex_lock(&self->gcMayRunLock);
-  self->gcRequested = true;
-  self->gcRequestedType = requestType;
-  pthread_mutex_unlock(&self->gcMayRunLock); 
-  pthread_cond_broadcast(&self->gcMayRunCond); 
-  
-  request_already_sent:
   heap_wait_gc(self);
   pthread_mutex_unlock(&self->callGCLock);
 }
@@ -798,7 +822,12 @@ void heap_report_printf(struct heap* self, const char* fmt, ...) {
 
 void heap_report_vprintf(struct heap* self, const char* fmt, va_list list) {
   char* buff = NULL;
-  size_t buffSize = vsnprintf(NULL, 0, fmt, list);
+
+  va_list cloned;
+  va_copy(cloned, list);
+  size_t buffSize = vsnprintf(NULL, 0, fmt, cloned);
+  va_end(cloned);
+
   buff = malloc(buffSize + 1);
   if (!buff) {
     fprintf(stderr, "[Heap %p] Error allocating buffer for printing error\n", self);

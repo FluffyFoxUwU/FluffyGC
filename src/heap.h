@@ -273,6 +273,12 @@ void heap_sweep_an_object(struct heap* self, struct object_info* obj);
 bool heap_is_array(struct heap* self, struct root_reference* ref);
 bool heap_can_record_in_cardtable(struct heap* self, struct object_info* obj, size_t offset, struct object_info* data);
 
+// Recommended number of threads for given number of hardware threads
+// -EINVAL: Negative or zero hardware threads
+// Never returns 0
+int heap_calc_default_parallel_thread_count(int hardwareThreads);
+int heap_calc_default_concurrent_thread_count(int hardwareThreads);
+
 // Reports
 ATTRIBUTE((format(printf, 2, 3)))
 void heap_report_printf(struct heap* self, const char* fmt, ...); 

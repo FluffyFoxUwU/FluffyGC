@@ -14,15 +14,11 @@ struct gc_state {
   // Workers
   struct thread_pool* workerPool;
   
-  bool isGCThreadRunning;
   pthread_t gcThread;
 
   bool isExplicit;
-  bool isGCReady;
-
-  pthread_cond_t isGCReadyCond;
-  pthread_mutex_t isGCReadyLock;
-
+  
+  pthread_barrier_t gcThreadReadyBarrier;
   struct profiler* profiler;
 
   struct {
@@ -34,8 +30,8 @@ struct gc_state {
     int youngGCCount;
   } statistics;
   
-  bool isGCReadyCondInited;
-  bool isGCReadyLockInited;
+  bool isGCThreadReadyBarrierInited;
+  bool isGCThreadRunning;
 };
 
 struct gc_state* gc_init(struct heap* heap, int workerCount);

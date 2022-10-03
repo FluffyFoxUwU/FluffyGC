@@ -136,7 +136,6 @@ void gc_young_collect(struct gc_state* self) {
     }
 
     if (retryCounts > 1) {
-      puts("failed c");
       heap_report_printf(heap, "Old generation exhausted cannot promote");
       break;
     }

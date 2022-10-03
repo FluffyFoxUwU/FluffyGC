@@ -134,6 +134,7 @@ static void serve(struct gc_state* self, enum gc_request_type requestType, bool*
       abort();
   }
 
+  // Clear up self->isExplicit incase not cleared
   self->isExplicit = false;
   profiler_stop(self->profiler);
   
@@ -146,22 +147,16 @@ static void* mainThread(void* _self) {
   struct gc_state* self = _self;
   struct heap* heap = self->heap;
   bool shuttingDown = false;
-
-  pthread_mutex_lock(&self->isGCReadyLock);
-  self->isGCReady = true;
-  pthread_mutex_unlock(&self->isGCReadyLock);
-    
+  
   pthread_mutex_lock(&heap->gcMayRunLock);  
-  pthread_cond_broadcast(&self->isGCReadyCond);
+  pthread_barrier_wait(&self->gcThreadReadyBarrier);
   while (!shuttingDown) { 
     enum gc_request_type requestType;
-    bool isRequested;
     
     heap->gcRequested = false;
     while (!heap->gcRequested)
       pthread_cond_wait(&heap->gcMayRunCond, &heap->gcMayRunLock); 
 
-    isRequested = heap->gcRequested;
     requestType = heap->gcRequestedType;
 
     pthread_rwlock_wrlock(&heap->gcUnsafeRwlock); 
@@ -185,6 +180,7 @@ static void* mainThread(void* _self) {
     heap->gcCompleted = true;
     pthread_mutex_unlock(&heap->gcCompletedLock);
     pthread_cond_broadcast(&heap->gcCompletedCond);
+    
   }
   pthread_mutex_unlock(&heap->gcMayRunLock);
 
@@ -200,21 +196,16 @@ struct gc_state* gc_init(struct heap* heap, int workerCount) {
   self->statistics.youngGCCount = 0;
   self->statistics.youngGCTime = 0.0f;
   self->isGCThreadRunning = false;
-  self->isGCReady = false;
   self->fullGC.oldLookup = NULL;
   self->profiler = NULL;
   self->isExplicit = false;
   self->workerPool = NULL; 
-  self->isGCReadyCondInited = false;
-  self->isGCReadyLockInited = false;
-
-  if (pthread_mutex_init(&self->isGCReadyLock, NULL) != 0)
+  self->isGCThreadReadyBarrierInited = false;
+  
+  if (pthread_barrier_init(&self->gcThreadReadyBarrier, NULL, 2) != 0)
     goto failure;
-  self->isGCReadyLockInited = true;
-  if (pthread_cond_init(&self->isGCReadyCond, NULL) != 0)
-    goto failure;
-  self->isGCReadyCondInited = true;
-
+  self->isGCThreadReadyBarrierInited = true;
+  
   self->profiler = profiler_new();
   if (!self->profiler)
     goto failure;
@@ -231,11 +222,7 @@ struct gc_state* gc_init(struct heap* heap, int workerCount) {
     goto failure;
   self->isGCThreadRunning = true; 
   
-  pthread_mutex_lock(&self->isGCReadyLock);
-  if (!self->isGCReady)
-    pthread_cond_wait(&self->isGCReadyCond, &self->isGCReadyLock);
-  pthread_mutex_unlock(&self->isGCReadyLock);
-
+  pthread_barrier_wait(&self->gcThreadReadyBarrier);
   return self;
 
   failure:
@@ -256,11 +243,9 @@ void gc_cleanup(struct gc_state* self) {
   if (self->profiler)
     profiler_free(self->profiler);
   
-  if ((self->isGCReadyLockInited && pthread_mutex_destroy(&self->isGCReadyLock) != 0) ||
-      (self->isGCReadyCondInited && pthread_cond_destroy(&self->isGCReadyCond) != 0)) {
+  if ((self->isGCThreadReadyBarrierInited && pthread_barrier_destroy(&self->gcThreadReadyBarrier) != 0))
     abort();
-  }
-
+  
   free(self->fullGC.oldLookup);
   free(self);
 }

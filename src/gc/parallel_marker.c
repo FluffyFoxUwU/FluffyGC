@@ -18,11 +18,9 @@ void gc_parallel_marker(struct gc_state* gcState, bool isYoung) {
   struct region* markRegion = gcState->heap->oldGeneration;
   struct object_info* cardTableObjects = gcState->heap->youngObjects;
   atomic_bool* cardTable = gcState->heap->youngToOldCardTable;
-  struct region* cardtableRegion = gcState->heap->youngGeneration;
   size_t cardTableSize = gcState->heap->youngToOldCardTableSize;
   
   if (isYoung) {
-    cardtableRegion = gcState->heap->oldGeneration;
     markRegion = gcState->heap->youngGeneration;
     cardTable = gcState->heap->oldToYoungCardTable;
     cardTableObjects = gcState->heap->oldObjects;
