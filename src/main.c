@@ -1,3 +1,4 @@
+#include "userfaultfd.h"
 #if 0
 # include "main2.c"
 #else
@@ -143,6 +144,8 @@ int main2() {
   (void) abuserCount;
   abuser(heap);
   fluffygc_v1_free(heap);
+  
+  printf("Userfaultfd support: %s\n", uffd_is_supported() ? "true" : "false");
   return 0;
 }
 

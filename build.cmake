@@ -36,6 +36,7 @@ set(BUILD_SOURCES
   src/gc/common.c
   src/gc/parallel_marker.c
   src/gc/parallel_heap_iterator.c
+  src/userfaultfd.c
 )
 
 # Note that exe does not represent Windows' 

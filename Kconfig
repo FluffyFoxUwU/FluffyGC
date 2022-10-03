@@ -195,6 +195,16 @@ menu General
     config LIBC_NONE
       bool "None"
   endchoice
+  
+  config ENABLE_USERFAULTFD_SUPPORT
+    bool "Enable userfaultfd support"
+    default no
+    help
+      Use of userfaultfd to fix pointers on demand. To spread
+      pointer fix phase load.
+      
+      This just control whether the support be compiled in or
+      not. Its determined on runtime whether to enable or not
 endmenu
 
 menu "Garbage Collector"
@@ -213,5 +223,6 @@ config API_ENABLE_V1
   bool "Enable version 1 API"
   default y
 
-
+# Feature: Next goal
+# https://www.tdcommons.org/cgi/viewcontent.cgi?article=4751&context=dpubs_series
 
