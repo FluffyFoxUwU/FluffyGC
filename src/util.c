@@ -1,11 +1,14 @@
-#include "util.h"
-
+#include <errno.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <sys/mman.h>
 #include <sys/prctl.h>
 #include <unistd.h>
+
+#include "util.h"
+#include "config.h"
 
 bool util_atomic_add_if_less_uint(volatile atomic_uint* data, unsigned int n, unsigned int max, unsigned int* result) {
   unsigned int new;
@@ -68,3 +71,32 @@ int util_get_core_count() {
   return (int) sysconf(_SC_NPROCESSORS_ONLN);
 }
 
+size_t util_get_pagesize() {
+  long result = sysconf(_SC_PAGESIZE);
+  
+  if (result == -1)
+    return 0;
+  
+  return result;
+}
+
+void* util_mmap_anonymous(size_t size, int protection) {
+# if IS_ENABLED(CONFIG_ALLOW_USAGE_OF_ANONYMOUS_MMAP)
+  void* addr = mmap(NULL, size, protection, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+  if (addr == MAP_FAILED) {
+    switch (errno) {
+      case ENOMEM:
+        errno = ENOMEM;
+        break;
+      case EINVAL:
+      default:
+        errno = EINVAL;
+        break;
+    }
+  }
+  return addr == MAP_FAILED ? NULL : addr;
+# else
+  errno = ENOSYS;
+  return NULL;
+# endif
+}

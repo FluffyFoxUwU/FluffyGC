@@ -196,9 +196,18 @@ menu General
       bool "None"
   endchoice
   
+  config ALLOW_USAGE_OF_ANONYMOUS_MMAP
+    bool "Allow or disallow anonymous mmap"
+    default no
+    help
+      Mainly for hide or show features which need
+      anonymous `mmap` which isnt portable hence
+      the default is disallow
+  
   config ENABLE_USERFAULTFD_SUPPORT
     bool "Enable userfaultfd support"
     default no
+    depends on ALLOW_USAGE_OF_ANONYMOUS_MMAP
     help
       Use of userfaultfd to fix pointers on demand. To spread
       pointer fix phase load.

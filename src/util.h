@@ -17,5 +17,16 @@ void util_set_thread_name(const char* name);
 
 int util_get_core_count();
 
+// Return 0 on failure and sets errno
+size_t util_get_pagesize();
+
+// Result can be unmapped via `munmap`
+// Sets errno on error
+// Errors:
+// -ENOSYS: Anonymous mmap is not enabled
+// -EINVAL: Invalid arguments
+// -ENOMEM: No memory available
+void* util_mmap_anonymous(size_t size, int protection);
+
 #endif
 
