@@ -60,6 +60,9 @@ set(BUILD_PUBLIC_HEADERS
   include/FluffyGC/v1.h
 )
 
+set(BUILD_CFLAGS "")
+set(BUILD_LDFLAGS "-L/usr/local/lib/")
+
 # AddPkgConfigLib is in ./buildsystem/CMakeLists.txt
 macro(AddDependencies)
   # Example
