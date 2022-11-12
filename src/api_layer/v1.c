@@ -289,6 +289,25 @@ FLUFFYGC_DECLARE(fluffygc_object*, new_object,
   return CAST(heap_obj_new(CAST(self), CAST(desc)));
 }
 
+FLUFFYGC_DECLARE(fluffygc_object*, new_opaque_object,
+    fluffygc_state* self, size_t len) {
+  checkIfInAttachedThread(CAST(self), __func__); 
+  return CAST(heap_obj_opaque_new(CAST(self), len));
+}
+
+FLUFFYGC_DECLARE(void*, get_object_critical, fluffygc_state* self, fluffygc_object* obj, bool* isCopy) {
+  if (isCopy)
+    *isCopy = false;
+  heap_enter_unsafe_gc(CAST(self));
+  return CAST(obj)->data->data;
+}
+
+FLUFFYGC_DECLARE(void, release_object_critical, fluffygc_state* self, fluffygc_object* obj, void* ptr) {
+  checkIfInAttachedThread(CAST(self), __func__); 
+  apiAssert(CAST(self), CAST(obj)->data->data == ptr, "cannot pop release critical (ptr given is not the same ptr returned by get critical calls)");
+  heap_exit_unsafe_gc(CAST(self));
+}
+
 FLUFFYGC_DECLARE(fluffygc_object*, _new_local_ref,
     fluffygc_state* self, fluffygc_object* obj) {
   checkIfInAttachedThread(CAST(self), __func__); 

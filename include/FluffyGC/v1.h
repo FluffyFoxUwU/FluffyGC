@@ -121,6 +121,8 @@ FLUFFYGC_DECLARE(void, _delete_global_ref,
 // Object creation
 FLUFFYGC_DECLARE(fluffygc_object*, new_object,
     fluffygc_state* self, fluffygc_descriptor* desc);
+FLUFFYGC_DECLARE(fluffygc_object*, new_opaque_object, 
+    fluffygc_state* self, size_t len);
 FLUFFYGC_DECLARE(fluffygc_object_array*, new_object_array,
     fluffygc_state* self, int size);
 
