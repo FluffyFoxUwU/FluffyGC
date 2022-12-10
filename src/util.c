@@ -1,3 +1,8 @@
+#include "config.h"
+#if !IS_ENABLED(CONFIG_STRICTLY_POSIX)
+#define _GNU_SOURCE
+#endif
+
 #include <errno.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -8,7 +13,6 @@
 #include <unistd.h>
 
 #include "util.h"
-#include "config.h"
 
 bool util_atomic_add_if_less_uint(volatile atomic_uint* data, unsigned int n, unsigned int max, unsigned int* result) {
   unsigned int new;

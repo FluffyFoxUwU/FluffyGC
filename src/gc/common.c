@@ -13,17 +13,13 @@
 
 void gc_clear_non_strong_refs(struct gc_state* gcState, bool isYoung) { 
   struct region* processRegion = gcState->heap->oldGeneration;
-  struct object_info* processObjects = gcState->heap->oldObjects;
   struct object_info* cardTableObjects = gcState->heap->youngObjects;
   atomic_bool* cardTable = gcState->heap->youngToOldCardTable;
-  struct region* cardtableRegion = gcState->heap->youngGeneration;
   size_t cardTableSize = gcState->heap->youngToOldCardTableSize;
   
   if (isYoung) {
     processRegion = gcState->heap->youngGeneration;
-    processObjects = gcState->heap->youngObjects;
     cardTable = gcState->heap->oldToYoungCardTable;
-    cardtableRegion = gcState->heap->oldGeneration;
     cardTableObjects = gcState->heap->oldObjects;
     cardTableSize = gcState->heap->oldToYoungCardTableSize;
   }

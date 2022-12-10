@@ -108,5 +108,7 @@ exit_fail_mmap:
   close(fd);
 exit_fail_create_fd:
   cachedIsSupported = isSupported;
+# else
+  (void) testRoutine;
 # endif
 }

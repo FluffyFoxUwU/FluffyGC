@@ -241,6 +241,8 @@ FLUFFYGC_DECLARE(void, descriptor_delete,
     fluffygc_state* self,
     fluffygc_descriptor* desc) {
   checkIfInAttachedThread(CAST(self), __func__);
+  if (!desc)
+    return;
   ensureNotInCritical(CAST(self), __func__);
   heap_descriptor_release(CAST(self), CAST(desc));
 }
@@ -324,6 +326,9 @@ FLUFFYGC_DECLARE(fluffygc_object*, _new_local_ref,
 FLUFFYGC_DECLARE(void, _delete_local_ref,
     fluffygc_state* self, fluffygc_object* obj) {
   checkIfInAttachedThread(CAST(self), __func__); 
+  if (!obj)
+    return;
+  
   apiAssert(CAST(self), CAST(obj)->creator == pthread_self() && 
                         CAST(obj)->owner != CAST(self)->globalRoot, "expected current thread's local reference");
   
@@ -415,6 +420,8 @@ FLUFFYGC_DECLARE(fluffygc_object*, _new_global_ref,
 FLUFFYGC_DECLARE(void, _delete_global_ref,
     fluffygc_state* self, fluffygc_object* obj) {
   checkIfInAttachedThread(CAST(self), __func__); 
+  if (!obj)
+    return;
   apiAssert(CAST(self), CAST(obj)->owner == CAST(self)->globalRoot, "expected global reference got local reference");
 
   heap_enter_unsafe_gc(CAST(self));
@@ -463,6 +470,8 @@ FLUFFYGC_DECLARE(fluffygc_weak_object*, _new_weak_global_ref,
 FLUFFYGC_DECLARE(void, delete_weak_global_ref,
     fluffygc_state* self, fluffygc_weak_object* obj) {
   checkIfInAttachedThread(CAST(self), __func__); 
+  if (!obj)
+    return;
   fluffygc_v1_delete_global_ref(self, (fluffygc_object*) obj);
 }
 
