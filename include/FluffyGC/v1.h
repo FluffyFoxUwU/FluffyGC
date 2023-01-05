@@ -162,6 +162,8 @@ FLUFFYGC_DECLARE(void, delete_weak_global_ref,
 // Misc
 FLUFFYGC_DECLARE(int, get_current_frame_id,
     fluffygc_state* self);
+FLUFFYGC_DECLARE(int, get_free_frame_slots,
+    fluffygc_state* self);
 
 // Get object critical 
 // You shall not modify the pointer fields

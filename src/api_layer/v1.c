@@ -134,12 +134,16 @@ static void ensureSafeAccess(struct heap* heap, struct root_reference* obj, size
   bool isSafe = true;
 
   struct object_info* objInfo = heap_get_object_info(heap, obj->data); 
-  if (objInfo->type != OBJECT_TYPE_NORMAL) {
+  if (objInfo->type != OBJECT_TYPE_NORMAL || 
+      offset >= objInfo->regionRef->dataSize || 
+      offset + size >= objInfo->regionRef->dataSize) {
     isSafe = false;
     goto quit;
   }
 
   struct descriptor* desc = objInfo->typeSpecific.normal.desc;
+  if (!desc)
+    goto descriptor_not_present;
   
   // Low priority
   // TODO: Optimize the worst
@@ -172,7 +176,8 @@ static void ensureSafeAccess(struct heap* heap, struct root_reference* obj, size
   }
 
   quit:
-  apiAssert(heap, isSafe, "Unsafe access (access region is overlapping with one or more pointers field)");
+  descriptor_not_present:
+  apiAssert(heap, isSafe, "Unsafe access (access region is overlapping with one or more pointers field or overflowed the object)");
   heap_exit_unsafe_gc(heap);
 }
 
@@ -454,6 +459,12 @@ FLUFFYGC_DECLARE(int, get_current_frame_id,
     fluffygc_state* self) {
   checkIfInAttachedThread(CAST(self), __func__); 
   return getThread(CAST(self))->topFramePointer;
+}
+
+FLUFFYGC_DECLARE(int, get_free_frame_slots,
+    fluffygc_state* self) {
+  checkIfInAttachedThread(CAST(self), __func__); 
+  return getThread(CAST(self))->topFrame->root->size - getThread(CAST(self))->topFrame->root->usage;
 }
 
 FLUFFYGC_DECLARE(fluffygc_weak_object*, _new_weak_global_ref,
