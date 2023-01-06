@@ -23,8 +23,6 @@ struct root_reference {
   // reiterate all root entry and
   // update this
   struct region_reference* volatile data;
-
-  pthread_t creator;
 };
 
 // Root is not thread safe

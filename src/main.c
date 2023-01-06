@@ -1,5 +1,4 @@
-#include "userfaultfd.h"
-#if 0
+#if 1
 # include "main2.c"
 #else
 
@@ -13,6 +12,7 @@
 #include "config.h"
 #include "util.h"
 #include "FluffyGC/v1.h"
+#include "userfaultfd.h"
 
 #define KiB * (1024)
 #define MiB * (1024 KiB)

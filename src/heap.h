@@ -184,9 +184,6 @@ struct heap {
   // All fields below this rwlock are protected
   // by it 
   pthread_rwlock_t lock;
-
-  // These may be update by other threads
-  // for why volatile
   size_t metaspaceUsage;
 
   int threadsCount;
@@ -245,7 +242,6 @@ bool heap_is_attached(struct heap* self);
 bool heap_attach_thread(struct heap* self);
 void heap_detach_thread(struct heap* self);
 bool heap_resize_threads_list(struct heap* self, int newSize);
-bool heap_resize_threads_list_no_lock(struct heap* self, int newSize);
 struct thread_data* heap_get_thread_data(struct heap* self);
 
 // Object allocations
@@ -261,9 +257,7 @@ struct root_reference* heap_obj_opaque_new(struct heap* self, size_t size);
 void heap_reset_object_info(struct heap* self, struct object_info* info);
 
 // Gets
-struct region_reference* heap_get_region_ref(struct heap* self, void* data);
-struct region* heap_get_region(struct heap* self, void* data);
-struct region* heap_get_region2(struct heap* self, struct root_reference* data);
+struct region_reference* heap_get_region_ref_from_ptr(struct heap* self, void* data);
 struct object_info* heap_get_object_info(struct heap* heap, struct region_reference* ref);
 
 // Events
@@ -271,7 +265,6 @@ void heap_sweep_an_object(struct heap* self, struct object_info* obj);
 
 // Misc
 bool heap_is_array(struct heap* self, struct root_reference* ref);
-bool heap_can_record_in_cardtable(struct heap* self, struct object_info* obj, size_t offset, struct object_info* data);
 
 // Recommended number of threads for given number of hardware threads
 // -EINVAL: Negative or zero hardware threads

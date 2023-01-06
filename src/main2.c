@@ -94,8 +94,8 @@ static void* abuser(void* _heap) {
   }
 
   heap_enter_unsafe_gc(heap);
-  printf("Main: 1 %p\n", grandson->data->data);
-  printf("Main: 2 %p\n", heap_obj_read_ptr(heap, grandfather, offsetof(struct somedata, data))->data->data);
+  printf("Main: 1 %p\n", grandson->data->untypedRawData);
+  printf("Main: 2 %p\n", heap_obj_read_ptr(heap, grandfather, offsetof(struct somedata, data))->data->untypedRawData);
   heap_exit_unsafe_gc(heap);
     
   struct root_reference* arr = heap_array_new(heap, 8);
@@ -169,7 +169,7 @@ int main2() {
   ------------------------------------------------------
   */
 
-  int abuserCount = 4;
+  int abuserCount = 2;
   pthread_t* abusers = calloc(abuserCount, sizeof(*abusers));
 
   for (int i = 0; i < abuserCount; i++)

@@ -31,7 +31,6 @@ void thread_free(struct thread* self);
 // Add ref to local frame and return
 // local reference
 struct root_reference* thread_local_add(struct thread* self, struct region_reference* ref);
-struct root_reference* thread_local_add2(struct thread* self, struct root_reference* ref);
 void thread_local_remove(struct thread* self, struct root_reference* ref);
 
 int thread_push_frame(struct thread* self, int frameSize);

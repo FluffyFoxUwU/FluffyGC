@@ -1,25 +1,8 @@
-#ifdef PROCESSED_BY_CMAKE
-# ifndef header_1655953188_config_h_in_loaded
-# define header_1655953188_config_h_in_loaded
-#  include "processed_config.h"
-# endif
-#endif
-
 #ifndef header_1655953188_config_h_in
 #define header_1655953188_config_h_in
 
 #include "compiler_config.h"
 #include "kconfig.h"
-
-#ifdef PROCESSED_BY_CMAKE
-# define CONFIG_VERSION_MAJOR @FluffyGC_VERSION_MAJOR@
-# define CONFIG_VERSION_MINOR @FluffyGC_VERSION_MINOR@
-# define CONFIG_VERSION_PATCH @FluffyGC_VERSION_PATCH@
-#else
-# define CONFIG_VERSION_MAJOR 0
-# define CONFIG_VERSION_MINOR 0
-# define CONFIG_VERSION_PATCH 0
-#endif
 
 // From https://elixir.bootlin.com/linux/v5.16/source/include/linux/kconfig.h#L51
 #define __ARG_PLACEHOLDER_1 0,

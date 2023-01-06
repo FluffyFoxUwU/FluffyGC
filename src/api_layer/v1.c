@@ -306,12 +306,12 @@ FLUFFYGC_DECLARE(void*, get_object_critical, fluffygc_state* self, fluffygc_obje
   if (isCopy)
     *isCopy = false;
   heap_enter_unsafe_gc(CAST(self));
-  return CAST(obj)->data->data;
+  return CAST(obj)->data->untypedRawData;
 }
 
 FLUFFYGC_DECLARE(void, release_object_critical, fluffygc_state* self, fluffygc_object* obj, void* ptr) {
   checkIfInAttachedThread(CAST(self), __func__); 
-  apiAssert(CAST(self), CAST(obj)->data->data == ptr, "cannot pop release critical (ptr given is not the same ptr returned by get critical calls)");
+  apiAssert(CAST(self), CAST(obj)->data->untypedRawData == ptr, "cannot pop release critical (ptr given is not the same ptr returned by get critical calls)");
   heap_exit_unsafe_gc(CAST(self));
 }
 
@@ -334,7 +334,7 @@ FLUFFYGC_DECLARE(void, _delete_local_ref,
   if (!obj)
     return;
   
-  apiAssert(CAST(self), CAST(obj)->creator == pthread_self() && 
+  apiAssert(CAST(self), CAST(obj)->owner == getThread(CAST(self))->topFrame->root && 
                         CAST(obj)->owner != CAST(self)->globalRoot, "expected current thread's local reference");
   
   heap_enter_unsafe_gc(CAST(self));

@@ -96,10 +96,6 @@ struct root_reference* thread_pop_frame(struct thread* self, struct root_referen
   return newRef;
 }
 
-struct root_reference* thread_local_add2(struct thread* self, struct root_reference* ref) {
-  return root_add(self->topFrame->root, (struct region_reference*) ref->data);
-}
-
 struct root_reference* thread_local_add(struct thread* self, struct region_reference* ref) {
   return root_add(self->topFrame->root, ref);
 }

@@ -12,6 +12,8 @@
 #include "../profiler.h"
 
 #include "gc/parallel_heap_iterator.h"
+#include "heap.h"
+#include "region.h"
 #include "young_collector.h"
 #include "gc.h"
 #include "marker.h"
@@ -32,16 +34,15 @@ static void fixRefs(struct gc_state* self) {
     if (!ptr)
       return NULL;
 
-    // Unrecognized leave as it is
-    struct region* region = heap_get_region(heap, ptr);
-    if (region != heap->oldGeneration)
+    // Not old object
+    if (region_get_cellid(heap->oldGeneration, ptr) < 0)
       return ptr;
-
-    int id = region_get_cellid(region, ptr);
+    
+    int id = region_get_cellid(heap->oldGeneration, ptr);
     struct region_reference* newObject = self->fullGC.oldLookup[id];
     assert(newObject);
 
-    return newObject->data;
+    return newObject->untypedRawData;
   };
   
   gc_parallel_heap_iterator_do(self, true, ^bool (struct object_info *info, int idx) {
@@ -111,9 +112,9 @@ void gc_full_collect(struct gc_state* self) {
     if (!info->isValid)
       return true;
     
-    assert(self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, info->regionRef->data)] == NULL ||
-           self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, info->regionRef->data)] == info->regionRef);
-    self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, info->regionRef->data)] = info->regionRef;
+    assert(self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, info->regionRef->untypedRawData)] == NULL ||
+           self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, info->regionRef->untypedRawData)] == info->regionRef);
+    self->fullGC.oldLookup[region_get_cellid(heap->oldGeneration, info->regionRef->untypedRawData)] = info->regionRef;
     return true;  
   }, NULL);
   profiler_end(self->profiler);

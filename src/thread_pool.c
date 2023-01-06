@@ -63,11 +63,6 @@ struct thread_pool* thread_pool_new(int poolSize, const char* prefix) {
   if (!self->threads)
     goto failure;
 
-  char* prefix2 = strdup(prefix);
-
-  if (!prefix2)
-    goto failure;
-
   pthread_barrier_init(&barrier, NULL, self->poolSize);
 
   for (; self->threadsCreated < self->poolSize; self->threadsCreated++) {
@@ -80,9 +75,9 @@ struct thread_pool* thread_pool_new(int poolSize, const char* prefix) {
       .worker = ^void (const struct thread_pool_work_unit* work) {
         pthread_barrier_wait(&barrier);
         
-        size_t bufSize = snprintf(NULL, 0, "%s%d", prefix2, work->intData) + 1;
+        size_t bufSize = snprintf(NULL, 0, "%s%d", prefix, work->intData) + 1;
         char* name = malloc(bufSize);
-        snprintf(name, bufSize, "%s%d", prefix2, work->intData);
+        snprintf(name, bufSize, "%s%d", prefix, work->intData);
         util_set_thread_name(name);
         free(name);
       }
@@ -92,8 +87,6 @@ struct thread_pool* thread_pool_new(int poolSize, const char* prefix) {
 
   thread_pool_wait_all(self);
   pthread_barrier_destroy(&barrier);
-
-  free(prefix2);
   return self;
 
   failure:

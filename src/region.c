@@ -211,7 +211,7 @@ struct region_reference* region_alloc(struct region* self, size_t dataSize) {
   atomic_fetch_add(&self->usage, sizeInCells * CONFIG_ALLOCATOR_CELL_SIZE);
 
   ref->id = newCellID;
-  ref->data = get_cell_addr(self, newCellID) + redzoneOffset;
+  ref->untypedRawData = get_cell_addr(self, newCellID) + redzoneOffset;
   ref->sizeInCells = sizeInCells;
   ref->dataSize = dataSize;
   ref->redzoneOffset = redzoneOffset;
@@ -219,11 +219,11 @@ struct region_reference* region_alloc(struct region* self, size_t dataSize) {
   ref->owner = self;
 
   self->referenceLookup[newCellID] = ref;
-  self->cellIDMapping[region_get_cellid(self, ref->data)] = newCellID;
+  self->cellIDMapping[region_get_cellid(self, ref->untypedRawData)] = newCellID;
 
   region_make_usable_no_unpoison(self, ref->id, sizeInCells);
   if (IS_ENABLED(CONFIG_REGION_POISON))
-    asan_unpoison_memory_region(ref->data, poisonSize);
+    asan_unpoison_memory_region(ref->untypedRawData, poisonSize);
 
   pthread_rwlock_unlock(&self->compactionAndWipingLock);
   return ref;
@@ -237,7 +237,7 @@ struct region_reference* region_alloc_or_fit(struct region* self, size_t size) {
   return region_alloc(self, size);
 }
 
-static void region_dealloc_no_lock(struct region* self, struct region_reference* ref) {
+static void deallocNoLock(struct region* self, struct region_reference* ref) {
   if (!ref)
     return;
   
@@ -245,7 +245,7 @@ static void region_dealloc_no_lock(struct region* self, struct region_reference*
 
   region_make_unusable(self, ref->id, ref->sizeInCells);
   self->referenceLookup[ref->id] = NULL;
-  int mappingIndex = region_get_cellid(self, ref->data);
+  int mappingIndex = region_get_cellid(self, ref->untypedRawData);
   self->cellIDMapping[mappingIndex] = mappingIndex;
   free(ref);
 }
@@ -255,14 +255,14 @@ void region_dealloc(struct region* self, struct region_reference* ref) {
     return;
   
   pthread_rwlock_rdlock(&self->compactionAndWipingLock);
-  region_dealloc_no_lock(self, ref);
+  deallocNoLock(self, ref);
   pthread_rwlock_unlock(&self->compactionAndWipingLock);
 }
 
 void region_wipe(struct region *self) {
   pthread_rwlock_wrlock(&self->compactionAndWipingLock);
   for (int i = 0; i < self->sizeInCells; i++)
-    region_dealloc_no_lock(self, self->referenceLookup[i]);
+    deallocNoLock(self, self->referenceLookup[i]);
 
   atomic_store(&self->bumpPointer, 0);
   pthread_rwlock_unlock(&self->compactionAndWipingLock);
@@ -283,8 +283,8 @@ static void region_move_cell(struct region* self, int src, int dest) {
   int oldID = ref->id;
 
   void* newCellArea = get_cell_addr(self, dest);
-  void* oldArea = ref->data;
-  ref->data = newCellArea + ref->redzoneOffset;
+  void* oldArea = ref->untypedRawData;
+  ref->untypedRawData = newCellArea + ref->redzoneOffset;
   ref->id = dest;
   
   int x1 = oldID;
@@ -326,10 +326,10 @@ static void region_move_cell(struct region* self, int src, int dest) {
     region_make_usable_no_unpoison(self, dest, ref->sizeInCells);
   
   if (IS_ENABLED(CONFIG_REGION_POISON))
-    asan_unpoison_memory_region(ref->data, ref->poisonSize);
+    asan_unpoison_memory_region(ref->untypedRawData, ref->poisonSize);
   
   // Copy the data
-  memmove(ref->data, oldArea, ref->dataSize);
+  memmove(ref->untypedRawData, oldArea, ref->dataSize);
 
   if (isOverlap && rightZoneSize > 0)
     region_make_unusable(self, overlapEnd, rightZoneSize);
@@ -339,7 +339,7 @@ static void region_move_cell(struct region* self, int src, int dest) {
   self->referenceLookup[src] = NULL;
   self->referenceLookup[dest] = ref;
 
-  int newMapping = region_get_cellid(self, ref->data);
+  int newMapping = region_get_cellid(self, ref->untypedRawData);
   int oldMapping = region_get_cellid(self, oldArea);
   self->cellIDMapping[oldMapping] = oldMapping;
   self->cellIDMapping[newMapping] = ref->id;
@@ -391,14 +391,14 @@ void region_compact(struct region* self) {
 void region_read(struct region* self, struct region_reference* ref, size_t offset, void* buffer, size_t size) {
   pthread_rwlock_rdlock(&self->compactionAndWipingLock);
   assert(offset <= ref->dataSize);
-  memcpy(buffer, ref->data + offset, size);
+  memcpy(buffer, ref->untypedRawData + offset, size);
   pthread_rwlock_unlock(&self->compactionAndWipingLock);
 }
 
 void region_write(struct region* self, struct region_reference* ref, size_t offset, const void* buffer, size_t size) {
   pthread_rwlock_rdlock(&self->compactionAndWipingLock);
   assert(offset <= ref->dataSize);
-  memcpy(ref->data + offset, buffer, size);
+  memcpy(ref->untypedRawData + offset, buffer, size);
   pthread_rwlock_unlock(&self->compactionAndWipingLock); 
 }
 

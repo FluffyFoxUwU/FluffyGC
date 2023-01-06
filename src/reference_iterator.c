@@ -11,7 +11,7 @@ static void processOne(const struct reference_iterator_args ctx, size_t offset, 
   if (!ptr)
     return;
 
-  struct region_reference* ref = heap_get_region_ref(ctx.heap, ptr);
+  struct region_reference* ref = heap_get_region_ref_from_ptr(ctx.heap, ptr);
   struct object_info* info = NULL;
 
   // If unrecognized pass NULL for `info`  
@@ -49,7 +49,7 @@ static void iterateNormalObject(const struct reference_iterator_args ctx) {
 }
 
 static void iterateArrayObject(const struct reference_iterator_args ctx) {
-  void** array = ctx.object->regionRef->data;
+  void** array = ctx.object->regionRef->untypedRawData;
   enum reference_strength strength = ctx.object->typeSpecific.array.strength;
 
   if (ctx.ignoreSoft && strength == REFERENCE_STRENGTH_SOFT)

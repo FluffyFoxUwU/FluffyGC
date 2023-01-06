@@ -51,7 +51,7 @@ struct region {
 struct region_reference {
   struct region* owner;
   int id;
-  void* volatile data;
+  void* volatile untypedRawData;
 
   size_t dataSize;
   size_t sizeInCells;

@@ -7,6 +7,7 @@
 
 #include "gc.h"
 #include "gc_enums.h"
+#include "heap.h"
 #include "reference_iterator.h"
 #include "thread_pool.h"
 #include "util.h"
@@ -286,11 +287,12 @@ static void* defaultFixer(struct fixer_context* self, void* ptr) {
   if (!ptr)
     return NULL; 
 
-  struct region_reference* prevObject = heap_get_region_ref(self->gcState->heap, ptr);
+  struct region_reference* prevObject = heap_get_region_ref_from_ptr(self->gcState->heap, ptr);
+  assert(prevObject); /* Must exist */
+  
   struct object_info* prevObjectInfo = heap_get_object_info(self->gcState->heap, prevObject);
   struct region_reference* relocatedObject = prevObjectInfo->moveData.newLocation;
-  assert(prevObjectInfo);
-
+  
   // The object not moved so no need
   // to fix it
   if (!prevObjectInfo->isMoved)
@@ -299,7 +301,7 @@ static void* defaultFixer(struct fixer_context* self, void* ptr) {
   // Consistency check
   assert(prevObjectInfo->moveData.oldLocation == prevObject);
   
-  return relocatedObject->data;
+  return relocatedObject->untypedRawData;
 }
 
 void gc_fix_object_refs(struct gc_state* self, struct object_info* ref) {

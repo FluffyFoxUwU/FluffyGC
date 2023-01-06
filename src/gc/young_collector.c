@@ -50,7 +50,7 @@ static void doPromote(struct gc_state* self, struct region_reference* currentObj
   currentObjectInfo->moveData.newLocationInfo = relocatedInfo;
 
   // Copy over the data
-  region_write(relocatedLocation->owner, relocatedLocation, 0, currentObject->data, currentObject->dataSize);
+  region_write(relocatedLocation->owner, relocatedLocation, 0, currentObject->untypedRawData, currentObject->dataSize);
 }
 
 static void fixAddr(struct gc_state* self, bool aboutToCallOldGC) {
@@ -78,6 +78,7 @@ static void fixAddr(struct gc_state* self, bool aboutToCallOldGC) {
 
   cardtable_iterator_do(heap, heap->oldObjects, heap->oldToYoungCardTable, heap->oldToYoungCardTableSize, ^void (struct object_info* info, int cardTableIndex) {
     gc_fix_object_refs(self, info);
+    info->isMarked = false;
   });
   
   gc_fix_root(self);
@@ -131,6 +132,7 @@ void gc_young_collect(struct gc_state* self) {
         gc_trigger_old_collection(self, REPORT_PROMOTION_FAILURE);
         break;
       case 1:
+        fixAddr(self, true);
         gc_trigger_full_collection(self, REPORT_PROMOTION_FAILURE, false);
         break;
     }

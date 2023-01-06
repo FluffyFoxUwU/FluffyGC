@@ -186,6 +186,14 @@ int heap_calc_default_concurrent_thread_count(int hardwareThreads) {
   return threads;
 }
 
+static void disableGC(struct heap* self) {
+  pthread_rwlock_rdlock(&self->gcUnsafeRwlock);
+}
+
+static void enableGC(struct heap* self) {
+  pthread_rwlock_unlock(&self->gcUnsafeRwlock);
+}
+
 void heap_free(struct heap* self) {
   if (!self)
     return;
@@ -273,7 +281,7 @@ void heap_descriptor_release(struct heap* self, struct descriptor* desc) {
   pthread_rwlock_unlock(&self->lock);
 }
 
-struct region* heap_get_region(struct heap* self, void* data) {
+static struct region* getRegionFromPtr(struct heap* self, void* data) {
   assert(data);
   if (region_get_cellid(self->youngGeneration, data) != -1)
     return self->youngGeneration;
@@ -282,15 +290,10 @@ struct region* heap_get_region(struct heap* self, void* data) {
   return NULL;
 }
 
-struct region* heap_get_region2(struct heap* self, struct root_reference* data) {
-  if (data->data->owner == self->youngGeneration)
-    return self->youngGeneration;
-  else if (data->data->owner == self->oldGeneration)
-    return self->oldGeneration;
-  return NULL;
-}
-
 struct object_info* heap_get_object_info(struct heap* self, struct region_reference* ref) {
+  if (!ref)
+    return NULL;
+  
   struct object_info* objects;
   struct region* region = ref->owner;
   if (region == self->youngGeneration) 
@@ -305,24 +308,24 @@ struct object_info* heap_get_object_info(struct heap* self, struct region_refere
 
 void heap_obj_write_data(struct heap* self, struct root_reference* object, size_t offset, const void* data, size_t size) {
   heap_enter_unsafe_gc(self);
-  region_write(heap_get_region2(self, object), object->data, offset, data, size);
+  region_write(object->data->owner, object->data, offset, data, size);
   heap_exit_unsafe_gc(self);
 }
 
 void heap_obj_read_data(struct heap* self, struct root_reference* object, size_t offset, void* data, size_t size) {
   heap_enter_unsafe_gc(self);
-  region_read(heap_get_region2(self, object), object->data, offset, data, size);
+  region_read(object->data->owner, object->data, offset, data, size);
   heap_exit_unsafe_gc(self);
 }
 
-struct region_reference* heap_get_region_ref(struct heap* self, void* data) {
-  struct region* region = heap_get_region(self, data);
+struct region_reference* heap_get_region_ref_from_ptr(struct heap* self, void* data) {
+  struct region* region = getRegionFromPtr(self, data);
   if (!region)
     return NULL;
   return region_get_ref(region, data);
 }
 
-bool heap_can_record_in_cardtable(struct heap* self, struct object_info* obj, size_t offset, struct object_info* data) {
+static bool canRecordToCardTable(struct heap* self, struct object_info* obj, size_t offset, struct object_info* data) {
   switch (obj->type) {
     case OBJECT_TYPE_ARRAY:
       return obj->typeSpecific.array.strength == REFERENCE_STRENGTH_STRONG;
@@ -344,8 +347,14 @@ static void writePtrCommon(struct heap* self, struct root_reference* object, siz
   struct object_info* info = heap_get_object_info(self, objectAsRegionRef);
   assert(info->isValid);
 
-  if (heap_can_record_in_cardtable(self, info, offset, heap_get_object_info(self, toWrite->data))) {
-    struct region* childRegion = heap_get_region2(self, toWrite);
+  if (toWrite == NULL) {
+    void* nullData = NULL;
+    region_write(objectRegion, objectAsRegionRef, offset, &nullData, sizeof(void*));  
+    return;
+  }
+
+  if (canRecordToCardTable(self, info, offset, heap_get_object_info(self, toWrite->data))) {
+    struct region* childRegion = toWrite->data->owner;
     if (childRegion != objectRegion) {
       atomic_bool* cardTable = self->oldToYoungCardTable;
       if (childRegion == self->oldGeneration)
@@ -354,7 +363,7 @@ static void writePtrCommon(struct heap* self, struct root_reference* object, siz
     }
   }
 
-  region_write(objectRegion, objectAsRegionRef, offset, (void*) &toWrite->data->data, sizeof(void*));  
+  region_write(objectRegion, objectAsRegionRef, offset, (void*) &toWrite->data->untypedRawData, sizeof(void*));  
 }
 
 static struct root_reference* readPtrCommon(struct heap* self, struct root_reference* object, size_t offset) { 
@@ -368,8 +377,9 @@ static struct root_reference* readPtrCommon(struct heap* self, struct root_refer
     return NULL;
   
   struct thread* thread = heap_get_thread_data(self)->thread;
-  struct region_reference* regionRef = heap_get_region_ref(self, ptr);
-  assert(regionRef);
+  struct region_reference* regionRef = heap_get_region_ref_from_ptr(self, ptr);
+  if (regionRef == NULL)
+    return NULL;
   return thread_local_add(thread, regionRef);
 }
 
@@ -431,11 +441,24 @@ bool heap_is_attached(struct heap* self) {
   return pthread_getspecific(self->currentThreadKey) != NULL;
 }
 
+static bool resizeThreadsListNoLock(struct heap* self, int newSize) {
+  struct thread** newThreads = realloc(self->threads, sizeof(struct thread*) * newSize);
+  if (!newThreads)
+    return false;
+
+  for (int i = self->threadsListSize; i < newSize; i++)
+    newThreads[i] = NULL;
+
+  self->threads = newThreads;
+  self->threadsListSize = newSize;
+  return true;
+}
+
 bool heap_attach_thread(struct heap* self) {
   // Find free entry
   // TODO: Make this not O(n) at worse
   //       (maybe some free space bitmap)
-  pthread_rwlock_rdlock(&self->gcUnsafeRwlock);
+  disableGC(self);
   pthread_rwlock_wrlock(&self->lock);
   int freePos = 0;
   for (; freePos < self->threadsListSize; freePos++)
@@ -447,7 +470,7 @@ bool heap_attach_thread(struct heap* self) {
 
   // Cant find free space
   if (freePos == self->threadsListSize)
-    if (!heap_resize_threads_list_no_lock(self, self->threadsListSize + CONFIG_THREAD_LIST_STEP_SIZE))
+    if (!resizeThreadsListNoLock(self, self->threadsListSize + CONFIG_THREAD_LIST_STEP_SIZE))
       goto failure;
 
   thread = thread_new(self, freePos, self->localFrameStackSize);
@@ -466,14 +489,14 @@ bool heap_attach_thread(struct heap* self) {
 
   pthread_setspecific(self->currentThreadKey, data);
   pthread_rwlock_unlock(&self->lock);
-  pthread_rwlock_unlock(&self->gcUnsafeRwlock);
+  enableGC(self);
   return true;
 
   failure:
   thread_free(thread);
   free(data);
   pthread_rwlock_unlock(&self->lock);
-  pthread_rwlock_unlock(&self->gcUnsafeRwlock);
+  enableGC(self);
   return false;
 }
 
@@ -497,39 +520,22 @@ struct thread_data* heap_get_thread_data(struct heap* self) {
 
 bool heap_resize_threads_list(struct heap* self, int newSize) {
   pthread_rwlock_wrlock(&self->lock);
-  bool res = heap_resize_threads_list_no_lock(self, newSize);
+  bool res = resizeThreadsListNoLock(self, newSize);
   pthread_rwlock_unlock(&self->lock);
   return res;
 }
 
-bool heap_resize_threads_list_no_lock(struct heap* self, int newSize) {
-  struct thread** newThreads = realloc(self->threads, sizeof(struct thread*) * newSize);
-  if (!newThreads)
-    return false;
-
-  for (int i = self->threadsListSize; i < newSize; i++)
-    newThreads[i] = NULL;
-
-  self->threads = newThreads;
-  self->threadsListSize = newSize;
-  return true;
-}
-
-void heap_wait_gc_no_lock(struct heap* self) {
-  while (!self->gcCompleted)
-    pthread_cond_wait(&self->gcCompletedCond, &self->gcCompletedLock);
-}
-
 void heap_wait_gc(struct heap* self) {
   pthread_mutex_lock(&self->gcCompletedLock);
-  heap_wait_gc_no_lock(self);
+  while (!self->gcCompleted)
+    pthread_cond_wait(&self->gcCompletedCond, &self->gcCompletedLock);
   pthread_mutex_unlock(&self->gcCompletedLock);
 }
 
 void heap_enter_unsafe_gc(struct heap* self) {
   struct thread_data* data = heap_get_thread_data(self);
   if (data->numberOfTimeEnteredUnsafeGC == 0)
-    pthread_rwlock_rdlock(&self->gcUnsafeRwlock);
+    disableGC(self);
   data->numberOfTimeEnteredUnsafeGC++;
 
   atomic_fetch_add(&self->unsafeCount, 1);
@@ -538,7 +544,7 @@ void heap_enter_unsafe_gc(struct heap* self) {
 void heap_exit_unsafe_gc(struct heap* self) {
   struct thread_data* data = heap_get_thread_data(self);
   if (data->numberOfTimeEnteredUnsafeGC == 1)
-    pthread_rwlock_unlock(&self->gcUnsafeRwlock);
+    enableGC(self);
   data->numberOfTimeEnteredUnsafeGC--;
 
   atomic_fetch_sub(&self->unsafeCount, 1);
@@ -803,7 +809,7 @@ struct root_reference* heap_array_new(struct heap* self, int size) {
   objInfo->typeSpecific.array.size = size;
   objInfo->typeSpecific.array.strength = REFERENCE_STRENGTH_STRONG;
   commonAttrInit(self, objInfo);
-  memset(regionRef->data, 0, regionRef->dataSize);
+  memset(regionRef->untypedRawData, 0, regionRef->dataSize);
 
   heap_exit_unsafe_gc(self);
   return rootRef;

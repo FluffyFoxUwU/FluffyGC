@@ -3,6 +3,7 @@
 #include <stdatomic.h>
 #include <threads.h>
 
+#include "heap.h"
 #include "marker.h"
 #include "../heap.h"
 #include "../region.h"
@@ -28,7 +29,7 @@ static void markNormalObject(const struct gc_marker_args ctx) {
     if (!ptr)
       continue;
     
-    struct region_reference* ref = heap_get_region_ref(ctx.objectInfo->owner, ptr);
+    struct region_reference* ref = heap_get_region_ref_from_ptr(ctx.objectInfo->owner, ptr);
     assert(ref);
     struct object_info* objectInfo = heap_get_object_info(ctx.objectInfo->owner, ref);
     assert(objectInfo);
@@ -56,12 +57,12 @@ static void markArrayObject(const struct gc_marker_args ctx) {
   if (ctx.ignoreSoft && strength == REFERENCE_STRENGTH_SOFT)
     return;
 
-  void** array = ctx.objectInfo->regionRef->data;
+  void** array = ctx.objectInfo->regionRef->untypedRawData;
   for (int i = 0; i < ctx.objectInfo->typeSpecific.array.size; i++) {
     if (!array[i])
       continue;
 
-    struct region_reference* ref = heap_get_region_ref(ctx.objectInfo->owner, array[i]);
+    struct region_reference* ref = heap_get_region_ref_from_ptr(ctx.objectInfo->owner, array[i]);
     assert(ref);
     struct object_info* objectInfo = heap_get_object_info(ctx.objectInfo->owner, ref);
    

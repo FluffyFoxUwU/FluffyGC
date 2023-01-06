@@ -51,13 +51,11 @@ struct root_reference* root_add(struct root* self, struct region_reference* ref)
     return NULL;
 
   struct root_reference* rootRef;
-  if (IS_ENABLED(CONFIG_DEBUG_DONT_REUSE_ROOT_REFERENCE)) {
+  if (IS_ENABLED(CONFIG_DEBUG_DONT_REUSE_ROOT_REFERENCE))
     rootRef = malloc(sizeof(*rootRef));
-    rootRef->owner = self;
-  } else {
+  else
     rootRef = &self->entries[freePos];
-  }
-
+  
   self->usage++;
   
   rootRef->isWeak = false;
@@ -65,8 +63,8 @@ struct root_reference* root_add(struct root* self, struct region_reference* ref)
   rootRef->data = ref;
   rootRef->index = freePos;
   rootRef->refToSelf = rootRef;
-  rootRef->creator = pthread_self();
-
+  rootRef->owner = self;
+  
   if (IS_ENABLED(CONFIG_DEBUG_DONT_REUSE_ROOT_REFERENCE)) {
     self->entries[freePos].refToSelf = rootRef;
     self->entries[freePos].isValid = true;
