@@ -1,40 +1,38 @@
-#ifndef header_1656163794_thread_h
-#define header_1656163794_thread_h
+#ifndef _headers_1673680059_FluffyGC_thread
+#define _headers_1673680059_FluffyGC_thread
 
 #include <stdbool.h>
-#include <stddef.h>
 
-struct descriptor;
-struct root;
-struct heap;
-struct root_reference;
-struct region_reference;
+#include "list.h"
+
+struct object;
+struct small_object_cache;
 
 struct thread {
-  int id;
-  struct heap* heap;
-
-  int frameStackSize;
-  int topFramePointer;
-  struct thread_frame* topFrame;
-  struct thread_frame* frames;
+  struct small_object_cache* listNodeCache;
+  int blockCount;
+ 
+  list_t* pinnedObjects;
+  list_t* root;
 };
 
-struct thread_frame {
-  bool isValid;
-  struct root* root;
-};
-
-struct thread* thread_new(struct heap* heap, int id, int frameStackSize);
+struct thread* thread_new();
 void thread_free(struct thread* self);
 
-// Add ref to local frame and return
-// local reference
-struct root_reference* thread_local_add(struct thread* self, struct region_reference* ref);
-void thread_local_remove(struct thread* self, struct root_reference* ref);
+struct thread* thread_get_current();
 
-int thread_push_frame(struct thread* self, int frameSize);
-struct root_reference* thread_pop_frame(struct thread* self, struct root_reference* result);
+// Return old thread
+struct thread* thread_set_current(struct thread* new);
+
+// This can be nested
+void thread_block_gc();
+void thread_unblock_gc();
+
+bool thread_add_pinned_object(struct object* obj);
+void thread_remove_pinned_object(struct object* obj);
+
+bool thread_add_root_object(struct object* obj);
+void thread_remove_root_object(struct object* obj);
 
 #endif
 

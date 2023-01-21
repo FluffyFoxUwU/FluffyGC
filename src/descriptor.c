@@ -1,12 +1,16 @@
 #include <pthread.h>
 #include <stdatomic.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include "descriptor.h"
-#include "region.h"
+#include "object.h"
+#include "refcount.h"
+#include "util.h"
 
 static int compareByOffset(const void* _a, const void* _b) {
   const struct descriptor_field* a = _a;
@@ -26,8 +30,7 @@ struct descriptor* descriptor_new(struct descriptor_typeid id, size_t objectSize
     return NULL;
   
   self->numFields = numFields;
-  atomic_init(&self->alreadyUnregistered, false);
-  atomic_init(&self->counter, 1);
+  refcount_init(&self->refcount);
   self->id = id;
   self->id.name = strdup(id.name);
   self->objectSize = objectSize;
@@ -38,43 +41,34 @@ struct descriptor* descriptor_new(struct descriptor_typeid id, size_t objectSize
   }
 
   qsort(self->fields, numFields, sizeof(*self->fields), compareByOffset); 
-  for (int i = 0; i < numFields; i++)
-    self->fields[i].index = i;
   return self;
 }
 
 void descriptor_acquire(struct descriptor* self) {
-  atomic_fetch_add(&self->counter, 1);
+  refcount_acquire(&self->refcount);
 }
 
-bool descriptor_release(struct descriptor* self) {
-  if (!self)
-    return true;
-
-  if (atomic_fetch_sub(&self->counter, 1) != 1)
-    return false;
+void descriptor_release(struct descriptor* self) {
+  if (refcount_release(&self->refcount))
+    return;
 
   for (int i = 0; i < self->numFields; i++)
     free((void*) self->fields[i].name);
   free((void*) self->id.name);
   free(self);
-
-  return true;
 }
 
-void descriptor_init(struct descriptor* self, struct region* region, struct region_reference* data) {
+void descriptor_init(struct descriptor* self, struct object* data) {
   for (int i = 0; i < self->numFields; i++)
-    descriptor_write_ptr(self, region, data, i, NULL);
+    descriptor_write_ptr(self, data, i, NULL);
 }
 
-void descriptor_write_ptr(struct descriptor* self, struct region* region, struct region_reference* data, int index, void* ptr) {
-  region_write(region, data, self->fields[index].offset, &ptr, sizeof(void*));
+void descriptor_write_ptr(struct descriptor* self, struct object* data, int index, struct object* ptr) {
+  object_write_ptr(data, self->fields[index].offset, ptr);
 }
 
-void* descriptor_read_ptr(struct descriptor* self, struct region* region, struct region_reference* data, int index) {
-  void* ptr = NULL;
-  region_read(region, data, self->fields[index].offset, &ptr, sizeof(void*));
-  return ptr;
+struct object* descriptor_read_ptr(struct descriptor* self, struct object* data, int index) {
+  return object_read_ptr(data, self->fields[index].offset);
 }
 
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
@@ -83,7 +77,9 @@ int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
   };
 
   struct descriptor_field* result = bsearch(&toSearch, self->fields, self->numFields, sizeof(*self->fields), compareByOffset);
-  return result ? result->index : -1;
+  if (!result)
+    return -ESRCH;
+  return indexof(self->fields, result);
 }
 
 

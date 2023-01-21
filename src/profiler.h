@@ -10,8 +10,8 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "collection/hashmap.h"
-#include "collection/list.h"
+#include "hashmap.h"
+#include "list.h"
 
 struct profiler {
   bool currentlyProfiling;
@@ -68,24 +68,6 @@ void profiler_end(struct profiler* self);
 void profiler_dump(struct profiler* self, FILE* output);
 
 void profiler_free(struct profiler* self);
-
-/*
-struct profiler* profiler = profiler_new();
-// Start profiling
-profiler_start();
-
-profiler_begin(profiler, "root");
-
-// Work
-
-profiler_end(profiler);
-
-// Stop profiling
-profiler_stop(profiler);
-
-profiler_dump(profiler, stdout);
-profiler_free(profiler);
-*/
 
 #endif
 

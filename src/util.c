@@ -11,8 +11,11 @@
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <unistd.h>
+#include <stdint.h>
+#include <string.h>
 
 #include "util.h"
+#include "bug.h"
 
 bool util_atomic_add_if_less_uint(volatile atomic_uint* data, unsigned int n, unsigned int max, unsigned int* result) {
   unsigned int new;
@@ -72,7 +75,7 @@ void util_set_thread_name(const char* name) {
 int util_get_core_count() {
   // Casting fine for 99.999% of the time
   // due why would 2 billions cores exists
-  return 1; //(int) sysconf(_SC_NPROCESSORS_ONLN);
+  return (int) sysconf(_SC_NPROCESSORS_ONLN);
 }
 
 size_t util_get_pagesize() {
@@ -103,4 +106,33 @@ void* util_mmap_anonymous(size_t size, int protection) {
   errno = ENOSYS;
   return NULL;
 # endif
+}
+
+void util_nearest_power_of_two(size_t* size) {
+  size_t x = *size;
+  *size = 1;
+  while(*size < x && *size < SIZE_MAX)
+    *size <<= 1;
+}
+
+void* util_malloc(size_t size, unsigned long flags) {
+  void* ptr = malloc(size);
+  if (!ptr)
+    return NULL;
+  
+  WARN_ON(size == 0);
+  if (flags & UTIL_MEM_ZERO)
+    memset(ptr, 0, size);
+  return ptr;
+}
+
+void* util_realloc(void* ptr, size_t oldSize, size_t newSize, unsigned long flags) {
+  ptr = realloc(ptr, newSize);
+  if (!ptr)
+    return NULL;
+  
+  if ((flags & UTIL_MEM_ZERO) && newSize > oldSize)
+    memset(ptr + oldSize, 0, newSize - oldSize);
+  
+  return ptr;
 }

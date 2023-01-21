@@ -1,3 +1,2 @@
 unsigned-integer-overflow:hashmap.c
-unsigned-integer-overflow:list.c
-pointer-overflow:hashmap.c
+

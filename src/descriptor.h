@@ -6,15 +6,15 @@
 #include <stdint.h>
 #include <stdatomic.h>
 
-#include "heap.h"
+#include "object.h"
+#include "refcount.h"
 
 struct region;
-struct region_reference;
+struct object;
 
 struct descriptor_field {
   const char* name;
   size_t offset;
-  int index;
 
   enum object_type dataType;
   enum reference_strength strength;
@@ -32,8 +32,7 @@ typedef struct descriptor {
 
   size_t objectSize;
   
-  atomic_bool alreadyUnregistered;
-  atomic_int counter;
+  struct refcount refcount;
   
   int numFields;
   struct descriptor_field fields[];
@@ -41,17 +40,15 @@ typedef struct descriptor {
 
 struct descriptor* descriptor_new(struct descriptor_typeid id, size_t objectSize, int numPointers, struct descriptor_field* fields);
 
-void descriptor_init(struct descriptor* self, struct region* region, struct region_reference* regionRef);
+void descriptor_init(struct descriptor* self, struct object* regionRef);
 
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset);
 
-void descriptor_write_ptr(struct descriptor* self, struct region* region, struct region_reference* data, int index, void* ptr);
-void* descriptor_read_ptr(struct descriptor* self, struct region* region, struct region_reference* data, int index);
+void descriptor_write_ptr(struct descriptor* self, struct object* data, int index, struct object* ptr);
+struct object* descriptor_read_ptr(struct descriptor* self, struct object* data, int index);
 
 void descriptor_acquire(struct descriptor* self);
-
-// True if its free'd due counter reached 0
-bool descriptor_release(struct descriptor* self);
+void descriptor_release(struct descriptor* self);
 
 #endif
 

@@ -1,106 +1,131 @@
+#include <stdbool.h>
 #include <stdlib.h>
-#include <assert.h>
-#include <errno.h>
+#include <threads.h>
+#include <pthread.h>
 
-#include "region.h"
+#include "list.h"
+#include "soc.h"
 #include "thread.h"
-#include "root.h"
-#include "config.h"
+#include "bug.h"
+#include "util.h"
 
-struct thread* thread_new(struct heap* heap, int id, int frameStackSize) {
-  struct thread* self = malloc(sizeof(*self));
+static thread_local struct thread* volatile currentThread = NULL;
+
+struct thread* thread_get_current() {
+  return currentThread;
+}
+
+struct thread* thread_set_current(struct thread* new) {
+  swap(currentThread, new);
+  return new;
+}
+
+struct thread* thread_new() {
+  struct thread* self = malloc(sizeof(*self)); 
   if (!self)
     return NULL;
-
-  self->topFramePointer = 0;
-  self->frameStackSize = frameStackSize;
-  self->heap = heap;
-  self->id = id;
-  self->topFrame = NULL;
-  self->frames = NULL;
-
-  self->frames = calloc(frameStackSize, sizeof(*self->frames));
-  if (!self->frames)
+  *self = (struct thread) {};
+  
+  self->listNodeCache = soc_new(sizeof(list_node_t), 0);
+  if (!self->listNodeCache)
     goto failure;
-
-  int res = thread_push_frame(self, CONFIG_DEFAULT_THREAD_STACK_SIZE);
-  if (res < 0)
-    abort();
-
+  
+  self->pinnedObjects = list_new();
+  self->root = list_new();
+  if (!self->pinnedObjects || !self->root)
+    goto failure;
+  
   return self;
   
-  failure:
+failure:
   thread_free(self);
   return NULL;
 }
 
 void thread_free(struct thread* self) {
-  if (!self)
-    return;
-
-  for (int i = 0; i < self->frameStackSize; i++)
-    root_free(self->frames[i].root);
-  
-  free(self->frames);
+  list_destroy2(self->root);
+  list_destroy2(self->pinnedObjects);
+  soc_free(self->listNodeCache);
   free(self);
 }
 
-int thread_push_frame(struct thread* self, int frameSize) {
-  if (self->topFramePointer + 1 >= self->frameStackSize)
-    goto stack_overflow;
+void thread_block_gc() {
+}
 
-  struct thread_frame* frame = &self->frames[self->topFramePointer];
-  assert(!frame->isValid);
+void thread_unblock_gc() {
+}
 
-  if (frame->root == NULL) {
-    frame->root = root_new(frameSize);
-    if (frame->root == NULL)
-      goto root_alloc_failed;
+static list_node_t* allocListNodeWithContent(void* data) {
+  list_node_t* tmp = soc_alloc(thread_get_current()->listNodeCache);
+  *tmp = (list_node_t) {
+    .val = data
+  };
+  return tmp;
+}
+
+bool thread_add_pinned_object(struct object* obj) {
+  thread_block_gc();
+  bool res = true;
+  list_node_t* node = allocListNodeWithContent(obj);
+  if (!node) {
+    res = false;
+    goto node_alloc_failure;
   }
-
-  frame->isValid = true;
-  self->topFrame = frame;
-  self->topFramePointer++;
-  return 0;
-
-  stack_overflow:
-  return -EOVERFLOW;
-
-  root_alloc_failed:
-  return -ENOMEM;
-}
-
-struct root_reference* thread_pop_frame(struct thread* self, struct root_reference* result) {
-  // Cannot pop last frame
-  // its needed to keep stuff simple by
-  // guarante-ing that there atleast one
-  // frame left
-  if (self->topFramePointer <= 1)
-    abort();
   
-  // Reference come from somewhere else that is
-  // not current frame
-  if (result)
-    assert(result->owner == self->topFrame->root);
+  list_rpush(currentThread->pinnedObjects, node);
+node_alloc_failure:
+  thread_unblock_gc();
+  return res;
+}
 
-  self->topFramePointer--;
-  struct thread_frame* frame = &self->frames[self->topFramePointer];
-  frame->isValid = false;
-
-  struct root_reference* newRef = NULL;
-  self->topFrame = &self->frames[self->topFramePointer - 1];
-  if (result)
-    newRef = root_add(self->topFrame->root, (struct region_reference*) result->data);
+void thread_remove_pinned_object(struct object* obj) {
+  thread_block_gc();
+  // Search backward as it more likely caller removing recently
+  // added object. In long run minimizing time spent searching
+  // object to be removed UwU
+  list_node_t* node = currentThread->pinnedObjects->tail;
+  while (node && (node = node->prev)) {
+    if (node->val == obj) {
+      list_remove2(currentThread->pinnedObjects, node);
+      soc_dealloc(thread_get_current()->listNodeCache, node);
+      break;
+    }
+  }
   
-  root_clear(frame->root);  
-  return newRef;
+  BUG_ON(!node);
+  thread_unblock_gc();
 }
 
-struct root_reference* thread_local_add(struct thread* self, struct region_reference* ref) {
-  return root_add(self->topFrame->root, ref);
+bool thread_add_root_object(struct object* obj) {
+  thread_block_gc();
+  bool res = true;
+  list_node_t* node = allocListNodeWithContent(obj);
+  if (!node) {
+    res = false;
+    goto node_alloc_failure;
+  }
+  
+  list_rpush(currentThread->root, node);
+node_alloc_failure:
+  thread_unblock_gc();
+  return res;
 }
 
-void thread_local_remove(struct thread* self, struct root_reference* ref) {
-  root_remove(self->topFrame->root, ref);
+void thread_remove_root_object(struct object* obj) {
+  thread_block_gc();
+  // Search backward as it more likely caller removing recently
+  // added object. In long run minimizing time spent searching
+  // object to be removed UwU
+  list_node_t* node = currentThread->root->tail;
+  while (node && (node = node->prev)) {
+    if (node->val == obj) {
+      list_remove2(currentThread->root, node);
+      soc_dealloc(thread_get_current()->listNodeCache, node);
+      break;
+    }
+  }
+  
+  BUG_ON(!node);
+  thread_unblock_gc();
 }
 

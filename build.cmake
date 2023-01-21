@@ -2,41 +2,28 @@
 
 set(BUILD_PROJECT_NAME "FluffyGC")
 
-# We're making library
-set(BUILD_IS_LIBRARY YES)
-
-# If we want make libary and
-# executable project
-set(BUILD_INSTALL_EXECUTABLE NO)
-
 # Sources which common between exe and library
 set(BUILD_SOURCES
-  src/region.c
-  src/asan_stuff.c
   src/util.c
   src/descriptor.c
-  src/heap.c
-  src/root.c
   src/thread.c
-  src/root_iterator.c
-  src/gc/gc.c
-  src/gc/young_collector.c
-  src/gc/old_collector.c
-  src/gc/full_collector.c
-  src/gc/marker.c
-  src/collection/hashmap.c
   src/profiler.c
-  src/collection/list.c
-  src/collection/list_node.c
-  src/collection/list_iterator.c
-  src/gc/cardtable_iterator.c
-  src/api_layer/v1.c
-  src/reference_iterator.c
   src/thread_pool.c
-  src/gc/common.c
-  src/gc/parallel_marker.c
-  src/gc/parallel_heap_iterator.c
-  src/userfaultfd.c
+  src/object.c
+  src/bitops.c
+  src/soc.c
+  
+  deps/list/list_node.c
+  deps/list/list.c
+  deps/list/list_iterator.c  
+  deps/templated-hashmap/hashmap.c  
+  deps/vec/vec.c
+)
+
+set(BUILD_INCLUDE_DIRS
+  deps/list/
+  deps/templated-hashmap/
+  deps/vec/
 )
 
 # Note that exe does not represent Windows' 
@@ -56,12 +43,14 @@ set(BUILD_EXE_SOURCES
 # Public header to be exported
 # If this a library
 set(BUILD_PUBLIC_HEADERS
-  include/FluffyGC/common.h
-  include/FluffyGC/v1.h
+  include/dummy.h
+)
+
+set(BUILD_PROTOBUF_FILES
 )
 
 set(BUILD_CFLAGS "")
-set(BUILD_LDFLAGS "-L/usr/local/lib/")
+set(BUILD_LDFLAGS "")
 
 # AddPkgConfigLib is in ./buildsystem/CMakeLists.txt
 macro(AddDependencies)
@@ -69,4 +58,12 @@ macro(AddDependencies)
   # AddPkgConfigLib(FluffyGC FluffyGC>=1.0.0)
 endmacro()
 
+macro(PreConfigurationLoad)
+  # Do pre config stuffs
+endmacro()
+
+macro(PostConfigurationLoad)
+  # Do post config stuffs
+  # like deciding whether to include or not include some files
+endmacro()
 
