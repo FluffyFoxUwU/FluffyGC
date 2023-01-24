@@ -48,7 +48,32 @@ menu Memory
         is faster than SOC for small objects (<8 words) its safe to say Y.
         In most cases its usually slower than SOC.
         
-        If in doubt, answer Y
+        If in doubt, answer N
+  endmenu
+  
+  menu "Heap allocator"
+    config HEAP_USE_MALLOC
+      bool "Use system malloc instead custom allocator"
+      default y if MEMORY_DEBUG
+      help
+        Use system malloc to allow ASAN to catch heap access error
+        
+        If in doubt, answer N
+    choice
+      prompt "Free block finder type"
+      default HEAP_FREE_BLOCK_BEST_FIT
+      
+      config HEAP_FREE_BLOCK_BEST_FIT
+        bool "Best fit"
+        help
+          Slower allocation on slow path (when bump pointer method exhausted)
+          but leads to less heap fragmentation 
+      config HEAP_FREE_BLOCK_FIRST_FIT
+        bool "First fit"
+        help
+          Faster allocation on slow path (when bump pointer method exhausted)
+          but leads to more heap fragmentation
+    endchoice
   endmenu
 endmenu
 

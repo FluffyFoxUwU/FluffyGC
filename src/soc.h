@@ -2,6 +2,8 @@
 #define _headers_1673868491_FluffyGC_soc
 
 // Small Object Cache allocator
+// Can work on non power of two block sizes
+// but it would warn about it
 
 #include <stdbool.h>
 #include <stddef.h>

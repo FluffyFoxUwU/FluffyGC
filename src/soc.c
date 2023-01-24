@@ -127,10 +127,8 @@ static struct soc_chunk* getChunk(struct small_object_cache* self) {
 
 struct small_object_cache* soc_new(size_t objectSize, int reservedChunks) {
   BUG_ON(reservedChunks < 0);
-  if (objectSize > SOC_MAX_OBJECT_SIZE) {
-    WARN();
-    return NULL;
-  }
+  BUG_ON(objectSize > SOC_MAX_OBJECT_SIZE);
+  
   objectSize = MAX(objectSize, SOC_MIN_OBJECT_SIZE);
   
   struct small_object_cache* self = malloc(sizeof(*self));

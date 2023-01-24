@@ -31,6 +31,20 @@ bool util_atomic_add_if_less_uint(volatile atomic_uint* data, unsigned int n, un
   return true;
 }
 
+bool util_atomic_add_if_less_uintptr(volatile atomic_uintptr_t* data, uintptr_t n, uintptr_t max, uintptr_t* result) {
+  uintptr_t new;
+  uintptr_t old = atomic_load(data);
+  do {
+    new = old + n;
+    
+    if (new >= max)
+      return false;
+  } while (!atomic_compare_exchange_weak(data, &old, new));
+
+  *result = old;
+  return true;
+}
+
 int util_atomic_min_int(volatile atomic_int* object, int newVal) {
   int new;
   int old = atomic_load(object);
@@ -113,6 +127,12 @@ void util_nearest_power_of_two(size_t* size) {
   *size = 1;
   while(*size < x && *size < SIZE_MAX)
     *size <<= 1;
+}
+
+bool util_is_power_of_two(size_t size) {
+  size_t tmp = size;
+  util_nearest_power_of_two(&tmp);
+  return tmp == size;
 }
 
 void* util_malloc(size_t size, unsigned long flags) {

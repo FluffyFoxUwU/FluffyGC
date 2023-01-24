@@ -9,16 +9,7 @@
 #include "bug.h"
 #include "util.h"
 
-static thread_local struct thread* volatile currentThread = NULL;
-
-struct thread* thread_get_current() {
-  return currentThread;
-}
-
-struct thread* thread_set_current(struct thread* new) {
-  swap(currentThread, new);
-  return new;
-}
+thread_local struct thread* thread_current = NULL;
 
 struct thread* thread_new() {
   struct thread* self = malloc(sizeof(*self)); 
@@ -56,7 +47,7 @@ void thread_unblock_gc() {
 }
 
 static list_node_t* allocListNodeWithContent(void* data) {
-  list_node_t* tmp = soc_alloc(thread_get_current()->listNodeCache);
+  list_node_t* tmp = soc_alloc(thread_current->listNodeCache);
   *tmp = (list_node_t) {
     .val = data
   };
@@ -72,7 +63,7 @@ bool thread_add_pinned_object(struct object* obj) {
     goto node_alloc_failure;
   }
   
-  list_rpush(currentThread->pinnedObjects, node);
+  list_rpush(thread_current->pinnedObjects, node);
 node_alloc_failure:
   thread_unblock_gc();
   return res;
@@ -83,11 +74,11 @@ void thread_remove_pinned_object(struct object* obj) {
   // Search backward as it more likely caller removing recently
   // added object. In long run minimizing time spent searching
   // object to be removed UwU
-  list_node_t* node = currentThread->pinnedObjects->tail;
+  list_node_t* node = thread_current->pinnedObjects->tail;
   while (node && (node = node->prev)) {
     if (node->val == obj) {
-      list_remove2(currentThread->pinnedObjects, node);
-      soc_dealloc(thread_get_current()->listNodeCache, node);
+      list_remove2(thread_current->pinnedObjects, node);
+      soc_dealloc(thread_current->listNodeCache, node);
       break;
     }
   }
@@ -105,7 +96,7 @@ bool thread_add_root_object(struct object* obj) {
     goto node_alloc_failure;
   }
   
-  list_rpush(currentThread->root, node);
+  list_rpush(thread_current->root, node);
 node_alloc_failure:
   thread_unblock_gc();
   return res;
@@ -116,11 +107,11 @@ void thread_remove_root_object(struct object* obj) {
   // Search backward as it more likely caller removing recently
   // added object. In long run minimizing time spent searching
   // object to be removed UwU
-  list_node_t* node = currentThread->root->tail;
+  list_node_t* node = thread_current->root->tail;
   while (node && (node = node->prev)) {
     if (node->val == obj) {
-      list_remove2(currentThread->root, node);
-      soc_dealloc(thread_get_current()->listNodeCache, node);
+      list_remove2(thread_current->root, node);
+      soc_dealloc(thread_current->listNodeCache, node);
       break;
     }
   }

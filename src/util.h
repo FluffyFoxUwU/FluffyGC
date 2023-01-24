@@ -5,12 +5,14 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdatomic.h>
+#include <stdint.h>
 
 #include "bits.h"
 
 bool util_atomic_add_if_less_uint(volatile atomic_uint* data, unsigned int n, unsigned int max, unsigned int* result);
-bool util_atomic_add_if_less_int(volatile atomic_int* data, int n, int max, int* result);
+bool util_atomic_add_if_less_uintptr(volatile atomic_uintptr_t* data, uintptr_t n, uintptr_t max, uintptr_t* result);
 
+bool util_atomic_add_if_less_int(volatile atomic_int* data, int n, int max, int* result);
 int util_atomic_min_int(volatile atomic_int* object, int newVal);
 
 bool util_vasprintf(char** result, const char* fmt, va_list arg);
@@ -45,6 +47,8 @@ typedef struct {
 } untyped_ptr;
 
 void util_nearest_power_of_two(size_t* size);
+bool util_is_power_of_two(size_t size);
+#define util_align_to_word(n) (((n) + sizeof(long) - 1) & ~(sizeof(long) - 1));
 
 #define UTIL_MEM_ZERO BIT(1)
 void* util_realloc(void* ptr, size_t oldSize, size_t newSize, unsigned long flags);

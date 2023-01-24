@@ -10,10 +10,6 @@
 ATTRIBUTE_USED()
 const void* const object_failure_ptr = &(const struct object) {};
 
-static size_t getRedzoneSize(struct object* self) {
-  return 0;
-}
-
 static object_ptr_atomic* getAtomicPtr(struct object* self, size_t offset) {
   return (object_ptr_atomic*) object_get_dma(self) + offset;
 }
@@ -48,7 +44,7 @@ void object_write_ptr(struct object* self, size_t offset, struct object* obj) {
 }
 
 static void* calcDmaPtr(struct object* self) {
-  return self->payload + getRedzoneSize(self);
+  return self->dataPtr;
 }
 
 void* object_get_dma(struct object* self) {

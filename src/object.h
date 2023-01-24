@@ -17,10 +17,10 @@ struct object {
   struct object* forwardingPointer;
   
   struct descriptor* descriptor;
-  size_t objectSize; // Represent size of data in payload (including redzones)
+  size_t objectSize; // Represent size of data
   int age; // Number of collection survived
   
-  char payload[];
+  void* dataPtr;
 };
 
 typedef _Atomic(struct object*) object_ptr_atomic;

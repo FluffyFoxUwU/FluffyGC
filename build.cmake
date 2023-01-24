@@ -12,6 +12,9 @@ set(BUILD_SOURCES
   src/object.c
   src/bitops.c
   src/soc.c
+  src/heap.c
+  src/heap_free_block_searchers.c
+  src/free_list_sorter.c
   
   deps/list/list_node.c
   deps/list/list.c

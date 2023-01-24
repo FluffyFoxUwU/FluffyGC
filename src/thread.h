@@ -2,8 +2,10 @@
 #define _headers_1673680059_FluffyGC_thread
 
 #include <stdbool.h>
+#include <threads.h>
 
 #include "list.h"
+#include "heap_local_heap.h"
 
 struct object;
 struct small_object_cache;
@@ -14,15 +16,15 @@ struct thread {
  
   list_t* pinnedObjects;
   list_t* root;
+  
+  struct heap_local_heap localHeap;
+  struct heap* heap;
 };
 
 struct thread* thread_new();
 void thread_free(struct thread* self);
 
-struct thread* thread_get_current();
-
-// Return old thread
-struct thread* thread_set_current(struct thread* new);
+extern thread_local struct thread* thread_current;
 
 // This can be nested
 void thread_block_gc();
