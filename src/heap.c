@@ -4,9 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <thread.h>
 #include <threads.h>
 
+#include "context.h"
 #include "heap.h"
 #include "bug.h"
 #include "config.h"

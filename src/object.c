@@ -2,7 +2,7 @@
 #include <stddef.h>
 
 #include "object.h"
-#include "thread.h"
+#include "context.h"
 #include "util.h"
 #include "descriptor.h"
 #include "bug.h"

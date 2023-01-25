@@ -6,7 +6,7 @@ set(BUILD_PROJECT_NAME "FluffyGC")
 set(BUILD_SOURCES
   src/util.c
   src/descriptor.c
-  src/thread.c
+  src/context.c
   src/profiler.c
   src/thread_pool.c
   src/object.c

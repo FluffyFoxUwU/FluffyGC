@@ -5,7 +5,7 @@
 
 #include "list.h"
 #include "soc.h"
-#include "thread.h"
+#include "context.h"
 #include "bug.h"
 #include "util.h"
 

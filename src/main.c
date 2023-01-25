@@ -1,11 +1,12 @@
-#include "bug.h"
-#include "heap.h"
-#include "soc.h"
-#include "thread.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+
+#include "bug.h"
+#include "heap.h"
+#include "soc.h"
+#include "context.h"
 
 /*
 layout of object
