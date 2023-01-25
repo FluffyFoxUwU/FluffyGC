@@ -179,7 +179,8 @@ static struct heap_block* splitFreeBlocks(struct heap* self, struct heap_block* 
   blockA->next = blockB;
   
   blockB->prev = blockA;
-  blockB->next->prev = blockB;
+  if (blockB->next)
+    blockB->next->prev = blockB;
   return block;
 }
 
