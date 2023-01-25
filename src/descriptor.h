@@ -40,7 +40,7 @@ typedef struct descriptor {
 
 struct descriptor* descriptor_new(struct descriptor_typeid id, size_t objectSize, int numPointers, struct descriptor_field* fields);
 
-void descriptor_init(struct descriptor* self, struct object* regionRef);
+void descriptor_init(struct descriptor* self, struct object* obj);
 
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset);
 

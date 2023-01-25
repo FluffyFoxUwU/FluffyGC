@@ -38,6 +38,8 @@ struct node {
 };
 */
 
+void object_init(struct object* self, struct descriptor* desc, void* data);
+
 extern const void* const object_failure_ptr;
 #define OBJECT_FAILURE_PTR ((void*) object_failure_ptr)
 

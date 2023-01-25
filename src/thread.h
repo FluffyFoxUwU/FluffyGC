@@ -10,7 +10,7 @@
 struct object;
 struct small_object_cache;
 
-struct thread {
+struct context {
   struct small_object_cache* listNodeCache;
   int blockCount;
  
@@ -21,20 +21,20 @@ struct thread {
   struct heap* heap;
 };
 
-struct thread* thread_new();
-void thread_free(struct thread* self);
+struct context* context_new();
+void context_free(struct context* self);
 
-extern thread_local struct thread* thread_current;
+extern thread_local struct context* context_current;
 
 // This can be nested
-void thread_block_gc();
-void thread_unblock_gc();
+void context_block_gc();
+void context_unblock_gc();
 
-bool thread_add_pinned_object(struct object* obj);
-void thread_remove_pinned_object(struct object* obj);
+bool context_add_pinned_object(struct object* obj);
+void context_remove_pinned_object(struct object* obj);
 
-bool thread_add_root_object(struct object* obj);
-void thread_remove_root_object(struct object* obj);
+bool context_add_root_object(struct object* obj);
+void context_remove_root_object(struct object* obj);
 
 #endif
 

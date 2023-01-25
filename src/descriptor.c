@@ -58,9 +58,9 @@ void descriptor_release(struct descriptor* self) {
   free(self);
 }
 
-void descriptor_init(struct descriptor* self, struct object* data) {
+void descriptor_init(struct descriptor* self, struct object* obj) {
   for (int i = 0; i < self->numFields; i++)
-    descriptor_write_ptr(self, data, i, NULL);
+    descriptor_write_ptr(self, obj, i, NULL);
 }
 
 void descriptor_write_ptr(struct descriptor* self, struct object* data, int index, struct object* ptr) {

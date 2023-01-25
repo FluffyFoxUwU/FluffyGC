@@ -4,6 +4,7 @@
 #include "object.h"
 #include "thread.h"
 #include "util.h"
+#include "descriptor.h"
 #include "bug.h"
 #include "compiler_config.h"
 
@@ -21,7 +22,7 @@ struct object* object_resolve_forwarding(struct object* self) {
 }
 
 struct object* object_read_ptr(struct object* self, size_t offset) {
-  thread_block_gc();
+  context_block_gc();
   struct object* obj = atomic_load(getAtomicPtr(self, offset));
   if (!obj)
     goto obj_is_null;
@@ -31,11 +32,11 @@ struct object* object_read_ptr(struct object* self, size_t offset) {
   if (obj != forwarded)
     atomic_compare_exchange_strong(getAtomicPtr(self, offset), &obj, forwarded);
   
-  bool res = thread_add_root_object(obj);
+  bool res = context_add_root_object(obj);
   if (!res)
     obj = OBJECT_FAILURE_PTR;
 obj_is_null:
-  thread_unblock_gc();
+  context_unblock_gc();
   return obj;
 }
 
@@ -48,17 +49,26 @@ static void* calcDmaPtr(struct object* self) {
 }
 
 void* object_get_dma(struct object* self) {
-  thread_block_gc();
-  thread_add_pinned_object(self);
-  thread_unblock_gc();
+  context_block_gc();
+  context_add_pinned_object(self);
+  context_unblock_gc();
   
   return calcDmaPtr(self);
 }
 
 void object_put_dma(struct object* self, void* dma) {
   BUG_ON(dma != calcDmaPtr(self));
-  thread_block_gc();
-  thread_remove_pinned_object(self);
-  thread_unblock_gc();
+  context_block_gc();
+  context_remove_pinned_object(self);
+  context_unblock_gc();
 }
 
+void object_init(struct object* self, struct descriptor* desc, void* data) {
+  *self = (struct object) {
+    .descriptor = desc,
+    .objectSize = desc->objectSize,
+    .dataPtr = data
+  };
+  
+  descriptor_init(desc, self);
+}

@@ -26,8 +26,8 @@ int fuzzing_heap(const void* data, size_t size) {
   uint8_t pattern = *(const uint8_t*) data;
   data += 1;
   
-  struct thread* thread = thread_new();
-  thread_current = thread;
+  struct context* thread = context_new();
+  context_current = thread;
   
   struct heap* heap = heap_new(heapSize);
   heap_param_set_local_heap_size(heap, localHeapSize);
@@ -61,6 +61,6 @@ int fuzzing_heap(const void* data, size_t size) {
   
   heap_merge_free_blocks(heap);
   heap_free(heap);
-  thread_free(thread);
+  context_free(thread);
   return 0;
 }

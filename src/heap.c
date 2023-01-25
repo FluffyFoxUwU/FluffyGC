@@ -135,7 +135,7 @@ void heap_merge_free_blocks(struct heap* self) {
 }
 
 void heap_dealloc(struct heap_block* block) {
-  struct heap* self = thread_current->heap;
+  struct heap* self = context_current->heap;
   pthread_rwlock_wrlock(&self->lock);
   
   // Double free
@@ -184,17 +184,18 @@ static struct heap_block* splitFreeBlocks(struct heap* self, struct heap_block* 
   return block;
 }
 
-void heap_on_thread_create(struct heap* self, struct thread* thread) {
+void heap_on_thread_create(struct heap* self, struct context* thread) {
   thread->heap = self;
   thread->localHeap = (struct heap_local_heap) {};
 }
 
 struct heap_block* heap_alloc_fast(size_t objectSize) {
-  struct heap_local_heap* localHeap = &thread_current->localHeap;
-  struct heap* self = thread_current->heap;
+  struct heap_local_heap* localHeap = &context_current->localHeap;
+  struct heap* self = context_current->heap;
   struct heap_block* block = NULL;
   size_t size = util_align_to_word(sizeof(struct heap_block) + objectSize);
   
+  context_block_gc();
   if (size > self->localHeapSize) {
     block = allocFastRaw(self, size);
     if (!block)
@@ -221,6 +222,7 @@ local_alloc_success:
     goto alloc_failure;
   }
 alloc_failure:
+  context_unblock_gc();
   return block;
 }
 
@@ -234,8 +236,10 @@ struct heap_block* heap_alloc(size_t objectSize) {
   size_t size = util_align_to_word(sizeof(struct heap_block) + objectSize);
   
   // Slow alloc method
-  struct heap* self = thread_current->heap;
+  struct heap* self = context_current->heap;
   pthread_rwlock_wrlock(&self->lock);
+  context_block_gc();
+  
   block = heap_find_free_block(self, self->recentFreeBlocks, size);
   if (!block)
     goto fail_alloc;
@@ -250,6 +254,8 @@ fail_alloc:
     heap_dealloc(block);
     block = NULL;
   }
+  
+  context_unblock_gc();
   return block;
 }
 

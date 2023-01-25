@@ -13,7 +13,7 @@
 // This heap can do both bump pointer and
 // free lists method.
 
-struct thread;
+struct context;
 
 struct heap {
   pthread_rwlock_t lock;
@@ -71,7 +71,7 @@ struct heap* heap_new(size_t size);
 struct heap* heap_from_existing(size_t size, void* ptr, void (*destroyer)(void*));
 void heap_free(struct heap* self);
 
-void heap_on_thread_create(struct heap* self, struct thread* thread);
+void heap_on_thread_create(struct heap* self, struct context* thread);
 
 // Parameter cant be change anymore after this call
 void heap_init(struct heap* self);

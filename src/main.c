@@ -30,14 +30,14 @@ struct obj {
 };
 
 static void escape(void *p) {
-  asm volatile("" : : "g"(p) : "memory");
+  //asm volatile("" : : "g"(p) : "memory");
 }
 
-int main2(int argc, char** argv) {
+int main3(int argc, char** argv) {
   printf("Hello World!\n");
   
-  struct thread* thread = thread_new();
-  thread_current = thread;
+  struct context* thread = context_new();
+  context_current = thread;
   
   struct heap* heap = heap_new(32 * 1024 * 1024 /* 256 * 1024 * 1024 */);
   // Set parameters
@@ -70,7 +70,28 @@ int main2(int argc, char** argv) {
   
   heap_merge_free_blocks(heap);
   heap_free(heap);
-  thread_free(thread);
+  context_free(thread);
   return EXIT_SUCCESS;
 }
 
+
+int main2(int argc, char** argv) {
+  printf("Hello World!\n");
+  
+  struct context* thread = context_new();
+  context_current = thread;
+  
+  struct heap* heap = heap_new(32 * 1024 * 1024 /* 256 * 1024 * 1024 */);
+  // Set parameters
+  heap_param_set_local_heap_size(heap, 4 * 1024 * 1024);
+  heap_init(heap);
+  
+  heap_on_thread_create(heap, thread);
+  
+  
+  
+  heap_merge_free_blocks(heap);
+  heap_free(heap);
+  context_free(thread);
+  return EXIT_SUCCESS;
+}
