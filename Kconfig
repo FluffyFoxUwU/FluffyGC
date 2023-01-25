@@ -97,7 +97,8 @@ menu Fuzzing
       select FUZZER
       help
         When using with ASAN for long time its
-        recommended to use fork mode (`-fork=N`) to avoid
+        recommended to use fork mode (`-fork=N`) 
+        and use `quarantine_size_mb` to avoid
         unbounded RSS growth when there really
         no leaks due ASAN's quarantine
   endchoice
@@ -108,6 +109,8 @@ menu Fuzzing
     
     config FUZZ_SOC
       bool "SOC allocator and deallocator"
+    config FUZZ_HEAP
+      bool "Heap allocator and deallocator"
   endchoice
 endmenu
 

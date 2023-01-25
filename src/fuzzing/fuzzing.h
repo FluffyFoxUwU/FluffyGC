@@ -7,9 +7,14 @@
 #include "config.h"
 
 int fuzzing_soc(const void* data, size_t size);
+int fuzzing_heap(const void* data, size_t size);
 
 #if IS_ENABLED(CONFIG_FUZZ_SOC)
 # define fuzzing_fuzz fuzzing_soc
+#endif
+
+#if IS_ENABLED(CONFIG_FUZZ_HEAP)
+# define fuzzing_fuzz fuzzing_heap
 #endif
 
 #endif

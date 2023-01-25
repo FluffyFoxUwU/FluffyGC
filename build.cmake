@@ -86,5 +86,9 @@ macro(PostConfigurationLoad)
   if (DEFINED CONFIG_FUZZ_SOC)
     list(APPEND BUILD_EXE_SOURCES "./src/fuzzing/fuzzing_soc.c")
   endif()
+  
+  if (DEFINED CONFIG_FUZZ_HEAP)
+    list(APPEND BUILD_EXE_SOURCES "./src/fuzzing/fuzzing_heap.c")
+  endif()
 endmacro()
 

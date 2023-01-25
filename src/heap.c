@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <thread.h>
 #include <threads.h>
@@ -78,7 +77,7 @@ static void initFreeBlock(struct heap* self, struct heap_block* block, size_t bl
 static void unlinkFromFreeList(struct heap* self, struct heap_block* block) {
   if (block->prev)
     block->prev->next = block->next;
-  else
+  if (self->recentFreeBlocks == block)
     self->recentFreeBlocks = block->next;
   if (block->next)
     block->next->prev = block->prev;
@@ -109,7 +108,7 @@ static void tryMergeFreeBlock(struct heap* self, struct heap_block* block) {
   while (current) {
     BUG_ON(!current->isFree);
     // Free block arent next current block anymore
-    if (block + block->blockSize != current)
+    if (((void*) block) + block->blockSize != current)
       break;
     
     // Merge two blocks
@@ -118,7 +117,6 @@ static void tryMergeFreeBlock(struct heap* self, struct heap_block* block) {
       current->next->prev = block;
     block->blockSize += current->blockSize;
     
-    printf("Merging %zu + %zu = %zu\n", block->blockSize - current->blockSize, current->blockSize, block->blockSize);
     current = current->next;
   }
 }
@@ -149,10 +147,10 @@ void heap_dealloc(struct heap_block* block) {
   // Add to free list
   block->prev = NULL;
   block->next = self->recentFreeBlocks;
-  if (self->recentFreeBlocks)
-    self->recentFreeBlocks->prev = block;
-  self->recentFreeBlocks = block;
+  if (block->next)
+    block->next->prev = block;
   
+  self->recentFreeBlocks = block;
   pthread_rwlock_unlock(&self->lock);
 }
 
@@ -166,14 +164,22 @@ static void* allocFastRaw(struct heap* self, size_t size) {
 static struct heap_block* splitFreeBlocks(struct heap* self, struct heap_block* block, size_t size) {
   if (block->blockSize == size)
     return block;
-  BUG_ON(block->blockSize < size);
+  BUG_ON(size > block->blockSize);
+  
+  // Not enough space for new block
+  if (block->blockSize - size < sizeof(struct heap_block))
+    return block;
   
   struct heap_block* blockA = block;
-  struct heap_block* blockB = block + size;
-  initFreeBlock(self, blockB, size);
-  blockB->prev = blockA;
+  struct heap_block* blockB = ((void*) block) + size;
+  initFreeBlock(self, blockB, block->blockSize - size);
+  
+  // TODO: Comment these four operations
   blockB->next = blockA->next;
   blockA->next = blockB;
+  
+  blockB->prev = blockA;
+  blockB->next->prev = blockB;
   return block;
 }
 
@@ -190,6 +196,8 @@ struct heap_block* heap_alloc_fast(size_t objectSize) {
   
   if (size > self->localHeapSize) {
     block = allocFastRaw(self, size);
+    if (!block)
+      goto alloc_failure;
     goto local_alloc_success;
   }
   
@@ -216,6 +224,9 @@ alloc_failure:
 }
 
 struct heap_block* heap_alloc(size_t objectSize) {
+  if (objectSize == 0)
+    return NULL;
+  
   struct heap_block* block = heap_alloc_fast(objectSize);
   if (block)
     return block;
