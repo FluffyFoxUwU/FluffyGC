@@ -7,6 +7,9 @@ config PLACEHOLDER_FOR_STATIC_STUFF_UWU
   select BUILD_IS_LIBRARY
   #select BUILD_IS_KERNEL
 
+config MAIN_DISABLED
+  bool
+
 menu General
   config VERSION_MAJOR
     int
@@ -75,6 +78,37 @@ menu Memory
           but leads to more heap fragmentation
     endchoice
   endmenu
+endmenu
+
+menu Fuzzing
+  config FUZZER
+    bool
+    select MAIN_DISABLED
+  
+  choice
+    prompt "Fuzzer variant"
+    depends on !BUILD_OVERRIDE_PROJECT_FLAGS
+    
+    config FUZZER_NONE
+      bool "None"
+    
+    config FUZZER_LIBFUZZER
+      bool "libFuzzer"
+      select FUZZER
+      help
+        When using with ASAN for long time its
+        recommended to use fork mode (`-fork=N`) to avoid
+        unbounded RSS growth when there really
+        no leaks due ASAN's quarantine
+  endchoice
+  
+  choice
+    prompt "Select subsystem to fuzz"
+    depends on FUZZER
+    
+    config FUZZ_SOC
+      bool "SOC allocator and deallocator"
+  endchoice
 endmenu
 
 config DONT_START_SEPERATE_MAIN_THREAD

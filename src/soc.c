@@ -130,6 +130,7 @@ struct small_object_cache* soc_new(size_t objectSize, int reservedChunks) {
   BUG_ON(objectSize > SOC_MAX_OBJECT_SIZE);
   
   objectSize = MAX(objectSize, SOC_MIN_OBJECT_SIZE);
+  objectSize = util_align_to_word(objectSize);
   
   struct small_object_cache* self = malloc(sizeof(*self));
   if (!self)
