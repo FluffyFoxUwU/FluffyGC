@@ -10,7 +10,7 @@
 
 #define MB(n) ((n) * 1024 * 1024)
 
-#define printaf(...)
+#define printf(...)
 
 int fuzzing_heap(const void* data, size_t size) {
   if (size < sizeof(size_t) + sizeof(uint16_t) + sizeof(uint8_t))
