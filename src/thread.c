@@ -15,7 +15,9 @@ struct context* context_new() {
   struct context* self = malloc(sizeof(*self)); 
   if (!self)
     return NULL;
-  *self = (struct context) {};
+  *self = (struct context) {
+    .contextType = CONTEXT_USER
+  };
   
   self->listNodeCache = soc_new(sizeof(list_node_t), 0);
   if (!self->listNodeCache)
