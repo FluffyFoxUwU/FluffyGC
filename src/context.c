@@ -43,9 +43,13 @@ void context_free(struct context* self) {
 }
 
 void context_block_gc() {
+  context_current->blockCount++;
+  BUG_ON(context_current->contextType != CONTEXT_USER);
 }
 
 void context_unblock_gc() {
+  context_current->blockCount--;
+  BUG_ON(context_current->contextType != CONTEXT_USER);
 }
 
 static list_node_t* allocListNodeWithContent(void* data) {

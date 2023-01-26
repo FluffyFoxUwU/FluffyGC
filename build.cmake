@@ -15,6 +15,7 @@ set(BUILD_SOURCES
   src/heap.c
   src/heap_free_block_searchers.c
   src/free_list_sorter.c
+  src/managed_heap.c
   
   deps/list/list_node.c
   deps/list/list.c

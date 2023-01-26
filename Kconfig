@@ -80,6 +80,13 @@ menu Memory
   endmenu
 endmenu
 
+menu "Managed heap"
+  # Don't touch this yet
+  config NUM_GENERATIONS
+    int
+    default 2
+endmenu
+
 menu Fuzzing
   config FUZZER
     bool
