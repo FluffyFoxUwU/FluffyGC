@@ -3,10 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "context.h"
 #include "heap.h"
 #include "soc.h"
 #include "bug.h"
-#include "thread.h"
 
 #define MB(n) ((n) * 1024 * 1024)
 
@@ -26,14 +26,14 @@ int fuzzing_heap(const void* data, size_t size) {
   uint8_t pattern = *(const uint8_t*) data;
   data += 1;
   
-  struct context* thread = context_new();
-  context_current = thread;
+  struct context* context = context_new(CONTEXT_USER);
+  context_current = context;
   
   struct heap* heap = heap_new(heapSize);
   heap_param_set_local_heap_size(heap, localHeapSize);
   heap_init(heap);
   
-  heap_on_thread_create(heap, thread);
+  heap_on_thread_create(heap, context);
   
   printf("Heap size: %zu\n", heapSize);
   printf("Local heap size: %zu\n", localHeapSize);
@@ -61,6 +61,6 @@ int fuzzing_heap(const void* data, size_t size) {
   
   heap_merge_free_blocks(heap);
   heap_free(heap);
-  context_free(thread);
+  context_free(context);
   return 0;
 }

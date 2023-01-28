@@ -11,13 +11,16 @@
 
 thread_local struct context* context_current = NULL;
 
-struct context* context_new() {
+struct context* context_new(enum context_type type) {
   struct context* self = malloc(sizeof(*self)); 
   if (!self)
     return NULL;
   *self = (struct context) {
-    .contextType = CONTEXT_USER
+    .type = type
   };
+  
+  if (type != CONTEXT_USER)
+    return self;
   
   self->listNodeCache = soc_new(sizeof(list_node_t), 0);
   if (!self->listNodeCache)
@@ -44,12 +47,12 @@ void context_free(struct context* self) {
 
 void context_block_gc() {
   context_current->blockCount++;
-  BUG_ON(context_current->contextType != CONTEXT_USER);
+  BUG_ON(context_current->type != CONTEXT_USER);
 }
 
 void context_unblock_gc() {
   context_current->blockCount--;
-  BUG_ON(context_current->contextType != CONTEXT_USER);
+  BUG_ON(context_current->type != CONTEXT_USER);
 }
 
 static list_node_t* allocListNodeWithContent(void* data) {

@@ -37,15 +37,15 @@ static void escape(void *p) {
 int main3(int argc, char** argv) {
   printf("Hello World!\n");
   
-  struct context* thread = context_new();
-  context_current = thread;
+  struct context* context = context_new(CONTEXT_USER);
+  context_current = context;
   
   struct heap* heap = heap_new(32 * 1024 * 1024 /* 256 * 1024 * 1024 */);
   // Set parameters
   heap_param_set_local_heap_size(heap, 4 * 1024 * 1024);
   heap_init(heap);
   
-  heap_on_thread_create(heap, thread);
+  heap_on_thread_create(heap, context);
   
   // 16863: Just before fast alloc failed
   clock_t clk = clock();
@@ -71,7 +71,7 @@ int main3(int argc, char** argv) {
   
   heap_merge_free_blocks(heap);
   heap_free(heap);
-  context_free(thread);
+  context_free(context);
   return EXIT_SUCCESS;
 }
 
@@ -79,20 +79,20 @@ int main3(int argc, char** argv) {
 int main2(int argc, char** argv) {
   printf("Hello World!\n");
   
-  struct context* thread = context_new();
-  context_current = thread;
+  struct context* context = context_new(CONTEXT_USER);
+  context_current = context;
   
   struct heap* heap = heap_new(32 * 1024 * 1024 /* 256 * 1024 * 1024 */);
   // Set parameters
   heap_param_set_local_heap_size(heap, 4 * 1024 * 1024);
   heap_init(heap);
   
-  heap_on_thread_create(heap, thread);
+  heap_on_thread_create(heap, context);
   
   
   
   heap_merge_free_blocks(heap);
   heap_free(heap);
-  context_free(thread);
+  context_free(context);
   return EXIT_SUCCESS;
 }

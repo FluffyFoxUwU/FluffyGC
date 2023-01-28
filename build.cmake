@@ -16,6 +16,11 @@ set(BUILD_SOURCES
   src/heap_free_block_searchers.c
   src/free_list_sorter.c
   src/managed_heap.c
+  src/event.c
+  src/mutex.c
+  src/rwlock.c
+  src/condition.c
+  src/completion.c
   
   deps/list/list_node.c
   deps/list/list.c

@@ -9,6 +9,7 @@
 #include <threads.h>
 
 #include "object.h"
+#include "mutex.h"
 
 // This heap can do both bump pointer and
 // free lists method.
@@ -16,8 +17,7 @@
 struct context;
 
 struct heap {
-  pthread_rwlock_t lock;
-  bool lockInited;
+  struct mutex lock;
   
   void* pool;
   void (*destroyerUwU)(void*);

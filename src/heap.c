@@ -13,6 +13,7 @@
 #include "heap_free_block_searchers.h"
 #include "heap_local_heap.h"
 #include "free_list_sorter.h"
+#include "mutex.h"
 #include "util.h"
 
 struct heap* heap_new(size_t size) {
@@ -31,9 +32,8 @@ struct heap* heap_from_existing(size_t size, void* ptr, void (*destroyer)(void*)
   self->destroyerUwU = destroyer;
   self->bumpPointer = (uintptr_t) ptr;
   self->maxBumpPointer = (uintptr_t) ptr + size;
-  if (pthread_rwlock_init(&self->lock, NULL) != 0)
+  if (mutex_init(&self->lock) < 0)
     goto failure;
-  self->lockInited = true;
   
   return self;
 failure:
@@ -42,11 +42,7 @@ failure:
 }
 
 void heap_free(struct heap* self) {
-  int ret = 0;
-  if (self->lockInited)
-    ret = pthread_rwlock_destroy(&self->lock);
-  BUG_ON(ret != 0);
-  
+  mutex_cleanup(&self->lock);
   self->destroyerUwU(self->pool);
   free(self);
 }
@@ -122,7 +118,7 @@ static void tryMergeFreeBlock(struct heap* self, struct heap_block* block) {
 }
 
 void heap_merge_free_blocks(struct heap* self) {
-  pthread_rwlock_wrlock(&self->lock);
+  mutex_lock(&self->lock);
   heap_free_list_sort(self);
   
   struct heap_block* block = self->recentFreeBlocks;
@@ -131,12 +127,12 @@ void heap_merge_free_blocks(struct heap* self) {
     tryMergeFreeBlock(self, block);
     block = block->next;
   }
-  pthread_rwlock_unlock(&self->lock);
+  mutex_unlock(&self->lock);
 }
 
 void heap_dealloc(struct heap_block* block) {
   struct heap* self = context_current->heap;
-  pthread_rwlock_wrlock(&self->lock);
+  mutex_lock(&self->lock);
   
   // Double free
   BUG_ON(block->isFree);
@@ -151,7 +147,7 @@ void heap_dealloc(struct heap_block* block) {
     block->next->prev = block;
   
   self->recentFreeBlocks = block;
-  pthread_rwlock_unlock(&self->lock);
+  mutex_unlock(&self->lock);
 }
 
 static void* allocFastRaw(struct heap* self, size_t size) {
@@ -237,7 +233,7 @@ struct heap_block* heap_alloc(size_t objectSize) {
   
   // Slow alloc method
   struct heap* self = context_current->heap;
-  pthread_rwlock_wrlock(&self->lock);
+  mutex_lock(&self->lock);
   context_block_gc();
   
   block = heap_find_free_block(self, self->recentFreeBlocks, size);
@@ -248,7 +244,7 @@ struct heap_block* heap_alloc(size_t objectSize) {
   unlinkFromFreeList(self, block);
   initAllocatedBlock(self, block, size, objectSize);
 fail_alloc:
-  pthread_rwlock_unlock(&self->lock);
+  mutex_unlock(&self->lock);
   
   if (block && !onAllocHook(self, block)) {
     heap_dealloc(block);
@@ -260,8 +256,8 @@ fail_alloc:
 }
 
 void heap_clear(struct heap* self) {
-  pthread_rwlock_wrlock(&self->lock);
+  mutex_lock(&self->lock);
   self->recentFreeBlocks = NULL;
   atomic_store(&self->bumpPointer, 0);
-  pthread_rwlock_unlock(&self->lock);
+  mutex_unlock(&self->lock);
 }

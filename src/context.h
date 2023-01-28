@@ -50,8 +50,13 @@ Marker, Sweeper, Compacter GC context:
 */
 
 struct context {
-  enum context_type contextType;
+  enum context_type type;
   
+  struct managed_heap* managedHeap;
+  struct heap_local_heap localHeap;
+  struct heap* heap;
+  
+  // The rest of structure is invalid in non user context
   struct small_object_cache* listNodeCache;
   
   // Amount of context_block_gc calls
@@ -59,17 +64,13 @@ struct context {
  
   list_t* pinnedObjects;
   list_t* root;
-  
-  struct managed_heap* managedHeap;
-  struct heap_local_heap localHeap;
-  struct heap* heap;
 };
 
-struct context* context_new();
+struct context* context_new(enum context_type type);
 void context_free(struct context* self);
 
-// Call this context
-void context_call(struct context* self);
+// Call other context
+void context_call(struct context* context);
 
 extern thread_local struct context* context_current;
 
