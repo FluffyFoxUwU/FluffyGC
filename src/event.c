@@ -22,11 +22,17 @@ void event_cleanup(struct event* self) {
   condition_cleanup(&self->cond);
 }
 
+void event_reset(struct event* self) {
+  self->fireState = EVENT_FIRE_NONE;
+}
+
 void event__wait(struct event* self) {
-  self->fired = false;
-  while (!self->fired)
-    condition_wait(&self->cond, &self->lock);
-  self->fired = false;
+  self->fireState = EVENT_FIRE_NONE;
+  while (self->fireState == EVENT_FIRE_NONE)
+  condition_wait(&self->cond, &self->lock);
+  
+  if (self->fireState != EVENT_FIRE_ALL)
+    self->fireState = EVENT_FIRE_NONE;
 }
 
 void event__fire(struct event* self) {
@@ -36,6 +42,17 @@ void event__fire(struct event* self) {
 }
 
 void event__fire_locked(struct event* self) {
-  self->fired = true;
+  self->fireState = EVENT_FIRE_ONE;
   condition_wake(&self->cond);
+}
+
+void event__fire_all(struct event* self) {
+  mutex_lock(&self->lock);
+  event_fire_all_locked(self);
+  mutex_unlock(&self->lock);
+}
+
+void event__fire_all_locked(struct event* self) {
+  self->fireState = EVENT_FIRE_ALL;
+  condition_wake_all(&self->cond);
 }

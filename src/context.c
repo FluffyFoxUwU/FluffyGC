@@ -3,6 +3,8 @@
 #include <threads.h>
 #include <pthread.h>
 
+#include "completion.h"
+#include "event.h"
 #include "list.h"
 #include "soc.h"
 #include "context.h"
@@ -11,13 +13,17 @@
 
 thread_local struct context* context_current = NULL;
 
-struct context* context_new(enum context_type type) {
+struct context* context_new(enum context_type type, void (*onCall)()) {
   struct context* self = malloc(sizeof(*self)); 
   if (!self)
     return NULL;
   *self = (struct context) {
-    .type = type
+    .type = type,
+    .onCallFunc = onCall
   };
+  
+  if (event_init(&self->onCallEvent) < 0 || completion_init(&self->callDone) < 0)
+    goto failure;
   
   if (type != CONTEXT_USER)
     return self;
@@ -39,6 +45,8 @@ failure:
 }
 
 void context_free(struct context* self) {
+  event_cleanup(&self->onCallEvent);
+  completion_cleanup(&self->callDone);
   list_destroy2(self->root);
   list_destroy2(self->pinnedObjects);
   soc_free(self->listNodeCache);

@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <threads.h>
 
+#include "completion.h"
+#include "event.h"
 #include "list.h"
 #include "heap_local_heap.h"
 
@@ -56,6 +58,10 @@ struct context {
   struct heap_local_heap localHeap;
   struct heap* heap;
   
+  struct event onCallEvent;
+  struct completion callDone;
+  void (*onCallFunc)();
+  
   // The rest of structure is invalid in non user context
   struct small_object_cache* listNodeCache;
   
@@ -66,7 +72,7 @@ struct context {
   list_t* root;
 };
 
-struct context* context_new(enum context_type type);
+struct context* context_new(enum context_type type, void (*onCall)());
 void context_free(struct context* self);
 
 // Call other context
