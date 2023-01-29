@@ -8,17 +8,24 @@
 #include "mutex.h"
 #include "condition.h"
 
+// For waiting on specific event
+// without hassle of while loop
+// checking condition
 struct event {
   struct mutex lock;
   struct condition cond;
   bool fired;
 };
 
-int event_new(struct event* self);
-void event_free(struct event* self);
+int event_init(struct event* self);
+void event_cleanup(struct event* self);
 
-void event__wait(struct event* self);
+// Wake one thread
 void event__fire(struct event* self);
+void event__fire_locked(struct event* self);
+
+// self->lock must held
+void event__wait(struct event* self);
 
 #define event_wait(self) do { \
   atomic_thread_fence(memory_order_acquire); \
@@ -27,8 +34,12 @@ void event__fire(struct event* self);
 } while (0)
 
 #define event_fire(self) do { \
-  atomic_thread_fence(memory_order_acquire); \
   event__fire((self)); \
+  atomic_thread_fence(memory_order_release); \
+} while (0)
+
+#define event_fire_locked(self) do { \
+  event__fire_locked((self)); \
   atomic_thread_fence(memory_order_release); \
 } while (0)
 

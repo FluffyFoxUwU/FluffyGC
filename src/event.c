@@ -6,32 +6,36 @@
 #include "event.h"
 #include "mutex.h"
 
-int event_new(struct event* self) {
+int event_init(struct event* self) {
   *self = (struct event) {};
   
-  if (mutex_init(&self->lock) < 0 || condition_init(&self->cond) < 0)
-    return -ENOMEM;
-  return 0;
+  int ret = 0;
+  if (mutex_init(&self->lock) < 0 || condition_init(&self->cond) < 0) {
+    ret = -ENOMEM;
+    event_cleanup(self);
+  }
+  return ret;
 }
 
-void event_free(struct event* self) {
+void event_cleanup(struct event* self) {
   mutex_cleanup(&self->lock);
   condition_cleanup(&self->cond);
 }
 
 void event__wait(struct event* self) {
-  mutex_lock(&self->lock);
   self->fired = false;
   while (!self->fired)
     condition_wait(&self->cond, &self->lock);
   self->fired = false;
-  mutex_unlock(&self->lock);
 }
 
 void event__fire(struct event* self) {
   mutex_lock(&self->lock);
-  self->fired = true;
+  event_fire_locked(self);
   mutex_unlock(&self->lock);
-  
+}
+
+void event__fire_locked(struct event* self) {
+  self->fired = true;
   condition_wake(&self->cond);
 }

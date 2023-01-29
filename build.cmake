@@ -8,7 +8,6 @@ set(BUILD_SOURCES
   src/descriptor.c
   src/context.c
   src/profiler.c
-  src/thread_pool.c
   src/object.c
   src/bitops.c
   src/soc.c

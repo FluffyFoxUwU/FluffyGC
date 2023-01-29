@@ -6,6 +6,8 @@
 #include "bug.h"
 
 int condition_init(struct condition* self) {
+  *self = (struct condition) {};
+  
   self->inited = false;
   if (pthread_cond_init(&self->cond, NULL) != 0)
     return -ENOMEM;
@@ -20,11 +22,11 @@ void condition_cleanup(struct condition* self) {
     BUG();
 }
 
-void condition_wake(struct condition* self) {
+void condition__wake(struct condition* self) {
   pthread_cond_signal(&self->cond);
 }
 
-void condition_wake_all(struct condition* self) {
+void condition__wake_all(struct condition* self) {
   pthread_cond_broadcast(&self->cond);
 }
 

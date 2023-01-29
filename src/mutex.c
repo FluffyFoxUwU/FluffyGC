@@ -5,6 +5,7 @@
 #include "bug.h"
 
 int mutex_init(struct mutex* self) {
+  *self = (struct mutex) {};
   self->inited = false;
   if (pthread_mutex_init(&self->mutex, NULL) != 0)
     return -ENOMEM;
