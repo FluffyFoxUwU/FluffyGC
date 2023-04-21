@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #include "bits.h"
-#include "util.h"
+#include "util/util.h"
 
 #define BITS_PER_TYPE(type)  (sizeof(type) * BITS_PER_BYTE)
 #define BITS_TO_LONGS(nr)    UTIL_DIV_ROUND_UP(nr, BITS_PER_TYPE(long))

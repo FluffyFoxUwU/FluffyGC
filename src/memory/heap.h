@@ -8,8 +8,8 @@
 #include <stdint.h>
 #include <threads.h>
 
-#include "object.h"
-#include "mutex.h"
+#include "object/object.h"
+#include "concurrency/mutex.h"
 
 // This heap can do both bump pointer and
 // free lists method.
@@ -47,7 +47,6 @@ struct heap_block {
 // Each thread have its own local heap
 // Which allocated from larger global heap
 // Aiming to reduce global lock contention
-#include "heap_local_heap.h"
 
 void heap_merge_free_blocks(struct heap* self);
 
@@ -71,7 +70,7 @@ struct heap* heap_new(size_t size);
 struct heap* heap_from_existing(size_t size, void* ptr, void (*destroyer)(void*));
 void heap_free(struct heap* self);
 
-void heap_on_thread_create(struct heap* self, struct context* thread);
+void heap_on_context_create(struct heap* self, struct context* thread);
 
 // Parameter cant be change anymore after this call
 void heap_init(struct heap* self);

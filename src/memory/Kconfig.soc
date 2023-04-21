@@ -1,0 +1,12 @@
+menu "Small Object Cache"
+  config SOC_USE_MALLOC
+    bool "Use system malloc instead from cache"
+    default y if MEMORY_DEBUG
+    help
+      This essentially bypass cache and use malloc instead if you are using
+      ASAN, MSAN, Valgrind to debug memory problems. Or if your system's malloc
+      is faster than SOC for small objects (<8 words) its safe to say Y.
+      In most cases its usually slower than SOC.
+      
+      If in doubt, answer N
+endmenu

@@ -29,7 +29,7 @@ void event_reset(struct event* self) {
 void event__wait(struct event* self) {
   self->fireState = EVENT_FIRE_NONE;
   while (self->fireState == EVENT_FIRE_NONE)
-  condition_wait(&self->cond, &self->lock);
+    condition_wait(&self->cond, &self->lock);
   
   if (self->fireState != EVENT_FIRE_ALL)
     self->fireState = EVENT_FIRE_NONE;

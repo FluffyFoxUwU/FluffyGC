@@ -11,7 +11,7 @@
 
 #include "bitops.h"
 #include "vec.h"
-#include "util.h"
+#include "util/util.h"
 
 // 4 KiB chunk each
 #define SOC_CHUNK_SIZE (4 * 1024)

@@ -1,0 +1,33 @@
+menu Fuzzing
+  config FUZZER
+    bool
+    select MAIN_DISABLED
+  
+  choice
+    prompt "Fuzzer variant"
+    depends on !BUILD_OVERRIDE_PROJECT_FLAGS
+    
+    config FUZZER_NONE
+      bool "None"
+    
+    config FUZZER_LIBFUZZER
+      bool "libFuzzer"
+      select FUZZER
+      help
+        When using with ASAN for long time its
+        recommended to use fork mode (`-fork=N`) 
+        and use `quarantine_size_mb` to avoid
+        unbounded RSS growth when there really
+        no leaks due ASAN's quarantine
+  endchoice
+  
+  choice
+    prompt "Select subsystem to fuzz"
+    depends on FUZZER
+    
+    config FUZZ_SOC
+      bool "SOC allocator and deallocator"
+    config FUZZ_HEAP
+      bool "Heap allocator and deallocator"
+  endchoice
+endmenu

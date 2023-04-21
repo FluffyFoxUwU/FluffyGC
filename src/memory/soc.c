@@ -8,7 +8,7 @@
 #include "config.h"
 #include "soc.h"
 #include "bug.h"
-#include "util.h"
+#include "util/util.h"
 #include "vec.h"
 
 static void freeChunk(struct soc_chunk* self) {
@@ -54,7 +54,6 @@ static struct soc_chunk* newChunk(struct small_object_cache* owner) {
   };
   
   self->totalObjectsCount = UTIL_DIV_ROUND_DOWN(SOC_CHUNK_SIZE, owner->objectSize);
-  self->pool = self->pool;
   if (!self->pool)
     goto failure;
   
@@ -67,7 +66,7 @@ static struct soc_chunk* newChunk(struct small_object_cache* owner) {
   self->firstFreeNode = self->pool;
   
   // The last node point to outside of the pool
-  (current - owner->objectSize)->next = NULL;
+  ((struct soc_free_node*) ((void*) current - owner->objectSize))->next = NULL;
   
   // Always reserve first object to store pointer to owning chunk
   *((void**) chunkAllocObject(self)) = self;

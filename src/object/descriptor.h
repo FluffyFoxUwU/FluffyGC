@@ -7,7 +7,7 @@
 #include <stdatomic.h>
 
 #include "object.h"
-#include "refcount.h"
+#include "util/refcount.h"
 
 struct region;
 struct object;

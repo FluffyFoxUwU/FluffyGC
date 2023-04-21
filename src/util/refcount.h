@@ -4,7 +4,7 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 
-#include "compiler_config.h"
+#include "attributes.h"
 
 struct refcount {
   atomic_uint usage;

@@ -4,8 +4,8 @@
 #include <time.h>
 
 #include "bug.h"
-#include "heap.h"
-#include "soc.h"
+#include "memory/heap.h"
+#include "memory/soc.h"
 #include "context.h"
 
 /*
@@ -37,7 +37,7 @@ static void escape(void *p) {
 int main3(int argc, char** argv) {
   printf("Hello World!\n");
   
-  struct context* context = context_new(CONTEXT_USER);
+  struct context* context = context_new();
   context_current = context;
   
   struct heap* heap = heap_new(32 * 1024 * 1024 /* 256 * 1024 * 1024 */);
@@ -45,7 +45,7 @@ int main3(int argc, char** argv) {
   heap_param_set_local_heap_size(heap, 4 * 1024 * 1024);
   heap_init(heap);
   
-  heap_on_thread_create(heap, context);
+  heap_on_context_create(heap, context);
   
   // 16863: Just before fast alloc failed
   clock_t clk = clock();
@@ -79,7 +79,7 @@ int main3(int argc, char** argv) {
 int main2(int argc, char** argv) {
   printf("Hello World!\n");
   
-  struct context* context = context_new(CONTEXT_USER);
+  struct context* context = context_new();
   context_current = context;
   
   struct heap* heap = heap_new(32 * 1024 * 1024 /* 256 * 1024 * 1024 */);
@@ -87,7 +87,7 @@ int main2(int argc, char** argv) {
   heap_param_set_local_heap_size(heap, 4 * 1024 * 1024);
   heap_init(heap);
   
-  heap_on_thread_create(heap, context);
+  heap_on_context_create(heap, context);
   
   
   

@@ -5,12 +5,6 @@
 // Compiler config                    //
 ////////////////////////////////////////
 
-#ifdef __GNUC__
-# define ATTRIBUTE(x) __attribute__(x)
-#else
-# define ATTRIBUTE(x)
-#endif
-
 #ifdef __has_feature
 # if __has_feature(address_sanitizer)
 #  define CONFIG_BUILD_ASAN 1
@@ -25,12 +19,6 @@
 #  define CONFIG_BUILD_MSAN 1
 # endif
 #endif
-
-#define ATTRIBUTE_PRINTF(fmtOffset, vaStart) ATTRIBUTE((format(printf, fmtOffset, vaStart)))
-#define ATTRIBUTE_SCANF(fmtOffset, vaStart) ATTRIBUTE((format(scanf, fmtOffset, vaStart)))
-
-// Properly tag function exported functions with this to ensure LTO not removing them
-#define ATTRIBUTE_USED() ATTRIBUTE((used))
 
 #endif
 

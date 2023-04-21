@@ -1,32 +1,25 @@
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <threads.h>
+#include <limits.h>
 #include <pthread.h>
 
-#include "completion.h"
-#include "event.h"
+#include "concurrency/completion.h"
+#include "concurrency/event.h"
 #include "list.h"
-#include "soc.h"
+#include "memory/soc.h"
 #include "context.h"
 #include "bug.h"
-#include "util.h"
+#include "util/util.h"
 
 thread_local struct context* context_current = NULL;
 
-struct context* context_new(enum context_type type, void (*onCall)()) {
+struct context* context_new() {
   struct context* self = malloc(sizeof(*self)); 
   if (!self)
     return NULL;
-  *self = (struct context) {
-    .type = type,
-    .onCallFunc = onCall
-  };
-  
-  if (event_init(&self->onCallEvent) < 0 || completion_init(&self->callDone) < 0)
-    goto failure;
-  
-  if (type != CONTEXT_USER)
-    return self;
+  *self = (struct context) {};
   
   self->listNodeCache = soc_new(sizeof(list_node_t), 0);
   if (!self->listNodeCache)
@@ -45,8 +38,6 @@ failure:
 }
 
 void context_free(struct context* self) {
-  event_cleanup(&self->onCallEvent);
-  completion_cleanup(&self->callDone);
   list_destroy2(self->root);
   list_destroy2(self->pinnedObjects);
   soc_free(self->listNodeCache);
@@ -54,13 +45,13 @@ void context_free(struct context* self) {
 }
 
 void context_block_gc() {
-  context_current->blockCount++;
-  BUG_ON(context_current->type != CONTEXT_USER);
+  unsigned int last = atomic_fetch_add(&context_current->blockCount, 1);
+  BUG_ON(last >= UINT_MAX);
 }
 
 void context_unblock_gc() {
-  context_current->blockCount--;
-  BUG_ON(context_current->type != CONTEXT_USER);
+  unsigned int last = atomic_fetch_sub(&context_current->blockCount, 1);
+  BUG_ON(last >= UINT_MAX);
 }
 
 static list_node_t* allocListNodeWithContent(void* data) {

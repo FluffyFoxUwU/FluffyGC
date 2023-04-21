@@ -12,6 +12,11 @@ enum reference_strength {
   REFERENCE_STRONG
 };
 
+// Use this for pointers which points to user data
+struct userptr {
+  void* ptr;
+};
+
 struct object {
   // Used during compaction phase
   struct object* forwardingPointer;
@@ -20,7 +25,7 @@ struct object {
   size_t objectSize; // Represent size of data
   int age; // Number of collection survived
   
-  void* dataPtr;
+  struct userptr dataPtr;
 };
 
 typedef _Atomic(struct object*) object_ptr_atomic;
@@ -46,11 +51,12 @@ extern const void* const object_failure_ptr;
 // object_(read/write)_ptr are safe without DMA
 // Return OBJECT_FAILURE_PTR on failure
 [[nodiscard]]
-struct object* object_read_ptr(struct object* self, size_t offset);
-void object_write_ptr(struct object* self, size_t offset, struct object* obj);
+struct object* object_read_reference(struct object* self, size_t offset);
+void object_write_reference(struct object* self, size_t offset, struct object* obj);
 
-void* object_get_dma(struct object* self);
-void object_put_dma(struct object* self, void* dma);
+// These guarantee to be safe for DMA for non object field
+struct userptr object_get_dma(struct object* self);
+void object_put_dma(struct object* self, struct userptr dma);
 
 struct object* object_resolve_forwarding(struct object* self);
 

@@ -1,0 +1,9 @@
+menu Memory
+  source "src/memory/Kconfig.soc"
+  source "src/memory/Kconfig.heap"
+  
+  config MEMORY_DEBUG
+    bool "Enable option for debugging memory problems"
+endmenu
+
+  

@@ -13,8 +13,8 @@
 #include "heap_free_block_searchers.h"
 #include "heap_local_heap.h"
 #include "free_list_sorter.h"
-#include "mutex.h"
-#include "util.h"
+#include "concurrency/mutex.h"
+#include "util/util.h"
 
 struct heap* heap_new(size_t size) {
   void* ptr = malloc(size);
@@ -180,9 +180,9 @@ static struct heap_block* splitFreeBlocks(struct heap* self, struct heap_block* 
   return block;
 }
 
-void heap_on_thread_create(struct heap* self, struct context* thread) {
-  thread->heap = self;
-  thread->localHeap = (struct heap_local_heap) {};
+void heap_on_context_create(struct heap* self, struct context* context) {
+  context->heap = self;
+  context->localHeap = (struct heap_local_heap) {};
 }
 
 struct heap_block* heap_alloc_fast(size_t objectSize) {

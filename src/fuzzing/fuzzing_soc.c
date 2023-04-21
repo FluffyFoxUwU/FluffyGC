@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "soc.h"
+#include "memory/soc.h"
 #include "bug.h"
 
 int fuzzing_soc(const void* data, size_t size) {

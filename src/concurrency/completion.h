@@ -29,9 +29,9 @@ void completion__wait_for_completion(struct completion* self);
   atomic_thread_fence(memory_order_release); \
 } while (0)
 
-#define wait_for_completion(self, mutex) do { \
+#define wait_for_completion(self) do { \
   atomic_thread_fence(memory_order_acquire); \
-  completion__wait_for_completion((self), (mutex)); \
+  completion__wait_for_completion((self)); \
   atomic_thread_fence(memory_order_release); \
 } while (0)
 

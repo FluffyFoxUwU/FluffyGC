@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "compiler_config.h"
+#include "attributes.h"
 #include "fuzzing/fuzzing.h"
 
 ATTRIBUTE_USED()

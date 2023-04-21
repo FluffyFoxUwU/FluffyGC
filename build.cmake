@@ -4,22 +4,27 @@ set(BUILD_PROJECT_NAME "FluffyGC")
 
 # Sources which common between exe and library
 set(BUILD_SOURCES
-  src/util.c
-  src/descriptor.c
   src/context.c
   src/profiler.c
-  src/object.c
   src/bitops.c
-  src/soc.c
-  src/heap.c
-  src/heap_free_block_searchers.c
-  src/free_list_sorter.c
   src/managed_heap.c
-  src/event.c
-  src/mutex.c
-  src/rwlock.c
-  src/condition.c
-  src/completion.c
+  
+  src/util/util.c
+  src/util/thread_pool.c
+  
+  src/object/descriptor.c
+  src/object/object.c
+  
+  src/memory/soc.c
+  src/memory/heap.c
+  src/memory/heap_free_block_searchers.c
+  src/memory/free_list_sorter.c
+  
+  src/concurrency/event.c
+  src/concurrency/mutex.c
+  src/concurrency/rwlock.c
+  src/concurrency/condition.c
+  src/concurrency/completion.c
   
   deps/list/list_node.c
   deps/list/list.c

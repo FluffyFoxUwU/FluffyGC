@@ -9,8 +9,8 @@
 
 #include "descriptor.h"
 #include "object.h"
-#include "refcount.h"
-#include "util.h"
+#include "util/refcount.h"
+#include "util/util.h"
 
 static int compareByOffset(const void* _a, const void* _b) {
   const struct descriptor_field* a = _a;
@@ -64,11 +64,11 @@ void descriptor_init(struct descriptor* self, struct object* obj) {
 }
 
 void descriptor_write_ptr(struct descriptor* self, struct object* data, int index, struct object* ptr) {
-  object_write_ptr(data, self->fields[index].offset, ptr);
+  object_write_reference(data, self->fields[index].offset, ptr);
 }
 
 struct object* descriptor_read_ptr(struct descriptor* self, struct object* data, int index) {
-  return object_read_ptr(data, self->fields[index].offset);
+  return object_read_reference(data, self->fields[index].offset);
 }
 
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
