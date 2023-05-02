@@ -10,9 +10,11 @@
 
 #include "object/object.h"
 #include "concurrency/mutex.h"
+#include "util/list_head.h"
 
 // This heap can do both bump pointer and
-// free lists method.
+// free lists method. This is the lowest
+// layer which primarily dealing with allocation
 
 struct context;
 
@@ -24,23 +26,28 @@ struct heap {
   
   bool initialized;
   size_t localHeapSize;
-  struct heap_block* recentFreeBlocks;
   
   atomic_uintptr_t bumpPointer;
   uintptr_t maxBumpPointer;
+  size_t size;
+  
+  struct list_head recentFreeBlocks;
+  struct list_head recentAllocatedBlocks;
 };
 
 struct heap_block {
-  struct heap_block* next;
-  struct heap_block* prev;
+  struct list_head node;
   
   bool isFree;
+  
   // Including this structure as well
   size_t blockSize;
+  
+  // The size of `data`
   size_t objectSize;
   
   struct object objMetadata;
-  void* dataPtr;
+  struct userptr dataPtr;
   char data[];
 };
 
@@ -63,7 +70,8 @@ struct heap_block* heap_alloc_fast(size_t size);
 struct heap_block* heap_alloc(size_t size);
 void heap_dealloc(struct heap_block* block);
 
-// This is thread unsafe
+// This is thread unsafe in a sense it nukes
+// *EVERYTHING* no matter if another accessing it
 void heap_clear(struct heap* self);
 
 struct heap* heap_new(size_t size);
@@ -77,7 +85,7 @@ void heap_init(struct heap* self);
 
 // Parameters
 // Pass size == 0 to disable local heap
-void heap_param_set_local_heap_size(struct heap* self, size_t size);
+int heap_param_set_local_heap_size(struct heap* self, size_t size);
 
 #endif
 

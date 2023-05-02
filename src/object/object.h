@@ -16,9 +16,12 @@ enum reference_strength {
 struct userptr {
   void* ptr;
 };
+#define USERPTR(x) ((struct userptr) {x})
+#define USERPTR_NULL USERPTR(NULL)
 
 struct object {
   // Used during compaction phase
+  // Does not need to be _Atomic because it only modified during GC
   struct object* forwardingPointer;
   
   struct descriptor* descriptor;
@@ -27,8 +30,6 @@ struct object {
   
   struct userptr dataPtr;
 };
-
-typedef _Atomic(struct object*) object_ptr_atomic;
 
 /*
 Declaration example
@@ -45,18 +46,16 @@ struct node {
 
 void object_init(struct object* self, struct descriptor* desc, void* data);
 
-extern const void* const object_failure_ptr;
-#define OBJECT_FAILURE_PTR ((void*) object_failure_ptr)
-
 // object_(read/write)_ptr are safe without DMA
-// Return OBJECT_FAILURE_PTR on failure
 [[nodiscard]]
-struct object* object_read_reference(struct object* self, size_t offset);
+struct root_ref* object_read_reference(struct object* self, size_t offset);
 void object_write_reference(struct object* self, size_t offset, struct object* obj);
 
 // These guarantee to be safe for DMA for non object field
-struct userptr object_get_dma(struct object* self);
-void object_put_dma(struct object* self, struct userptr dma);
+// If there object_get_dma there must be corresponding object_put_dma
+// the resulting userptr is not guarantee to be same
+struct userptr object_get_dma(struct root_ref* rootRef);
+int object_put_dma(struct root_ref* rootRef, struct userptr dma);
 
 struct object* object_resolve_forwarding(struct object* self);
 

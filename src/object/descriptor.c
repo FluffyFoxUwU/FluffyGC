@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include "context.h"
 #include "descriptor.h"
 #include "object.h"
 #include "util/refcount.h"
@@ -67,7 +68,7 @@ void descriptor_write_ptr(struct descriptor* self, struct object* data, int inde
   object_write_reference(data, self->fields[index].offset, ptr);
 }
 
-struct object* descriptor_read_ptr(struct descriptor* self, struct object* data, int index) {
+struct root_ref* descriptor_read_ptr(struct descriptor* self, struct object* data, int index) {
   return object_read_reference(data, self->fields[index].offset);
 }
 

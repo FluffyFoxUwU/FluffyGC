@@ -29,5 +29,7 @@ menu Fuzzing
       bool "SOC allocator and deallocator"
     config FUZZ_HEAP
       bool "Heap allocator and deallocator"
+    config FUZZ_ROOT_REFS
+      bool "Root refs allocator and deallocator"
   endchoice
 endmenu

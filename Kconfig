@@ -38,10 +38,7 @@ menu General
 endmenu
 
 menu "Managed heap"
-  # Don't touch this yet
-  config NUM_GENERATIONS
-    int
-    default 2
+  
 endmenu
 
 source "src/memory/Kconfig"

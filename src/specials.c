@@ -22,7 +22,7 @@ const char* __ubsan_default_options() {
 
 #if IS_ENABLED(CONFIG_BUILD_TSAN)
 const char* __tsan_default_options() {
-  return CONFIG_TSAN_OPTS;
+  return CONFIG_BUILD_TSAN_OPTS;
 }
 #endif
 

@@ -6,7 +6,7 @@
 struct heap_block;
 struct heap;
 
-struct heap_block* heap_find_free_block(struct heap* self, struct heap_block* block, size_t size);
+struct heap_block* heap_find_free_block(struct heap* self, size_t size);
 
 #endif
 

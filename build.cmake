@@ -15,10 +15,11 @@ set(BUILD_SOURCES
   src/object/descriptor.c
   src/object/object.c
   
+  src/gc/gc.c
+  
   src/memory/soc.c
   src/memory/heap.c
   src/memory/heap_free_block_searchers.c
-  src/memory/free_list_sorter.c
   
   src/concurrency/event.c
   src/concurrency/mutex.c
@@ -29,6 +30,7 @@ set(BUILD_SOURCES
   deps/list/list_node.c
   deps/list/list.c
   deps/list/list_iterator.c  
+  
   deps/templated-hashmap/hashmap.c  
   deps/vec/vec.c
 )
@@ -80,25 +82,22 @@ macro(PostConfigurationLoad)
   # Do post config stuffs
   # like deciding whether to include or not include some files
   
-  if (DEFINED CONFIG_FUZZER_LIBFUZZER)
-    string(APPEND BUILD_CFLAGS " -fsanitize=fuzzer")
-    string(APPEND BUILD_LDFLAGS " -fsanitize=fuzzer")
-  endif()
-  
   if (DEFINED CONFIG_MAIN_DISABLED)
     set(BUILD_EXE_SOURCES "")
   endif()
   
   if (DEFINED CONFIG_FUZZER_LIBFUZZER)
+    string(APPEND BUILD_CFLAGS " -fsanitize=fuzzer")
+    string(APPEND BUILD_LDFLAGS " -fsanitize=fuzzer")
     list(APPEND BUILD_EXE_SOURCES "./src/fuzzing/variant/libFuzzer.c")
   endif()
   
   if (DEFINED CONFIG_FUZZ_SOC)
     list(APPEND BUILD_EXE_SOURCES "./src/fuzzing/fuzzing_soc.c")
-  endif()
-  
-  if (DEFINED CONFIG_FUZZ_HEAP)
+  elseif (DEFINED CONFIG_FUZZ_HEAP)
     list(APPEND BUILD_EXE_SOURCES "./src/fuzzing/fuzzing_heap.c")
+  elseif (DEFINED CONFIG_FUZZ_ROOT_REFS)
+    list(APPEND BUILD_EXE_SOURCES "./src/fuzzing/fuzzing_root_refs.c")
   endif()
 endmacro()
 

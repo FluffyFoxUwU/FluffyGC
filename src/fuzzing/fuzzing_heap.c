@@ -52,7 +52,7 @@ int fuzzing_heap(const void* data, size_t size) {
       pointers[id] = heap_alloc(objectSize);
       printf("Ptr[%d]: Result %p\n", id, pointers[id]);
       if (pointers[id])
-        memset(pointers[id]->dataPtr, pattern, objectSize);
+        memset(pointers[id]->dataPtr.ptr, pattern, objectSize);
       data += 3;
     }
     data += 2;

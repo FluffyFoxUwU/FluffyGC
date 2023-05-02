@@ -4,17 +4,26 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "attributes.h"
 #include "config.h"
 
 int fuzzing_soc(const void* data, size_t size);
 int fuzzing_heap(const void* data, size_t size);
+int fuzzing_root_refs(const void* data, size_t size);
+
+ATTRIBUTE_USED()
+static int fuzzing_blank(const void* data, size_t size) {
+  return 0;
+}
 
 #if IS_ENABLED(CONFIG_FUZZ_SOC)
 # define fuzzing_fuzz fuzzing_soc
-#endif
-
-#if IS_ENABLED(CONFIG_FUZZ_HEAP)
+#elif IS_ENABLED(CONFIG_FUZZ_HEAP)
 # define fuzzing_fuzz fuzzing_heap
+#elif IS_ENABLED(CONFIG_FUZZ_ROOT_REFS)
+# define fuzzing_fuzz fuzzing_root_refs
+#else
+# define fuzzing_fuzz fuzzing_blank
 #endif
 
 #endif

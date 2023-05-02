@@ -45,7 +45,7 @@ void descriptor_init(struct descriptor* self, struct object* obj);
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset);
 
 void descriptor_write_ptr(struct descriptor* self, struct object* data, int index, struct object* ptr);
-struct object* descriptor_read_ptr(struct descriptor* self, struct object* data, int index);
+struct root_ref* descriptor_read_ptr(struct descriptor* self, struct object* data, int index);
 
 void descriptor_acquire(struct descriptor* self);
 void descriptor_release(struct descriptor* self);

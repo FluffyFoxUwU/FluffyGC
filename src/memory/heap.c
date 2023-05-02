@@ -7,13 +7,15 @@
 #include <threads.h>
 
 #include "context.h"
+#include "gc/gc.h"
 #include "heap.h"
 #include "bug.h"
 #include "config.h"
 #include "heap_free_block_searchers.h"
 #include "heap_local_heap.h"
-#include "free_list_sorter.h"
 #include "concurrency/mutex.h"
+#include "object/object.h"
+#include "util/list_head.h"
 #include "util/util.h"
 
 struct heap* heap_new(size_t size) {
@@ -32,9 +34,12 @@ struct heap* heap_from_existing(size_t size, void* ptr, void (*destroyer)(void*)
   self->destroyerUwU = destroyer;
   self->bumpPointer = (uintptr_t) ptr;
   self->maxBumpPointer = (uintptr_t) ptr + size;
+  self->size = size;
   if (mutex_init(&self->lock) < 0)
     goto failure;
   
+  list_head_init(&self->recentFreeBlocks);
+  list_head_init(&self->recentAllocatedBlocks);
   return self;
 failure:
   heap_free(self);
@@ -51,8 +56,9 @@ void heap_init(struct heap* self) {
   self->initialized = true;
 }
 
-void heap_param_set_local_heap_size(struct heap* self, size_t size) {
-  self->localHeapSize = size;
+int heap_param_set_local_heap_size(struct heap* self, size_t size) {
+  self->localHeapSize = util_align_to_word(size);
+  return 0;
 }
 
 static void initAllocatedBlock(struct heap* self, struct heap_block* block, size_t blockSize, size_t objectSize) {
@@ -70,29 +76,24 @@ static void initFreeBlock(struct heap* self, struct heap_block* block, size_t bl
   };
 }
 
-static void unlinkFromFreeList(struct heap* self, struct heap_block* block) {
-  if (block->prev)
-    block->prev->next = block->next;
-  if (self->recentFreeBlocks == block)
-    self->recentFreeBlocks = block->next;
-  if (block->next)
-    block->next->prev = block->prev;
-}
-
 static void onFreeHook(struct heap* self, struct heap_block* block) {
+  gc_on_dealloc(&block->objMetadata);
+  
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
-    free(block->dataPtr);
-  block->dataPtr = NULL;
+    free(block->dataPtr.ptr);
+  block->dataPtr = USERPTR_NULL;
 }
 
 static bool onAllocHook(struct heap* self, struct heap_block* block) {
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    if (!(block->dataPtr = malloc(block->objectSize)))
+    block->dataPtr = USERPTR(malloc(block->objectSize));
+    if (!block->dataPtr.ptr)
       return false;
   } else {
-    block->dataPtr = &block->data;
+    block->dataPtr = USERPTR(&block->data);
   }
   
+  gc_on_alloc(&block->objMetadata);
   return true;
 }
 
@@ -100,33 +101,27 @@ static bool onAllocHook(struct heap* self, struct heap_block* block) {
 static void tryMergeFreeBlock(struct heap* self, struct heap_block* block) {
   BUG_ON(!block->isFree);
   
-  struct heap_block* current = block->next;
-  while (current) {
-    BUG_ON(!current->isFree);
-    // Free block arent next current block anymore
+  struct list_head* current;
+  list_for_each(current, &self->recentFreeBlocks) {
+    struct heap_block* block = list_entry(current, struct heap_block, node);
+    BUG_ON(!block->isFree);
+    // Free blocks isnt consecutive
     if (((void*) block) + block->blockSize != current)
       break;
     
     // Merge two blocks
-    block->next = current->next;
-    if (current->next)
-      current->next->prev = block;
-    block->blockSize += current->blockSize;
-    
-    current = current->next;
+    list_del(current);
+    block->blockSize += block->blockSize;
   }
 }
 
 void heap_merge_free_blocks(struct heap* self) {
   mutex_lock(&self->lock);
-  heap_free_list_sort(self);
   
-  struct heap_block* block = self->recentFreeBlocks;
+  struct list_head* current;
+  list_for_each(current, &self->recentFreeBlocks)
+    tryMergeFreeBlock(self, list_entry(current, struct heap_block, node));
   
-  while (block) {
-    tryMergeFreeBlock(self, block);
-    block = block->next;
-  }
   mutex_unlock(&self->lock);
 }
 
@@ -134,19 +129,20 @@ void heap_dealloc(struct heap_block* block) {
   struct heap* self = context_current->heap;
   mutex_lock(&self->lock);
   
-  // Double free
+  // Double dealloc
   BUG_ON(block->isFree);
   
   onFreeHook(self, block);
   initFreeBlock(self, block, block->blockSize);
   
-  // Add to free list
-  block->prev = NULL;
-  block->next = self->recentFreeBlocks;
-  if (block->next)
-    block->next->prev = block;
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
+    free(block->dataPtr.ptr);
+    free(block);
+    return;
+  }
   
-  self->recentFreeBlocks = block;
+  // Add to free list
+  list_add(&block->node, &self->recentFreeBlocks);
   mutex_unlock(&self->lock);
 }
 
@@ -163,6 +159,7 @@ static struct heap_block* splitFreeBlocks(struct heap* self, struct heap_block* 
   BUG_ON(size > block->blockSize);
   
   // Not enough space for new block
+  // Because the second block must fit the new block
   if (block->blockSize - size < sizeof(struct heap_block))
     return block;
   
@@ -170,13 +167,7 @@ static struct heap_block* splitFreeBlocks(struct heap* self, struct heap_block* 
   struct heap_block* blockB = ((void*) block) + size;
   initFreeBlock(self, blockB, block->blockSize - size);
   
-  // TODO: Comment these four operations
-  blockB->next = blockA->next;
-  blockA->next = blockB;
-  
-  blockB->prev = blockA;
-  if (blockB->next)
-    blockB->next->prev = blockB;
+  list_add(&blockB->node, &blockA->node);
   return block;
 }
 
@@ -192,6 +183,12 @@ struct heap_block* heap_alloc_fast(size_t objectSize) {
   size_t size = util_align_to_word(sizeof(struct heap_block) + objectSize);
   
   context_block_gc();
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
+    block = malloc(objectSize);
+    goto local_alloc_success;
+  }
+  
+  // Skip allocation from local heap
   if (size > self->localHeapSize) {
     block = allocFastRaw(self, size);
     if (!block)
@@ -200,7 +197,7 @@ struct heap_block* heap_alloc_fast(size_t objectSize) {
   }
   
   // Get new local heap (cant fit)
-  if (size > localHeap->endLocalHeap - localHeap->bumpPointer) {
+  if (size > local_heap_get_size(localHeap)) {
     uintptr_t newLocalHeap = (uintptr_t) allocFastRaw(self, self->localHeapSize);
     if (!newLocalHeap)
       goto alloc_failure;
@@ -222,42 +219,61 @@ alloc_failure:
   return block;
 }
 
+static void unlinkFromFreeList(struct heap* self, struct heap_block* block) {
+  list_del(&block->node);
+}
+
 struct heap_block* heap_alloc(size_t objectSize) {
   if (objectSize == 0)
     return NULL;
+  struct heap_block* block = NULL;
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
+    block = malloc(objectSize);
+    goto alloc_success;
+  }
   
-  struct heap_block* block = heap_alloc_fast(objectSize);
+  block = heap_alloc_fast(objectSize);
   if (block)
     return block;
-  size_t size = util_align_to_word(sizeof(struct heap_block) + objectSize);
+  size_t blockSize = util_align_to_word(sizeof(struct heap_block) + objectSize);
   
   // Slow alloc method
   struct heap* self = context_current->heap;
   mutex_lock(&self->lock);
-  context_block_gc();
-  
-  block = heap_find_free_block(self, self->recentFreeBlocks, size);
+  block = heap_find_free_block(self, blockSize);
   if (!block)
-    goto fail_alloc;
+    return NULL;
   
-  block = splitFreeBlocks(self, block, size);
+  block = splitFreeBlocks(self, block, blockSize);
   unlinkFromFreeList(self, block);
-  initAllocatedBlock(self, block, size, objectSize);
-fail_alloc:
+  initAllocatedBlock(self, block, blockSize, objectSize);
+  
   mutex_unlock(&self->lock);
   
-  if (block && !onAllocHook(self, block)) {
+alloc_success:
+  context_block_gc();
+  if (!onAllocHook(self, block)) {
     heap_dealloc(block);
     block = NULL;
   }
-  
   context_unblock_gc();
   return block;
 }
 
 void heap_clear(struct heap* self) {
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
+    return;
+  
   mutex_lock(&self->lock);
-  self->recentFreeBlocks = NULL;
+  struct list_head* current = self->recentFreeBlocks.next;
+  while (current != &self->recentAllocatedBlocks) {
+    current = current->next;
+    heap_dealloc(list_entry(current, struct heap_block, node));
+  }
+  
+  // Resets allocation information
+  list_head_init(&self->recentFreeBlocks);
+  list_head_init(&self->recentAllocatedBlocks);
   atomic_store(&self->bumpPointer, 0);
   mutex_unlock(&self->lock);
 }
