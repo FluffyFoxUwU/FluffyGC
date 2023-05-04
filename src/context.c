@@ -17,6 +17,7 @@
 #include "util/list_head.h"
 #include "util/refcount.h"
 #include "util/util.h"
+#include "gc/gc.h"
 
 thread_local struct context* context_current = NULL;
 
@@ -31,6 +32,8 @@ struct context* context_new() {
     goto failure;
   
   list_head_init(&self->root);
+  if (gc_current->hooks->postContextInit(self) < 0)
+    goto failure;
   return self;
   
 failure:
@@ -39,6 +42,8 @@ failure:
 }
 
 void context_free(struct context* self) {
+  if (gc_current->hooks->preContextCleanup(self) < 0)
+    BUG();
   // No need to clear each root entry this nukes all associated with current
   soc_free(self->listNodeCache);
   free(self);

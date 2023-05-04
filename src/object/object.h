@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include "util/list_head.h"
+
 enum object_type {
   OBJECT_NORMAL,
   OBJECT_OPAQUE
@@ -20,6 +22,9 @@ struct userptr {
 #define USERPTR_NULL USERPTR(NULL)
 
 struct object {
+  struct list_head list;
+  int generationID;
+  
   // Used during compaction phase
   // Does not need to be _Atomic because it only modified during GC
   struct object* forwardingPointer;
@@ -45,6 +50,7 @@ struct node {
 */
 
 void object_init(struct object* self, struct descriptor* desc, void* data);
+void object_cleanup(struct object* self);
 
 // object_(read/write)_ptr are safe without DMA
 [[nodiscard]]

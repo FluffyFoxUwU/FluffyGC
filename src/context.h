@@ -7,7 +7,6 @@
 
 #include "concurrency/completion.h"
 #include "concurrency/event.h"
-#include "memory/heap_local_heap.h"
 #include "util/list_head.h"
 #include "util/refcount.h"
 
@@ -16,13 +15,10 @@ struct managed_heap;
 struct object;
 struct small_object_cache;
 
-// Represents user context
+// Represents any context
 
 struct context {
   struct managed_heap* managedHeap;
-  struct heap_local_heap localHeap;
-  struct heap* heap;
-  
   struct small_object_cache* listNodeCache;
   
   // Amount of context_block_gc calls

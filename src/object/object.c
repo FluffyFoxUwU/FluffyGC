@@ -3,8 +3,10 @@
 #include <stddef.h>
 
 #include "gc/gc.h"
+#include "managed_heap.h"
 #include "object.h"
 #include "context.h"
+#include "util/list_head.h"
 #include "util/util.h"
 #include "descriptor.h"
 #include "bug.h"
@@ -37,7 +39,8 @@ struct root_ref* object_read_reference(struct object* self, size_t offset) {
   res = context_add_root_object(obj);
   // Called in blocked GC state to ensure GC cycle not starting before
   // obj is checked for liveness
-  gc_read_barrier(obj);
+  if (gc_current->hooks->postReadBarrier(obj) < 0)
+    BUG();
 obj_is_null:
   context_unblock_gc();
   return res;
@@ -48,8 +51,17 @@ void object_write_reference(struct object* self, size_t offset, struct object* o
   struct object* old = atomic_exchange(getAtomicPtrToReference(self, offset), obj);
   
   // TODO: implement conditional write barriers
-  gc_write_barrier(old);
+  if (gc_current->hooks->postWriteBarrier(old) < 0)
+    BUG();
+  
+  // Remembered set management
+  if (gc_current->algoritmn != GC_NOP_GC && self->generationID != obj->generationID)
+    list_add(&obj->list, &context_current->managedHeap->generations[obj->generationID].rememberedSet);
   context_unblock_gc();
+}
+
+void object_cleanup(struct object* self) {
+  list_del(&self->list);
 }
 
 struct userptr object_get_dma(struct root_ref* rootRef) {

@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <threads.h>
 
+#include "concurrency/thread_local.h"
 #include "object/object.h"
 #include "concurrency/mutex.h"
 #include "util/list_head.h"
@@ -20,6 +21,7 @@ struct context;
 
 struct heap {
   struct mutex lock;
+  struct thread_local_struct localHeapKey;
   
   void* pool;
   void (*destroyerUwU)(void*);
@@ -44,7 +46,7 @@ struct heap_block {
   size_t blockSize;
   
   // The size of `data`
-  size_t objectSize;
+  size_t dataSize;
   
   struct object objMetadata;
   struct userptr dataPtr;
@@ -66,9 +68,9 @@ Allocation ordered by frequency (cascades to next if doesnt fit)
 4. Old free list based
 */
 
-struct heap_block* heap_alloc_fast(size_t size);
-struct heap_block* heap_alloc(size_t size);
-void heap_dealloc(struct heap_block* block);
+struct heap_block* heap_alloc_fast(struct heap* self, size_t size);
+struct heap_block* heap_alloc(struct heap* self, size_t size);
+void heap_dealloc(struct heap* self, struct heap_block* block);
 
 // This is thread unsafe in a sense it nukes
 // *EVERYTHING* no matter if another accessing it
@@ -78,14 +80,14 @@ struct heap* heap_new(size_t size);
 struct heap* heap_from_existing(size_t size, void* ptr, void (*destroyer)(void*));
 void heap_free(struct heap* self);
 
-void heap_on_context_create(struct heap* self, struct context* thread);
-
 // Parameter cant be change anymore after this call
 void heap_init(struct heap* self);
 
 // Parameters
 // Pass size == 0 to disable local heap
 int heap_param_set_local_heap_size(struct heap* self, size_t size);
+
+int heap_is_belong_to_this_heap(struct heap* self, void* ptr);
 
 #endif
 

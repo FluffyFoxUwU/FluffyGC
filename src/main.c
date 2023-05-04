@@ -4,6 +4,8 @@
 #include <time.h>
 
 #include "bug.h"
+#include "gc/gc.h"
+#include "managed_heap.h"
 #include "memory/heap.h"
 #include "memory/soc.h"
 #include "context.h"
@@ -45,8 +47,6 @@ int main3(int argc, char** argv) {
   heap_param_set_local_heap_size(heap, 4 * 1024 * 1024);
   heap_init(heap);
   
-  heap_on_context_create(heap, context);
-  
   // 16863: Just before fast alloc failed
   clock_t clk = clock();
   for (int i = 0; i <= i /* 10863 */; i++) {
@@ -58,12 +58,12 @@ int main3(int argc, char** argv) {
       free(block);
       free(block2);
     } else {
-      struct heap_block* block = heap_alloc(sizeof(struct obj));
-      struct heap_block* block2 = heap_alloc(sizeof(struct obj) + 1);
+      struct heap_block* block = heap_alloc(heap, sizeof(struct obj));
+      struct heap_block* block2 = heap_alloc(heap, sizeof(struct obj) + 1);
       escape(block);
       escape(block2);
-      heap_dealloc(block);
-      heap_dealloc(block2);
+      heap_dealloc(heap, block);
+      heap_dealloc(heap, block2);
     }
   }
   double timeMS = (double) (clock() - clk) / (double) CLOCKS_PER_SEC;
@@ -79,20 +79,8 @@ int main3(int argc, char** argv) {
 int main2(int argc, char** argv) {
   printf("Hello World!\n");
   
-  struct context* context = context_new();
-  context_current = context;
+  struct managed_heap* heap = managed_heap_new(GC_NOP_GC, 1, (size_t[]) {64 * 1024 * 1024}, 0);
   
-  struct heap* heap = heap_new(32 * 1024 * 1024 /* 256 * 1024 * 1024 */);
-  // Set parameters
-  heap_param_set_local_heap_size(heap, 4 * 1024 * 1024);
-  heap_init(heap);
-  
-  heap_on_context_create(heap, context);
-  
-  
-  
-  heap_merge_free_blocks(heap);
-  heap_free(heap);
-  context_free(context);
+  managed_heap_free(heap);
   return EXIT_SUCCESS;
 }

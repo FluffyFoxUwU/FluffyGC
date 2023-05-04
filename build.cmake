@@ -16,6 +16,7 @@ set(BUILD_SOURCES
   src/object/object.c
   
   src/gc/gc.c
+  src/gc/nop/nop.c
   
   src/memory/soc.c
   src/memory/heap.c
@@ -26,6 +27,7 @@ set(BUILD_SOURCES
   src/concurrency/rwlock.c
   src/concurrency/condition.c
   src/concurrency/completion.c
+  src/concurrency/thread_local.c
   
   deps/list/list_node.c
   deps/list/list.c
