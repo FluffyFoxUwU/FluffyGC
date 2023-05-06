@@ -7,6 +7,7 @@
 #include "memory/heap.h"
 #include "memory/soc.h"
 #include "bug.h"
+#include "gc/gc.h"
 
 #define MB(n) ((n) * 1024 * 1024)
 
@@ -25,6 +26,7 @@ int fuzzing_heap(const void* data, size_t size) {
   uint8_t pattern = *(const uint8_t*) data;
   data += 1;
   
+  gc_current = gc_new(GC_NOP_GC, 0);
   struct context* context = context_new();
   context_current = context;
   
@@ -46,9 +48,9 @@ int fuzzing_heap(const void* data, size_t size) {
       pointers[id] = NULL;
     } else {
       size_t objectSize = *(const uint8_t*) data + (*(const uint8_t*) data << 8) + (*(const uint8_t*) data << 16);
-      // printf("Ptr[%d]: Alloc %zu or 0x%lx bytes\n", id, objectSize, objectSize);
-      pointers[id] = heap_alloc(heap, objectSize);
-      // printf("Ptr[%d]: Result %p\n", id, pointers[id]);
+      // fprintf(stderr, "Ptr[%d]: Alloc %zu or 0x%lx bytes\n", id, objectSize, objectSize);
+      pointers[id] = heap_alloc(heap, alignof(struct object), objectSize);
+      // fprintf(stderr, "Ptr[%d]: Result %p\n", id, pointers[id]);
       if (pointers[id])
         memset(pointers[id]->dataPtr.ptr, pattern, objectSize);
       data += 3;
@@ -59,5 +61,6 @@ int fuzzing_heap(const void* data, size_t size) {
   heap_merge_free_blocks(heap);
   heap_free(heap);
   context_free(context);
+  gc_free(gc_current);
   return 0;
 }

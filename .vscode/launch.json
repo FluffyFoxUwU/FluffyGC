@@ -4,6 +4,20 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
+  {
+    "type": "lldb",
+    "request": "launch",
+    "name": "Debug Fuzzing Crash",
+    "program": "${workspaceFolder}/build/Executable",
+    "args": ["${workspaceFolder}/build/crash-b14bcbe42c5891599cfd709b4f69f4b7e9da6455"],
+    "cwd": "${workspaceFolder}"
+  },
+    {
+      "type": "lldb",
+      "request": "attach",
+      "name": "Attach",
+      "pid": "9666"
+    },
     {
       "type": "lldb",
       "request": "launch",

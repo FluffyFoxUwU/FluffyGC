@@ -48,14 +48,19 @@ typedef struct {
 
 void util_nearest_power_of_two(size_t* size);
 bool util_is_power_of_two(size_t size);
-#define util_align_to_word(n) (((n) + sizeof(long) - 1) & ~(sizeof(long) - 1));
 
-#define UTIL_MEM_ZERO BIT(1)
+#define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
+#define DIV_ROUND_DOWN(n, d) ((n) / (d))
+
+#define ROUND_UP(n, d) (DIV_ROUND_UP((n), (d)) * (d))
+#define ROUND_DOWN(n, d) (DIV_ROUND_DOWN((n), (d)) * (d))
+
+#define PTR_ALIGN(ptr, alignment) ((typeof(ptr)) ROUND_UP((uintptr_t) (ptr), (alignment)))
+
+#define UTIL_MEM_ZERO BIT (1)
 void* util_realloc(void* ptr, size_t oldSize, size_t newSize, unsigned long flags);
 void* util_malloc(size_t newSize, unsigned long flags);
 
-#define UTIL_DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
-#define UTIL_DIV_ROUND_DOWN(n, d) ((n) / (d))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 

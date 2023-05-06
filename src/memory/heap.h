@@ -44,12 +44,14 @@ struct heap_block {
   
   // Including this structure as well
   size_t blockSize;
-  
-  // The size of `data`
   size_t dataSize;
+  size_t alignment;
   
-  struct object objMetadata;
+  // Aligned pointer
   struct userptr dataPtr;
+  struct object objMetadata;
+  
+  // Probably unalignment use `dataPtr` instead
   char data[];
 };
 
@@ -68,8 +70,8 @@ Allocation ordered by frequency (cascades to next if doesnt fit)
 4. Old free list based
 */
 
-struct heap_block* heap_alloc_fast(struct heap* self, size_t size);
-struct heap_block* heap_alloc(struct heap* self, size_t size);
+struct heap_block* heap_alloc_fast(struct heap* self, size_t alignment, size_t size);
+struct heap_block* heap_alloc(struct heap* self, size_t alignment, size_t size);
 void heap_dealloc(struct heap* self, struct heap_block* block);
 
 // This is thread unsafe in a sense it nukes

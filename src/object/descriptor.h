@@ -31,6 +31,7 @@ typedef struct descriptor {
   struct descriptor_typeid id;
 
   size_t objectSize;
+  size_t alignment;
   
   struct refcount refcount;
   
@@ -38,7 +39,7 @@ typedef struct descriptor {
   struct descriptor_field fields[];
 } descriptor_t;
 
-struct descriptor* descriptor_new(struct descriptor_typeid id, size_t objectSize, int numPointers, struct descriptor_field* fields);
+struct descriptor* descriptor_new(struct descriptor_typeid id, size_t alignment, size_t objectSize, int numPointers, struct descriptor_field* fields);
 
 void descriptor_init(struct descriptor* self, struct object* obj);
 

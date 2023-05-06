@@ -27,13 +27,11 @@ struct context* context_new() {
     return NULL;
   *self = (struct context) {};
   
-  self->listNodeCache = soc_new(sizeof(struct root_ref), 0);
+  self->listNodeCache = soc_new(alignof(struct root_ref), sizeof(struct root_ref), 0);
   if (!self->listNodeCache)
     goto failure;
   
   list_head_init(&self->root);
-  if (gc_current->hooks->postContextInit(self) < 0)
-    goto failure;
   return self;
   
 failure:

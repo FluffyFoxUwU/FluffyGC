@@ -8,10 +8,10 @@
 #include "util/util.h"
 
 #define BITS_PER_TYPE(type)  (sizeof(type) * BITS_PER_BYTE)
-#define BITS_TO_LONGS(nr)    UTIL_DIV_ROUND_UP(nr, BITS_PER_TYPE(long))
-#define BITS_TO_U64(nr)      UTIL_DIV_ROUND_UP(nr, BITS_PER_TYPE(uint64_t))
-#define BITS_TO_U32(nr)      UTIL_DIV_ROUND_UP(nr, BITS_PER_TYPE(uint32_t))
-#define BITS_TO_BYTES(nr)    UTIL_DIV_ROUND_UP(nr, BITS_PER_TYPE(char))
+#define BITS_TO_LONGS(nr)    DIV_ROUND_UP(nr, BITS_PER_TYPE(long))
+#define BITS_TO_U64(nr)      DIV_ROUND_UP(nr, BITS_PER_TYPE(uint64_t))
+#define BITS_TO_U32(nr)      DIV_ROUND_UP(nr, BITS_PER_TYPE(uint32_t))
+#define BITS_TO_BYTES(nr)    DIV_ROUND_UP(nr, BITS_PER_TYPE(char))
 
 void setbit(long nr, volatile unsigned long* addr);
 void clearbit(long nr, volatile unsigned long* addr);

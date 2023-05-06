@@ -9,6 +9,7 @@
 #include "memory/heap.h"
 #include "memory/soc.h"
 #include "context.h"
+#include "util/btree.h"
 
 /*
 layout of object
@@ -58,8 +59,8 @@ int main3(int argc, char** argv) {
       free(block);
       free(block2);
     } else {
-      struct heap_block* block = heap_alloc(heap, sizeof(struct obj));
-      struct heap_block* block2 = heap_alloc(heap, sizeof(struct obj) + 1);
+      struct heap_block* block = heap_alloc(heap, alignof(struct obj), sizeof(struct obj));
+      struct heap_block* block2 = heap_alloc(heap, alignof(struct obj), sizeof(struct obj) + 1);
       escape(block);
       escape(block2);
       heap_dealloc(heap, block);
@@ -79,8 +80,13 @@ int main3(int argc, char** argv) {
 int main2(int argc, char** argv) {
   printf("Hello World!\n");
   
-  struct managed_heap* heap = managed_heap_new(GC_NOP_GC, 1, (size_t[]) {64 * 1024 * 1024}, 0);
+  struct btree tree;
+  btree_init(&tree);
   
-  managed_heap_free(heap);
+  btree_cleanup(&tree);
+  
+  // struct managed_heap* heap = managed_heap_new(GC_NOP_GC, 1, (size_t[]) {64 * 1024 * 1024}, 0);
+  
+  // managed_heap_free(heap);
   return EXIT_SUCCESS;
 }

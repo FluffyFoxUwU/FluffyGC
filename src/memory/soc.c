@@ -31,12 +31,21 @@ failure:
   return obj;
 }
 
+// TODO: Better way than this
 static struct soc_chunk* getOwningChunk(void* ptr) {
-  return *(void**) (ptr - ((uintptr_t) ptr % SOC_CHUNK_ALIGNMENT));
+  BUG();
+  return *(void**) (ptr - ((uintptr_t) ptr % 1));
 }
 
-static void chunkDeallocObject(void* ptr) {
-  struct soc_chunk* self = getOwningChunk(ptr);
+void* soc_alloc(struct small_object_cache* self) {
+  return soc_alloc_explicit(self, NULL);
+}
+
+void soc_dealloc(struct small_object_cache* self, void* ptr) {
+  soc_dealloc_explicit(self, getOwningChunk(ptr), ptr);
+}
+
+static void chunkDeallocObject(struct soc_chunk* self, void* ptr) {
   struct soc_free_node* freeNode = ptr;
   freeNode->next = self->firstFreeNode;
   self->firstFreeNode = freeNode;
@@ -50,16 +59,18 @@ static struct soc_chunk* newChunk(struct small_object_cache* owner) {
   
   *self = (struct soc_chunk) {
     .owner = owner,
-    .pool = aligned_alloc(SOC_CHUNK_ALIGNMENT, SOC_CHUNK_SIZE)
+    .pool = aligned_alloc(owner->alignment, owner->chunkSize)
   };
   
-  self->totalObjectsCount = UTIL_DIV_ROUND_DOWN(SOC_CHUNK_SIZE, owner->objectSize);
+  self->totalObjectsCount = DIV_ROUND_DOWN(owner->chunkSize, owner->objectSize);
   if (!self->pool)
     goto failure;
   
   // Init free lists
   struct soc_free_node* current = self->pool;
   for (int i = 1; i < self->totalObjectsCount; i++) {
+    // NOTE: no PTR_ALIGN because objectSize already alignment adjusted
+    // so multiple of objectSize statisfies the requirement
     current->next = self->pool + owner->objectSize * i;
     current = current->next;
   }
@@ -67,9 +78,6 @@ static struct soc_chunk* newChunk(struct small_object_cache* owner) {
   
   // The last node point to outside of the pool
   ((struct soc_free_node*) ((void*) current - owner->objectSize))->next = NULL;
-  
-  // Always reserve first object to store pointer to owning chunk
-  *((void**) chunkAllocObject(self)) = self;
   return self;
 
 failure:
@@ -124,23 +132,31 @@ static struct soc_chunk* getChunk(struct small_object_cache* self) {
   return extendCache(self);
 }
 
-struct small_object_cache* soc_new(size_t objectSize, int reservedChunks) {
-  BUG_ON(reservedChunks < 0);
-  BUG_ON(objectSize > SOC_MAX_OBJECT_SIZE);
-  
+struct small_object_cache* soc_new(size_t alignment, size_t objectSize, int preallocCount) {
+  return soc_new_with_chunk_size(SOC_DEFAULT_CHUNK_SIZE, alignment, objectSize, preallocCount);
+}
+
+struct small_object_cache* soc_new_with_chunk_size(size_t chunkSize, size_t alignment, size_t objectSize, int preallocCount) {
   objectSize = MAX(objectSize, SOC_MIN_OBJECT_SIZE);
-  objectSize = util_align_to_word(objectSize);
+  alignment = MAX(alignof(struct soc_free_node), alignment);
+  objectSize = ROUND_UP(objectSize, alignment);
+  chunkSize = ROUND_UP(chunkSize, objectSize);
+  
+  BUG_ON(preallocCount < 0);
+  BUG_ON(chunkSize / objectSize < SOC_MIN_OBJECT_COUNT);
   
   struct small_object_cache* self = malloc(sizeof(*self));
   if (!self)
     return NULL;
   
   *self = (struct small_object_cache) {
-    .objectSize = objectSize
+    .objectSize = objectSize,
+    .alignment = alignment,
+    .chunkSize = chunkSize
   };
   vec_init(&self->chunks);
   
-  for (int i = 0; i < reservedChunks; i++) {
+  for (int i = 0; i < preallocCount; i++) {
     struct soc_chunk* chunk = extendCache(self);
     if (!chunk)
       goto failure;
@@ -166,21 +182,24 @@ void soc_free(struct small_object_cache* self) {
   free(self);
 }
 
-void* soc_alloc(struct small_object_cache* self) {
+void* soc_alloc_explicit(struct small_object_cache* self, struct soc_chunk** chunkPtr) {
   if (IS_ENABLED(SOC_USE_MALLOC))
     return malloc(self->objectSize);
   
   struct soc_chunk* chunk = getChunk(self);
   if (!chunk)
     return NULL;
+  
+  if (chunkPtr)
+    *chunkPtr = chunk;
   return chunkAllocObject(chunk);
 }
 
-void soc_dealloc(struct small_object_cache* self, void* ptr) {
+void soc_dealloc_explicit(struct small_object_cache* self, struct soc_chunk* chunk, void* ptr) {
   if (IS_ENABLED(SOC_USE_MALLOC))
     return free(ptr);
   
   if (!ptr)
     return;
-  chunkDeallocObject(ptr);
+  chunkDeallocObject(chunk, ptr);
 }

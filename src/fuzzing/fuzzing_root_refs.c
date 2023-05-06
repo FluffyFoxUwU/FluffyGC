@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include "context.h"
+#include "gc/gc.h"
 
 int fuzzing_root_refs(const void* data, size_t size) {
   if (size < sizeof(uint16_t))
@@ -14,6 +15,8 @@ int fuzzing_root_refs(const void* data, size_t size) {
   size_t count = size / sizeof(uint16_t);
   if (refLookupCount < 1)
     return 0;
+  
+  gc_current = gc_new(GC_NOP_GC, 0);
   
   struct context* context = context_new();
   context_current = context;
@@ -31,5 +34,6 @@ int fuzzing_root_refs(const void* data, size_t size) {
   
   free(refLookup);
   context_free(context);
+  gc_free(gc_current);
   return 0;
 }

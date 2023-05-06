@@ -1,6 +1,7 @@
 #include <stdatomic.h>
 #include <errno.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "gc/gc.h"
 #include "managed_heap.h"

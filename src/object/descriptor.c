@@ -25,16 +25,20 @@ static int compareByOffset(const void* _a, const void* _b) {
     return 0;
 }
 
-struct descriptor* descriptor_new(struct descriptor_typeid id, size_t objectSize, int numFields, struct descriptor_field* offsets) {
+struct descriptor* descriptor_new(struct descriptor_typeid id, size_t alignment, size_t objectSize, int numFields, struct descriptor_field* offsets) {
   struct descriptor* self = malloc(sizeof(*self) + sizeof(*offsets) * numFields);
   if (!self)
     return NULL;
   
+  *self = (struct descriptor) {}; 
+  
   self->numFields = numFields;
-  refcount_init(&self->refcount);
   self->id = id;
   self->id.name = strdup(id.name);
   self->objectSize = objectSize;
+  self->alignment = alignment;
+  
+  refcount_init(&self->refcount);
 
   for (int i = 0; i < numFields; i++) {
     self->fields[i] = offsets[i];

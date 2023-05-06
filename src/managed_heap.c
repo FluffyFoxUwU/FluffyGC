@@ -8,6 +8,7 @@
 #include "context.h"
 #include "gc/gc.h"
 #include "memory/heap.h"
+#include "object/object.h"
 #include "util/list_head.h"
 
 void managed_heap__gc_safepoint() {
@@ -80,3 +81,6 @@ void managed_heap_free(struct managed_heap* self) {
   free(self);
 }
 
+// struct object* managed_heap_alloc_object(struct managed_heap* self, struct descriptor* desc) {
+  
+// }

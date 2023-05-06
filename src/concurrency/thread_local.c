@@ -8,7 +8,8 @@ int thread_local_init(struct thread_local_struct* self, void (*destructor)(void*
   *self = (struct thread_local_struct) {};
   
   int ret = -pthread_key_create(&self->key, destructor);
-  self->inited = true;
+  if (ret < 0)
+    self->inited = true;
   return ret;
 }
 

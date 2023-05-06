@@ -9,6 +9,7 @@
 #include "util/list_head.h"
 #include "vec.h"
 
+struct descriptor;
 struct context;
 struct heap;
 struct gc_struct;
@@ -33,6 +34,8 @@ struct managed_heap {
 
 struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCount, size_t* generationSizes, int gcFlags);
 void managed_heap_free(struct managed_heap* self);
+
+struct object* managed_heap_alloc_object(struct managed_heap* self, struct descriptor* desc);
 
 // Must be called from user/mutator context
 // with no lock being held. this function may block

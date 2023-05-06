@@ -4,7 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <threads.h>
+#include <errno.h>
 
 #include "concurrency/thread_local.h"
 #include "context.h"
@@ -30,6 +32,8 @@ struct heap* heap_from_existing(size_t size, void* ptr, void (*destroyer)(void*)
   if (!self)
     return NULL;
   *self = (struct heap) {};
+  size = ROUND_DOWN(size, alignof(struct heap_block));
+  
   self->pool = ptr;
   self->destroyerUwU = destroyer;
   self->bumpPointer = (uintptr_t) ptr;
@@ -60,22 +64,24 @@ void heap_init(struct heap* self) {
 }
 
 int heap_param_set_local_heap_size(struct heap* self, size_t size) {
-  self->localHeapSize = util_align_to_word(size);
+  self->localHeapSize = alignof(typeof(size));
   return 0;
 }
 
-static void initAllocatedBlock(struct heap* self, struct heap_block* block, size_t blockSize, size_t objectSize) {
+static void initAllocatedBlock(struct heap* self, struct heap_block* block, size_t dataAlignment, size_t blockSize, size_t objectSize) {
   *block = (struct heap_block) {
     .isFree = false,
     .blockSize = blockSize,
-    .dataSize = objectSize
+    .dataSize = objectSize,
+    .alignment = MAX(alignof(struct heap_block), dataAlignment)
   };
 }
 
 static void initFreeBlock(struct heap* self, struct heap_block* block, size_t blockSize) {
   *block = (struct heap_block) {
     .isFree = true,
-    .blockSize = blockSize
+    .blockSize = blockSize,
+    .alignment = alignof(typeof(*block))
   };
 }
 
@@ -89,11 +95,11 @@ static void postFreeHook(struct heap* self, struct heap_block* block) {
 
 static int postAllocHook(struct heap* self, struct heap_block* block) {
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    block->dataPtr = USERPTR(malloc(block->dataSize));
+    block->dataPtr = USERPTR(aligned_alloc(block->alignment, block->dataSize));
     if (!block->dataPtr.ptr)
-      return false;
+      return -ENOMEM;
   } else {
-    block->dataPtr = USERPTR(&block->data);
+    block->dataPtr = USERPTR(PTR_ALIGN(&block->data, block->alignment));
   }
   
   return gc_current->hooks->postObjectAlloc(&block->objMetadata);
@@ -141,11 +147,12 @@ void heap_dealloc(struct heap* self, struct heap_block* block) {
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
     free(block->dataPtr.ptr);
     free(block);
-    return;
+    goto skip;
   }
   
   // Add to free list
   list_add(&block->node, &self->recentFreeBlocks);
+skip:
   mutex_unlock(&self->lock);
 }
 
@@ -196,24 +203,40 @@ static inline struct local_heap_uwu* getLocalHeap(struct heap* self) {
     return NULL;
   
   *localHeap = (struct local_heap_uwu) {};
+  thread_local_set(&self->localHeapKey, localHeap);
   return localHeap;
 }
 
-struct heap_block* heap_alloc_fast(struct heap* self, size_t objectSize) {
+static size_t calcHeapBlockAlignment(size_t alignment) {
+  return MAX(alignof(struct heap_block), alignment);
+}
+
+// Also compensate for alignment
+// by giving extra space
+static size_t calcHeapBlockSize(size_t alignment, size_t objectSize) {
+  return ROUND_UP(sizeof(struct heap_block) + ROUND_UP(objectSize, alignment), alignof(struct heap_block));
+}
+
+static struct heap_block* adjustAlignmentAndInitDataPtr(struct heap_block* block, size_t alignment) {
+  block = PTR_ALIGN(block, alignof(struct heap_block));
+  block->dataPtr.ptr = PTR_ALIGN(&block->data, alignment);
+  return block;
+}
+
+struct heap_block* heap_alloc_fast(struct heap* self, size_t dataAlignment, size_t objectSize) {
   struct local_heap_uwu* localHeap = getLocalHeap(self);
   struct heap_block* block = NULL;
-  size_t size = util_align_to_word(sizeof(struct heap_block) + objectSize);
+  size_t size = calcHeapBlockSize(dataAlignment, objectSize);
   
   context_block_gc();
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    block = malloc(objectSize);
+    block = aligned_alloc(calcHeapBlockAlignment(dataAlignment), objectSize);
     goto alloc_sucess;
   }
   
   // Skip allocation from local heap
   if (size > self->localHeapSize || !localHeap) {
-    block = allocFastRaw(self, size);
-    if (!block)
+    if (!(block = allocFastRaw(self, size)))
       goto alloc_failure;
     goto alloc_sucess;
   }
@@ -230,7 +253,8 @@ struct heap_block* heap_alloc_fast(struct heap* self, size_t objectSize) {
   block = (struct heap_block*) localHeap->bumpPointer;
   localHeap->bumpPointer += size;
 alloc_sucess:
-  initAllocatedBlock(self, block, size, objectSize);
+  block = adjustAlignmentAndInitDataPtr(block, dataAlignment);
+  initAllocatedBlock(self, block, dataAlignment, size, objectSize);
   if (postAllocHook(self, block) < 0) {
     heap_dealloc(self, block);
     block = NULL;
@@ -245,36 +269,32 @@ static void unlinkFromFreeList(struct heap* self, struct heap_block* block) {
   list_del(&block->node);
 }
 
-struct heap_block* heap_alloc(struct heap* self, size_t objectSize) {
+struct heap_block* heap_alloc(struct heap* self, size_t dataAlignment, size_t objectSize) {
   if (objectSize == 0)
     return NULL;
   struct heap_block* block = NULL;
   
   context_block_gc();
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    block = malloc(objectSize);
-    goto alloc_success;
-  }
-  
-  block = heap_alloc_fast(self, objectSize);
-  if (block)
+  if ((block = heap_alloc_fast(self, dataAlignment, objectSize)))
     return block;
-  size_t blockSize = util_align_to_word(sizeof(struct heap_block) + objectSize);
+  size_t blockSize = calcHeapBlockSize(dataAlignment, objectSize);
   
   // Slow alloc method
   mutex_lock(&self->lock);
   block = heap_find_free_block(self, blockSize);
-  if (!block)
-    return NULL;
+  if (!block) 
+    goto alloc_failed;
   
   block = splitFreeBlocks(self, block, blockSize);
   unlinkFromFreeList(self, block);
-  initAllocatedBlock(self, block, blockSize, objectSize);
   
+  block = adjustAlignmentAndInitDataPtr(block, dataAlignment);
+  initAllocatedBlock(self, block, dataAlignment, blockSize, objectSize);
+  
+alloc_failed:
   mutex_unlock(&self->lock);
   
-alloc_success:
-  if (postAllocHook(self, block) < 0) {
+  if (block && postAllocHook(self, block) < 0) {
     heap_dealloc(self, block);
     block = NULL;
   }

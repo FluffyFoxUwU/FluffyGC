@@ -6,19 +6,24 @@
 #include "bug.h"
 
 int fuzzing_soc(const void* data, size_t size) {
-  if (size < sizeof(size_t) + sizeof(uint8_t) + sizeof(uint8_t))
+  if (size < sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint8_t) + sizeof(uint8_t))
     return 0;
   
   const void* dataEnd = data + size;
   
-  size_t objSize = (*(const size_t*) data) % SOC_MAX_OBJECT_SIZE;
+  uint16_t objSize = *(const uint16_t*) data;
   data += sizeof(objSize);
+  
+  uint16_t alignment = *(const uint16_t*) data;
+  data += sizeof(alignment);
+  
   int reserveCount = *(const uint8_t*) data;
   data += 1;
+  
   int pattern = *(const uint8_t*) data;
   data += 1;
   
-  struct small_object_cache* cache = soc_new(objSize, reserveCount);
+  struct small_object_cache* cache = soc_new(alignment, objSize, reserveCount);
   
   void* pointers[1 << 16] = {};
   while (data + 2 < dataEnd) {
