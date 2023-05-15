@@ -21,29 +21,26 @@
 
 thread_local struct context* context_current = NULL;
 
+SOC_DEFINE(listNodeCache, SOC_DEFAULT_CHUNK_SIZE, struct root_ref)
+
 struct context* context_new() {
   struct context* self = malloc(sizeof(*self)); 
   if (!self)
     return NULL;
   *self = (struct context) {};
   
-  self->listNodeCache = soc_new(alignof(struct root_ref), sizeof(struct root_ref), 0);
-  if (!self->listNodeCache)
-    goto failure;
-  
   list_head_init(&self->root);
   return self;
-  
-failure:
-  context_free(self);
-  return NULL;
 }
 
 void context_free(struct context* self) {
   if (gc_current->hooks->preContextCleanup(self) < 0)
     BUG();
-  // No need to clear each root entry this nukes all associated with current
-  soc_free(self->listNodeCache);
+  
+  struct list_head* current;
+  struct list_head* n;
+  list_for_each_safe(current, n, &self->root)
+    list_del(current);
   free(self);
 }
 
@@ -73,7 +70,7 @@ void context_remove_pinned_object(struct root_ref* obj) {
 
 struct root_ref* context_add_root_object(struct object* obj) {
   context_block_gc();
-  struct root_ref* rootRef = soc_alloc(context_current->listNodeCache);
+  struct root_ref* rootRef = soc_alloc(listNodeCache);
   if (!rootRef)
     return NULL;
   
@@ -89,7 +86,7 @@ struct root_ref* context_add_root_object(struct object* obj) {
 int context_remove_root_object(struct root_ref* obj) {
   context_block_gc();
   list_del(&obj->node);
-  soc_dealloc(context_current->listNodeCache, obj);
+  soc_dealloc(listNodeCache, obj);
   context_unblock_gc();
   return 0;
 }

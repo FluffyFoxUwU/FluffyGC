@@ -39,7 +39,9 @@ int fuzzing_heap(const void* data, size_t size) {
   // printf("Pattern: %d\n", pattern);
   // printf("Start alloc pattern: %d\n", (int) (data - dataStart));
   
-  struct heap_block* pointers[1 << 16] = {};
+  static struct heap_block* pointers[1 << 16] = {};
+  memset(pointers, 0, sizeof(pointers));
+  
   while (data + 5 < dataEnd) {
     uint16_t id = *(const uint8_t*) data + (*(const uint8_t*) data << 8);
     if (pointers[id]) {

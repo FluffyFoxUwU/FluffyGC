@@ -13,6 +13,8 @@ static inline void list_head_init(struct list_head* list) {
   list->prev = list;
 }
 
+#define LIST_HEAD_INIT(x) {.next = &x, .prev = &x}
+
 static inline void __list_add(struct list_head *new, struct list_head *prev, struct list_head *next) {
   next->prev = new;
   new->next = next;
@@ -39,6 +41,7 @@ static inline void list_del(struct list_head* entry) {
 	entry->prev = NULL;
 }
 
+#define list_is_empty(head) ((head)->next == (head))
 #define list_is_head(list, head) (list == head)
 #define list_for_each(pos, head) for (pos = (head)->next; !list_is_head(pos, (head)); pos = pos->next)
 #define list_entry(ptr, type, member) container_of(ptr, type, member)

@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,6 +9,7 @@
 #include "config.h"
 #include "soc.h"
 #include "bug.h"
+#include "util/list_head.h"
 #include "util/util.h"
 #include "vec.h"
 
@@ -21,13 +23,15 @@ static void freeChunk(struct soc_chunk* self) {
 
 static void* chunkAllocObject(struct soc_chunk* self) {
   struct soc_free_node* obj = self->firstFreeNode;
-  if (!obj)
-    goto failure;
+  BUG_ON(!obj);
   
   self->firstFreeNode = obj->next;
-  if (!self->firstFreeNode)
-    clearbit(self->id, self->owner->partialChunksBitmap);
-failure:
+  
+  // Remove from partial chunk to full chunk list if full
+  if (self->firstFreeNode == NULL) {
+    list_del(&self->list);
+    list_add(&self->list, &self->owner->fullChunksList);
+  }
   return obj;
 }
 
@@ -46,10 +50,15 @@ void soc_dealloc(struct small_object_cache* self, void* ptr) {
 }
 
 static void chunkDeallocObject(struct soc_chunk* self, void* ptr) {
+  // Move from full chunk to partial chunk list if this was full
+  if (self->firstFreeNode == NULL) {
+    list_del(&self->list);
+    list_add_tail(&self->list, &self->owner->partialChunksList);
+  }
+  
   struct soc_free_node* freeNode = ptr;
   freeNode->next = self->firstFreeNode;
   self->firstFreeNode = freeNode;
-  setbit(self->id, self->owner->partialChunksBitmap);
 }
 
 static struct soc_chunk* newChunk(struct small_object_cache* owner) {
@@ -67,17 +76,20 @@ static struct soc_chunk* newChunk(struct small_object_cache* owner) {
     goto failure;
   
   // Init free lists
+  struct soc_free_node* prev = NULL;
   struct soc_free_node* current = self->pool;
-  for (int i = 1; i < self->totalObjectsCount; i++) {
+  for (int i = 0; i < self->totalObjectsCount; i++) {
     // NOTE: no PTR_ALIGN because objectSize already alignment adjusted
     // so multiple of objectSize statisfies the requirement
     current->next = self->pool + owner->objectSize * i;
+    prev = current;
     current = current->next;
   }
   self->firstFreeNode = self->pool;
   
   // The last node point to outside of the pool
-  ((struct soc_free_node*) ((void*) current - owner->objectSize))->next = NULL;
+  if (prev)
+    prev->next = NULL;
   return self;
 
 failure:
@@ -90,39 +102,14 @@ static struct soc_chunk* extendCache(struct small_object_cache* self) {
   if (!chunk)
     return NULL;
   
-  int oldCapacity = self->chunks.capacity;
-  if (vec_push(&self->chunks, chunk) < 0) 
-    goto failure;
-  
-  if (oldCapacity != self->chunks.capacity) {
-    int oldCapacityWords = BITS_TO_LONGS(oldCapacity) * sizeof(unsigned long);
-    int newCapacityWords = BITS_TO_LONGS(self->chunks.capacity) * sizeof(unsigned long);
-    unsigned long* newBitmap = util_realloc(self->partialChunksBitmap, oldCapacityWords, newCapacityWords, UTIL_MEM_ZERO);
-    
-    if (!newBitmap)
-      goto failure;
-    
-    self->partialChunksBitmap = newBitmap;
-  }
-  
-  chunk->id = self->chunks.length - 1;
-  setbit(chunk->id, self->partialChunksBitmap);
+  list_add(&chunk->list, &self->partialChunksList);
   return chunk;
-
-failure:
-  freeChunk(chunk);
-  return NULL;
 }
 
 static struct soc_chunk* findPartialChunk(struct small_object_cache* self) {
-  if (!self->partialChunksBitmap)
+  if (list_is_empty(&self->partialChunksList))
     return NULL;
-  
-  int partialChunkLoc = findbit(true, self->partialChunksBitmap, self->chunks.capacity);
-  if (partialChunkLoc < 0)
-    return NULL;
-  
-  return self->chunks.data[partialChunkLoc];
+  return list_first_entry(&self->partialChunksList, struct soc_chunk, list);
 }
 
 static struct soc_chunk* getChunk(struct small_object_cache* self) {
@@ -137,14 +124,23 @@ struct small_object_cache* soc_new(size_t alignment, size_t objectSize, int prea
 }
 
 struct small_object_cache* soc_new_with_chunk_size(size_t chunkSize, size_t alignment, size_t objectSize, int preallocCount) {
-  objectSize = MAX(objectSize, SOC_MIN_OBJECT_SIZE);
   alignment = MAX(alignof(struct soc_free_node), alignment);
-  objectSize = ROUND_UP(objectSize, alignment);
-  chunkSize = ROUND_UP(chunkSize, objectSize);
+  
+  // If using system malloc ignore the size adjustment
+  // leave it as it is for the system malloc to handle
+  if (!IS_ENABLED(CONFIG_SOC_USE_MALLOC)) {
+    objectSize = ROUND_UP(MAX(objectSize, SOC_MIN_OBJECT_SIZE), alignment);
+    chunkSize = ROUND_UP(chunkSize, objectSize);
+  }
   
   BUG_ON(preallocCount < 0);
-  BUG_ON(chunkSize / objectSize < SOC_MIN_OBJECT_COUNT);
   
+  if (IS_ENABLED(CONFIG_FUZZ_SOC)) {
+    if (chunkSize / objectSize < SOC_MIN_OBJECT_COUNT)
+      chunkSize = objectSize * SOC_MIN_OBJECT_COUNT;
+  } else {
+    BUG_ON(chunkSize / objectSize < SOC_MIN_OBJECT_COUNT);
+  }
   struct small_object_cache* self = malloc(sizeof(*self));
   if (!self)
     return NULL;
@@ -154,7 +150,12 @@ struct small_object_cache* soc_new_with_chunk_size(size_t chunkSize, size_t alig
     .alignment = alignment,
     .chunkSize = chunkSize
   };
-  vec_init(&self->chunks);
+  
+  list_head_init(&self->fullChunksList);
+  list_head_init(&self->partialChunksList);
+  
+  if (IS_ENABLED(CONFIG_SOC_USE_MALLOC))
+    return self;
   
   for (int i = 0; i < preallocCount; i++) {
     struct soc_chunk* chunk = extendCache(self);
@@ -174,29 +175,47 @@ void soc_free(struct small_object_cache* self) {
   if (!self)
     return;
   
-  for (unsigned int i = 0; i < self->chunks.length; i++)
-    freeChunk(self->chunks.data[i]);
+  // The static one (defined using SOC_DEFINE)
+  // dont need to be cleaned
+  if (self->isStatic) {
+    BUG();
+    return;
+  }
   
-  vec_deinit(&self->chunks);
-  free(self->partialChunksBitmap);
+  if (IS_ENABLED(CONFIG_SOC_USE_MALLOC)) {
+    free(self);
+    return;
+  }
+  
+  struct list_head* current;
+  struct list_head* n;
+  list_for_each_safe(current, n, &self->fullChunksList)
+    freeChunk(list_entry(current, struct soc_chunk, list));
+  
+  n = NULL;
+  current = NULL;
+  list_for_each_safe(current, n, &self->partialChunksList)
+    freeChunk(list_entry(current, struct soc_chunk, list));
+
   free(self);
 }
 
 void* soc_alloc_explicit(struct small_object_cache* self, struct soc_chunk** chunkPtr) {
-  if (IS_ENABLED(SOC_USE_MALLOC))
-    return malloc(self->objectSize);
+  if (IS_ENABLED(CONFIG_SOC_USE_MALLOC))
+    return aligned_alloc(self->alignment, self->objectSize);
   
   struct soc_chunk* chunk = getChunk(self);
-  if (!chunk)
-    return NULL;
+  void* res = NULL;
+  if (chunk)
+    res = chunkAllocObject(chunk);
   
   if (chunkPtr)
     *chunkPtr = chunk;
-  return chunkAllocObject(chunk);
+  return res;
 }
 
 void soc_dealloc_explicit(struct small_object_cache* self, struct soc_chunk* chunk, void* ptr) {
-  if (IS_ENABLED(SOC_USE_MALLOC))
+  if (IS_ENABLED(CONFIG_SOC_USE_MALLOC))
     return free(ptr);
   
   if (!ptr)

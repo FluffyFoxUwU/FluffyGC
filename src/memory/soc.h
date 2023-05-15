@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #include "bitops.h"
+#include "util/list_head.h"
 #include "vec.h"
 #include "util/util.h"
 
@@ -27,6 +28,7 @@ struct soc_free_node {
 #define SOC_MIN_OBJECT_COUNT (8)
 
 struct soc_chunk {
+  struct list_head list;
   struct small_object_cache* owner;
   struct soc_free_node* firstFreeNode;
   
@@ -38,16 +40,32 @@ struct soc_chunk {
 };
 
 struct small_object_cache {
+  bool isStatic;
   size_t objectSize;
   size_t alignment;
   size_t chunkSize;
   
-  vec_t(struct soc_chunk*) chunks;
-  unsigned long* partialChunksBitmap;
+  struct list_head fullChunksList;
+  struct list_head partialChunksList;
 };
 
 struct small_object_cache* soc_new_with_chunk_size(size_t chunkSize, size_t alignment, size_t objectSize, int preallocCount);
 struct small_object_cache* soc_new(size_t alignment, size_t objectSize, int preallocCount);
+
+#define __SOC_CALC_ALIGNMENT(alignment) MAX(alignof(struct soc_free_node), (alignment))
+#define __SOC_CALC_CHUNK_SIZE(chunkSize, alignment) ROUND_UP((chunkSize), __SOC_CALC_ALIGNMENT((alignment)))
+#define __SOC_CALC_OBJECT_SIZE(objectSize, alignment) ROUND_UP(MAX((objectSize), SOC_MIN_OBJECT_SIZE), __SOC_CALC_ALIGNMENT((alignment)))
+#define SOC_DEFINE_ADVANCED(_name, _chunkSize, _alignment, _objectSize) \
+  struct small_object_cache ___ ## _name = (struct small_object_cache) { \
+    .isStatic = true, \
+    .alignment = __SOC_CALC_ALIGNMENT((_alignment)), \
+    .objectSize = __SOC_CALC_OBJECT_SIZE((_objectSize), (_alignment)), \
+    .chunkSize = __SOC_CALC_CHUNK_SIZE((_chunkSize), (_alignment)), \
+    .fullChunksList = LIST_HEAD_INIT(___ ## _name.fullChunksList), \
+    .partialChunksList = LIST_HEAD_INIT(___ ## _name.partialChunksList), \
+  }; static_assert(__SOC_CALC_CHUNK_SIZE((_chunkSize), (_alignment)) / __SOC_CALC_OBJECT_SIZE((_objectSize), (_alignment)) >= SOC_MIN_OBJECT_COUNT); \
+  struct small_object_cache* const _name = &___ ## _name;
+#define SOC_DEFINE(_name, _chunkSize, _type) SOC_DEFINE_ADVANCED(_name, _chunkSize, alignof(_type), sizeof(_type))
 
 void* soc_alloc(struct small_object_cache* self);
 void soc_dealloc(struct small_object_cache* self, void* ptr);

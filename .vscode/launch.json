@@ -9,7 +9,7 @@
     "request": "launch",
     "name": "Debug Fuzzing Crash",
     "program": "${workspaceFolder}/build/Executable",
-    "args": ["${workspaceFolder}/build/crash-b14bcbe42c5891599cfd709b4f69f4b7e9da6455"],
+    "args": ["${workspaceFolder}/build/crash-f55de2c6cbbc155ce1a64a3770d5c2bf850b8fcd"],
     "cwd": "${workspaceFolder}"
   },
     {

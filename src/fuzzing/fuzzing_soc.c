@@ -1,9 +1,12 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "memory/soc.h"
 #include "bug.h"
+#include "config.h"
+#include "util/util.h"
 
 int fuzzing_soc(const void* data, size_t size) {
   if (size < sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint8_t) + sizeof(uint8_t))
@@ -11,11 +14,11 @@ int fuzzing_soc(const void* data, size_t size) {
   
   const void* dataEnd = data + size;
   
-  uint16_t objSize = *(const uint16_t*) data;
-  data += sizeof(objSize);
-  
-  uint16_t alignment = *(const uint16_t*) data;
-  data += sizeof(alignment);
+  size_t objSize = *(const uint16_t*) data + 1;
+  data += 2;
+    
+  size_t alignment = *(const uint16_t*) data + 1;
+  data += 2;
   
   int reserveCount = *(const uint8_t*) data;
   data += 1;
@@ -23,21 +26,38 @@ int fuzzing_soc(const void* data, size_t size) {
   int pattern = *(const uint8_t*) data;
   data += 1;
   
+  // 256 bytes maximum alignment allowed
+  alignment = 2 << (alignment % 8);
+  
+  printf("Align: 0x%zx, Size: %zu, Reserve: %d\n", alignment, objSize, reserveCount);
   struct small_object_cache* cache = soc_new(alignment, objSize, reserveCount);
   
-  void* pointers[1 << 16] = {};
-  while (data + 2 < dataEnd) {
+  static void* pointers[1 << 16] = {};
+  static struct soc_chunk* chunks[1 << 16] = {};
+  memset(pointers, 0, sizeof(pointers));
+  memset(chunks, 0, sizeof(chunks));
+  
+  while (data < dataEnd) {
     uint16_t id = *(const uint8_t*) data + (*(const uint8_t*) data << 8);
     if (pointers[id]) {
-      soc_dealloc(cache, pointers[id]);
+      printf("Dealloc[%d]\n", id);
+      if (IS_ENABLED(CONFIG_FUZZ_SOC_USE_IMPLICIT))
+        soc_dealloc(cache, pointers[id]);
+      else
+        soc_dealloc_explicit(cache, chunks[id], pointers[id]);
       pointers[id] = NULL;
     } else {
-      pointers[id] = soc_alloc(cache);
+      printf("Alloc[%d]\n", id);
+      if (IS_ENABLED(CONFIG_FUZZ_SOC_USE_IMPLICIT))
+        pointers[id] = soc_alloc(cache);
+      else
+        pointers[id] = soc_alloc_explicit(cache, &chunks[id]);
       memset(pointers[id], pattern, objSize);
     }
     data += 2;
   }
   
+  printf("Exiting...\n");
   soc_free(cache);
   return 0;
 }

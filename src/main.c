@@ -82,7 +82,6 @@ int main2(int argc, char** argv) {
   
   struct btree tree;
   btree_init(&tree);
-  
   btree_cleanup(&tree);
   
   // struct managed_heap* heap = managed_heap_new(GC_NOP_GC, 1, (size_t[]) {64 * 1024 * 1024}, 0);

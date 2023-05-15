@@ -19,7 +19,6 @@ struct small_object_cache;
 
 struct context {
   struct managed_heap* managedHeap;
-  struct small_object_cache* listNodeCache;
   
   // Amount of context_block_gc calls
   atomic_uint blockCount;

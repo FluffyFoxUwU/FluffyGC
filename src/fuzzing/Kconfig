@@ -32,4 +32,12 @@ menu Fuzzing
     config FUZZ_ROOT_REFS
       bool "Root refs allocator and deallocator"
   endchoice
+  
+  config FUZZ_SOC_USE_IMPLICIT
+    bool "Use soc_* implicit variant"
+    depends on FUZZ_SOC
+    help
+      Currently defautl explicit variant soc_*_explicit avoids looking
+      up memory address for a chunk to fuzz on the core code
+      more efficiently than trying to fuzz the lookup codes and the core
 endmenu
