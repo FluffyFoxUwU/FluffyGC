@@ -29,7 +29,6 @@ int fuzzing_soc(const void* data, size_t size) {
   // 256 bytes maximum alignment allowed
   alignment = 2 << (alignment % 8);
   
-  printf("Align: 0x%zx, Size: %zu, Reserve: %d\n", alignment, objSize, reserveCount);
   struct small_object_cache* cache = soc_new(alignment, objSize, reserveCount);
   
   static void* pointers[1 << 16] = {};
@@ -40,14 +39,12 @@ int fuzzing_soc(const void* data, size_t size) {
   while (data < dataEnd) {
     uint16_t id = *(const uint8_t*) data + (*(const uint8_t*) data << 8);
     if (pointers[id]) {
-      printf("Dealloc[%d]\n", id);
       if (IS_ENABLED(CONFIG_FUZZ_SOC_USE_IMPLICIT))
         soc_dealloc(cache, pointers[id]);
       else
         soc_dealloc_explicit(cache, chunks[id], pointers[id]);
       pointers[id] = NULL;
     } else {
-      printf("Alloc[%d]\n", id);
       if (IS_ENABLED(CONFIG_FUZZ_SOC_USE_IMPLICIT))
         pointers[id] = soc_alloc(cache);
       else
@@ -57,7 +54,6 @@ int fuzzing_soc(const void* data, size_t size) {
     data += 2;
   }
   
-  printf("Exiting...\n");
   soc_free(cache);
   return 0;
 }

@@ -32,9 +32,7 @@ struct soc_chunk {
   struct small_object_cache* owner;
   struct soc_free_node* firstFreeNode;
   
-  int id;
   bool isReserved;
-  int totalObjectsCount;
   
   void* pool;
 };

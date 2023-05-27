@@ -71,25 +71,19 @@ static struct soc_chunk* newChunk(struct small_object_cache* owner) {
     .pool = aligned_alloc(owner->alignment, owner->chunkSize)
   };
   
-  self->totalObjectsCount = DIV_ROUND_DOWN(owner->chunkSize, owner->objectSize);
   if (!self->pool)
     goto failure;
   
   // Init free lists
   struct soc_free_node* prev = NULL;
-  struct soc_free_node* current = self->pool;
-  for (int i = 0; i < self->totalObjectsCount; i++) {
+  for (void* current = self->pool; current < self->pool + owner->chunkSize; current += owner->objectSize) {
     // NOTE: no PTR_ALIGN because objectSize already alignment adjusted
     // so multiple of objectSize statisfies the requirement
-    current->next = self->pool + owner->objectSize * i;
+    if (prev)
+      prev->next = current;
     prev = current;
-    current = current->next;
   }
   self->firstFreeNode = self->pool;
-  
-  // The last node point to outside of the pool
-  if (prev)
-    prev->next = NULL;
   return self;
 
 failure:
