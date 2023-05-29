@@ -156,3 +156,34 @@ void* util_realloc(void* ptr, size_t oldSize, size_t newSize, unsigned long flag
   
   return ptr;
 }
+
+// Less than equal binary search
+// https://stackoverflow.com/a/28309550/13447666
+const uintptr_t* util_find_smallest_but_larger_or_equal_than(const uintptr_t* array, size_t count, uintptr_t search) {
+  const uintptr_t* min =  array;
+  const uintptr_t* max =  &array[count - 1];
+  const uintptr_t* arrayEnd =  &array[count - 1];
+  
+  if (count <= 0)
+    return NULL;
+  if (search <= array[0])
+    return array;
+  
+  while (min <= max) {
+    const uintptr_t* mid = min + ((max - min) / 2);
+    if (*mid < search)
+      min = mid + 1;
+    else if (*mid > search)
+      max = mid - 1;
+    else
+      return mid;
+  }
+  
+  if (min > arrayEnd)
+    return NULL; // Not found
+  return min < max ? min : max + 1;
+}
+
+void util_shift_array(void* start, size_t offset, size_t size) {
+  memmove(start + (offset * size), start, size);
+}

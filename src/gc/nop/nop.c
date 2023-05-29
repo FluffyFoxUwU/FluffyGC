@@ -14,3 +14,11 @@ struct gc_hooks* gc_nop_new(int flags) {
   self->free = freeHook;
   return self;
 }
+
+int gc_nop_generation_count(int flags) {
+  return 1;
+}
+
+bool gc_nop_use_fast_on_gen(int flags, int genID) {
+  return true;
+}

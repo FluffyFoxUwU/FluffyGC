@@ -4,10 +4,9 @@
 // The global state
 // Tracking various things
 
-#include "list.h"
-#include "concurrency/rwlock.h"
 #include "util/list_head.h"
 #include "vec.h"
+#include "context.h"
 
 struct descriptor;
 struct context;
@@ -16,15 +15,33 @@ struct gc_struct;
 struct object;
 enum gc_algorithm;
 
+struct generation_params {
+  size_t size;
+  size_t earlyPromoteSize;
+  int promotionAge;
+  
+  // Young uses
+  // 1. Only atomic pointer (no freelist traversal)
+  // 2. Semispace heap scheme
+  // 3. No compaction phase
+  // Old uses
+  // 1. Both atomic and freelist used
+  // 2. Has compaction phase
+};
+
 struct generation {
   struct heap* fromHeap;
   struct heap* toHeap;
+  struct generation_params param;
+  
   struct list_head rememberedSet;
+  bool useFastOnly;
 };
 
 struct managed_heap {
-  struct rwlock gcLock;
   struct gc_struct* gcState;
+  
+  struct list_head contextStates[CONTEXT_STATE_COUNT];
   
   vec_t(struct context*) threads;
   
@@ -32,37 +49,21 @@ struct managed_heap {
   struct generation generations[];
 };
 
-struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCount, size_t* generationSizes, int gcFlags);
+struct managed_heap* managed_heap_new(enum gc_algorithm algo, int genCount, struct generation_params* generationParams, int gcFlags);
 void managed_heap_free(struct managed_heap* self);
 
-struct object* managed_heap_alloc_object(struct managed_heap* self, struct descriptor* desc);
+struct object* managed_heap_alloc_object(struct descriptor* desc);
 
-// Must be called from user/mutator context
-// with no lock being held. this function may block
-// Please call periodicly if GC being blocked
-// for long time
-void managed_heap__gc_safepoint();
+int managed_heap_attach_context(struct managed_heap* self);
+void managed_heap_detach_context(struct managed_heap* self);
 
-// Cannot be nested
-// consider using context_(un)block_gc functions instead
-void managed_heap__block_gc(struct managed_heap* self);
-void managed_heap__unblock_gc(struct managed_heap* self);
+struct context* managed_heap_new_context(struct managed_heap* self);
+void managed_heap_free_context(struct managed_heap* self, struct context* ctx);
 
-#define managed_heap_gc_safepoint() do { \
-  atomic_thread_fence(memory_order_acquire); \
-  managed_heap__gc_safepoint((self)); \
-  atomic_thread_fence(memory_order_release); \
-} while (0)
-
-#define managed_heap_block_gc(self) do { \
-  atomic_thread_fence(memory_order_acquire); \
-  managed_heap__block_gc((self)); \
-} while (0)
-
-#define managed_heap_unblock_gc(self) do { \
-  managed_heap__unblock_gc((self)); \
-  atomic_thread_fence(memory_order_release); \
-} while (0)
+// Context swapping
+struct context* managed_heap_swap_context(struct context* new);
+struct context* managed_heap_switch_context_out();
+void managed_heap_switch_context_in(struct context* new);
 
 #endif
 

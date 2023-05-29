@@ -30,12 +30,17 @@ struct context* context_new() {
   *self = (struct context) {};
   
   list_head_init(&self->root);
+  
+  if (gc_current->hooks->postContextInit(self) < 0) {
+    context_free(self);
+    return NULL;
+  }
   return self;
 }
 
 void context_free(struct context* self) {
-  if (gc_current->hooks->preContextCleanup(self) < 0)
-    BUG();
+  if (!self->gcInitHookCalled)
+    gc_current->hooks->preContextCleanup(self);
   
   struct list_head* current;
   struct list_head* n;
@@ -45,19 +50,17 @@ void context_free(struct context* self) {
 }
 
 void context__block_gc() {
-  unsigned int last = atomic_fetch_add(&context_current->blockCount, 1);
-  BUG_ON(last >= UINT_MAX);
+  context_current->blockCount++;
   
-  if (last == 0 && context_current->managedHeap)
-    managed_heap_block_gc(context_current->managedHeap);
+  if (context_current->blockCount == 1 && context_current->managedHeap)
+    gc_block(gc_current);
 }
 
 void context__unblock_gc() {
-  unsigned int last = atomic_fetch_sub(&context_current->blockCount, 1);
-  BUG_ON(last >= UINT_MAX);
+  context_current->blockCount--;
   
-  if (last == 1 && context_current->managedHeap)
-    managed_heap_unblock_gc(context_current->managedHeap);
+  if (context_current->blockCount == 0 && context_current->managedHeap)
+    gc_unblock(gc_current);
 }
 
 void context_add_pinned_object(struct root_ref* obj) {
@@ -70,11 +73,14 @@ void context_remove_pinned_object(struct root_ref* obj) {
 
 struct root_ref* context_add_root_object(struct object* obj) {
   context_block_gc();
-  struct root_ref* rootRef = soc_alloc(listNodeCache);
+  struct soc_chunk* chunk;
+  struct root_ref* rootRef = soc_alloc_explicit(listNodeCache, &chunk);
   if (!rootRef)
     return NULL;
   
-  *rootRef = (struct root_ref) {};
+  *rootRef = (struct root_ref) {
+    .chunk = chunk
+  };
   atomic_init(&rootRef->obj, obj);
   refcount_init(&rootRef->pinCounter);
   
@@ -86,7 +92,7 @@ struct root_ref* context_add_root_object(struct object* obj) {
 int context_remove_root_object(struct root_ref* obj) {
   context_block_gc();
   list_del(&obj->node);
-  soc_dealloc(listNodeCache, obj);
+  soc_dealloc_explicit(listNodeCache, obj->chunk, obj);
   context_unblock_gc();
   return 0;
 }

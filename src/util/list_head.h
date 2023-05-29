@@ -35,12 +35,17 @@ static inline void list_add_tail(struct list_head* new, struct list_head* head) 
 	__list_add(new, head->prev, head);
 }
 
-static inline void list_del(struct list_head* entry) {
-	__list_del(entry->prev, entry->next);
+static inline void list_init_as_invalid(struct list_head* entry) {
 	entry->next = NULL;
 	entry->prev = NULL;
 }
 
+static inline void list_del(struct list_head* entry) {
+	__list_del(entry->prev, entry->next);
+  list_init_as_invalid(entry);
+}
+
+#define list_is_valid(head) (!(head)->next)
 #define list_is_empty(head) ((head)->next == (head))
 #define list_is_head(list, head) (list == head)
 #define list_for_each(pos, head) for (pos = (head)->next; !list_is_head(pos, (head)); pos = pos->next)

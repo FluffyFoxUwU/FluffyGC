@@ -16,19 +16,19 @@
 // TODO: Complete B-Tree and fix soc.h
 
 enum btree_node_type {
-  BTREE_TYPE_LEAF,
-  BTREE_TYPE_INTERNAL
+  BTREE_TYPE_EMPTY,
+  BTREE_TYPE_NODE,
+  BTREE_TYPE_LEAF // Node only contains pointer to data
 };
 
 // This wrapped because lower bits used for metadata
 // and should not be accessed directly
-struct btree_node_internal;
+struct btree_node;
 struct btree_node_leaf;
 struct btree_node_ptr {
   union {
-    struct btree_node_internal* internal;
-    struct btree_node_leaf* leaf;
-    const void* ptr;
+    struct btree_node* node;
+    void* data;
   };
 };
 
@@ -43,33 +43,32 @@ struct btree_node_ptr {
 #define BTREE_NODE_GET_INTERNAL(x) ((struct btree_node_internal*) (((uintptr_t) (x.internal)) & (~BTREE_NODE_PTR_MASK)))
 
 struct btree_range {
-  uintptr_t range[2];
+  uintptr_t low;
+  uintptr_t high;
 };
 
-struct btree_node_leaf {
-  struct btree_range range;
-  void* value;
-};
+#define BTREE_ORDER (sizeof(uintptr_t) == 8 ? 30 : 62)
 
-#define BTREE_ORDER (30)
-struct btree_node_internal {
+struct btree_node {
   struct soc_chunk* chunk;
-  int keysCount;
-  uintptr_t keys[BTREE_ORDER];
+  int pivotsCount;
+  
+  uintptr_t pivots[BTREE_ORDER];
   struct btree_node_ptr childs[BTREE_ORDER + 1];
+  void* paddingBecauseILikeRound512;
 };
 
 struct btree {
   struct btree_node_ptr root;
 };
 
-void btree_init(struct btree* self);
-void btree_cleanup(struct btree* self);
+// void btree_init(struct btree* self);
+// void btree_cleanup(struct btree* self);
 
-int btree_add_range(struct btree* self, struct btree_range* range, void* value);
-int btree_remove_range(struct btree* self, struct btree_range* range);
+// int btree_add_range(struct btree* self, struct btree_range* range, void* value);
+// int btree_remove_range(struct btree* self, struct btree_range* range);
 
-void* btree_find(struct btree* self, uintptr_t search);
+// void* btree_find(struct btree* self, uintptr_t search);
 
 #endif
 

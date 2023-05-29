@@ -4,33 +4,40 @@
 #include <threads.h>
 
 #include "attributes.h"
+#include "concurrency/rwlock.h"
+
+#define GC_MAX_GENERATIONS 2
 
 extern thread_local struct gc_struct* gc_current;
 
 struct object;
 struct context;
-
-typedef int (*gc_object_callback)(struct object*);
-typedef int (*gc_context_callback)(struct context*);
+struct generation;
 
 struct gc_hooks {
   // These are callback for various spot that some GC implementation may
   // be interested in
   
   // Called with object which was overwritten
-  gc_object_callback postWriteBarrier; 
+  void (*postWriteBarrier)(struct object*); 
   
   // Called with object which was read and after forwarded 
   // addresses adjusted
-  gc_object_callback postReadBarrier;
+  void (*postReadBarrier)(struct object*);
   
-  gc_object_callback postObjectAlloc;
-  gc_object_callback preObjectDealloc;
+  int (*postObjectAlloc)(struct object*);
+  void (*preObjectDealloc)(struct object*);
   
-  gc_context_callback postContextInit;
-  gc_context_callback preContextCleanup;
+  int (*postContextInit)(struct context*);
+  void (*preContextCleanup)(struct context*);
   
-  gc_context_callback onSafepoint;
+  void (*onSafepoint)();
+  
+  int (*mark)();
+  
+  // These return reclaimed bytes
+  size_t (*collect)(struct generation*, size_t sizeHint);
+  size_t (*compact)(struct generation*, size_t sizeHint);
   
   void (*free)(struct gc_hooks*);
 };
@@ -41,7 +48,17 @@ static int ___gc_callback_nop_object(struct object*) {
 }
 
 ATTRIBUTE_USED()
-static int ___gc_callback_nop_context(struct context*) {
+static void ___gc_callback_nop_object2(struct object*) {
+  return;
+}
+
+ATTRIBUTE_USED()
+static void ___gc_callback_nop_context(struct context*) {
+  return;
+}
+
+ATTRIBUTE_USED()
+static int ___gc_callback_nop_context2(struct context*) {
   return 0;
 }
 
@@ -50,15 +67,22 @@ static void ___gc_callback_nop_void(struct gc_hooks*) {
   return;
 }
 
+ATTRIBUTE_USED()
+static void ___gc_callback_nop_void2() {
+  return;
+}
+
 #define GC_HOOKS_DEFAULT \
-  .postWriteBarrier = ___gc_callback_nop_object, \
-  .postReadBarrier = ___gc_callback_nop_object, \
+  .postWriteBarrier = ___gc_callback_nop_object2, \
+  .postReadBarrier = ___gc_callback_nop_object2, \
+   \
   .postObjectAlloc = ___gc_callback_nop_object, \
-  .preObjectDealloc = ___gc_callback_nop_object, \
-  .postContextInit = ___gc_callback_nop_context, \
+  .preObjectDealloc = ___gc_callback_nop_object2, \
+   \
+  .postContextInit = ___gc_callback_nop_context2, \
   .preContextCleanup = ___gc_callback_nop_context, \
-  .onSafepoint = ___gc_callback_nop_context, \
-  .free = ___gc_callback_nop_void
+   \
+  .onSafepoint = ___gc_callback_nop_void2
 
 enum gc_algorithm {
   GC_UNKNOWN,
@@ -68,14 +92,27 @@ enum gc_algorithm {
 struct gc_struct {
   struct gc_hooks* hooks;
   enum gc_algorithm algoritmn;
+  struct rwlock gcLock;
 };
+
+int gc_generation_count(enum gc_algorithm algo, int gcFlags);
+bool gc_use_fast_on_gen(enum gc_algorithm algo, int gcFlags, int genID);
 
 struct gc_struct* gc_new(enum gc_algorithm algo, int gcFlags);
 void gc_free(struct gc_struct* self);
 
-// 0 stands for young GC
-// 1 stands for old GC
-void gc_start(int generation);
+// Always blocking (do not call while GC blocked by caller)
+// should be protected from starting multiple GCs
+// NULL invokes FullGC
+void gc_start(struct gc_struct* self, struct generation* generation, size_t freeSizeHint);
+
+#define gc_safepoint() gc_current->hooks->onSafepoint()
+
+// Cannot be nested
+// consider using context_(un)block_gc functions instead
+
+#define gc_block(self) rwlock_wrlock(&(self)->gcLock)
+#define gc_unblock(self) rwlock_unlock(&(self)->gcLock)
 
 #endif
 

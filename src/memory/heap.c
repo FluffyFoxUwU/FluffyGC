@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
@@ -39,13 +40,14 @@ struct heap* heap_from_existing(size_t size, void* ptr, void (*destroyer)(void*)
   self->bumpPointer = (uintptr_t) ptr;
   self->maxBumpPointer = (uintptr_t) ptr + size;
   self->size = size;
+  atomic_init(&self->usage, 0);
   if (mutex_init(&self->lock) < 0)
     goto failure;
   if (thread_local_init(&self->localHeapKey, free) < 0)
     goto failure;
   
   list_head_init(&self->recentFreeBlocks);
-  list_head_init(&self->recentAllocatedBlocks);
+  list_head_init(&self->allocatedBlocks);
   return self;
 failure:
   heap_free(self);
@@ -53,6 +55,10 @@ failure:
 }
 
 void heap_free(struct heap* self) {
+  if (!self)
+    return;
+  
+  heap_clear(self);
   thread_local_cleanup(&self->localHeapKey);
   mutex_cleanup(&self->lock);
   self->destroyerUwU(self->pool);
@@ -66,43 +72,6 @@ void heap_init(struct heap* self) {
 int heap_param_set_local_heap_size(struct heap* self, size_t size) {
   self->localHeapSize = alignof(typeof(size));
   return 0;
-}
-
-static void initAllocatedBlock(struct heap* self, struct heap_block* block, size_t dataAlignment, size_t blockSize, size_t objectSize) {
-  *block = (struct heap_block) {
-    .isFree = false,
-    .blockSize = blockSize,
-    .dataSize = objectSize,
-    .alignment = MAX(alignof(struct heap_block), dataAlignment)
-  };
-}
-
-static void initFreeBlock(struct heap* self, struct heap_block* block, size_t blockSize) {
-  *block = (struct heap_block) {
-    .isFree = true,
-    .blockSize = blockSize,
-    .alignment = alignof(typeof(*block))
-  };
-}
-
-static void postFreeHook(struct heap* self, struct heap_block* block) {
-  gc_current->hooks->preObjectDealloc(&block->objMetadata);
-  
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
-    free(block->dataPtr.ptr);
-  block->dataPtr = USERPTR_NULL;
-}
-
-static int postAllocHook(struct heap* self, struct heap_block* block) {
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    block->dataPtr = USERPTR(aligned_alloc(block->alignment, block->dataSize));
-    if (!block->dataPtr.ptr)
-      return -ENOMEM;
-  } else {
-    block->dataPtr = USERPTR(PTR_ALIGN(&block->data, block->alignment));
-  }
-  
-  return gc_current->hooks->postObjectAlloc(&block->objMetadata);
 }
 
 // Try merge chain of free blocks
@@ -135,32 +104,50 @@ void heap_merge_free_blocks(struct heap* self) {
   mutex_unlock(&self->lock);
 }
 
-void heap_dealloc(struct heap* self, struct heap_block* block) {
-  mutex_lock(&self->lock);
+static void initFreeBlock(struct heap* self, struct heap_block* block, size_t blockSize) {
+  *block = (struct heap_block) {
+    .isFree = true,
+    .blockSize = blockSize,
+    .alignment = alignof(typeof(*block))
+  };
+}
+
+static void postFreeHook(struct heap* self, struct heap_block* block) {
+  gc_current->hooks->preObjectDealloc(&block->objMetadata);
+  atomic_fetch_sub(&self->usage, block->blockSize);
+  printf("[Heap %p] Usage %10zu bytes / %10zu bytes (dealloc)\n", self, self->usage, self->size);
   
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
+    free(block->dataPtr.ptr);
+  block->dataPtr = USERPTR_NULL;
+}
+
+static void heapDeallocNoLock(struct heap* self, struct heap_block* block) {
   // Double dealloc
   BUG_ON(block->isFree);
+  
+  // Remove from allocated block list
+  list_del(&block->node);
   
   postFreeHook(self, block);
   initFreeBlock(self, block, block->blockSize);
   
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    free(block->dataPtr.ptr);
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
     free(block);
-    goto skip;
-  }
-  
-  // Add to free list
-  list_add(&block->node, &self->recentFreeBlocks);
-skip:
+  else
+    list_add(&block->node, &self->recentFreeBlocks);
+}
+
+void heap_dealloc(struct heap* self, struct heap_block* block) {
+  mutex_lock(&self->lock);
+  heapDeallocNoLock(self, block);
   mutex_unlock(&self->lock);
 }
 
-static void* allocFastRaw(struct heap* self, size_t size) {
-  void* block = NULL;
-  if (!util_atomic_add_if_less_uintptr(&self->bumpPointer, size, self->maxBumpPointer, (uintptr_t*) &block))
-    return NULL;
-  return block;
+static inline struct heap_block* fixAlignment(struct heap_block* block) {
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
+    return block;
+  return PTR_ALIGN(block, alignof(struct heap_block));
 }
 
 static struct heap_block* splitFreeBlocks(struct heap* self, struct heap_block* block, size_t size) {
@@ -175,6 +162,11 @@ static struct heap_block* splitFreeBlocks(struct heap* self, struct heap_block* 
   
   struct heap_block* blockA = block;
   struct heap_block* blockB = ((void*) block) + size;
+  
+  // Re-align
+  blockB = fixAlignment(blockB);
+  size = (uintptr_t) blockB - (uintptr_t) blockA;
+  
   initFreeBlock(self, blockB, block->blockSize - size);
   
   list_add(&blockB->node, &blockA->node);
@@ -207,19 +199,54 @@ static inline struct local_heap_uwu* getLocalHeap(struct heap* self) {
   return localHeap;
 }
 
-static size_t calcHeapBlockAlignment(size_t alignment) {
-  return MAX(alignof(struct heap_block), alignment);
+static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* block, size_t dataAlignment, size_t blockSize, size_t objectSize, bool isSlowAlloc) {
+  if (!IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
+    block = fixAlignment(block);
+  
+  *block = (struct heap_block) {
+    .isFree = false,
+    .blockSize = blockSize,
+    .dataSize = objectSize,
+    .alignment = MAX(alignof(struct heap_block), dataAlignment),
+  };
+  block->dataPtr = USERPTR(PTR_ALIGN(&block->data, block->alignment));
+  
+  list_add(&block->node, &self->allocatedBlocks);
+  
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
+    block->dataPtr = USERPTR(aligned_alloc(block->alignment, block->dataSize));
+    if (!block->dataPtr.ptr)
+      goto failure;
+  } else {
+    block->dataPtr.ptr = PTR_ALIGN(&block->data, dataAlignment);
+  }
+  
+  atomic_fetch_add(&self->usage, block->blockSize);
+  printf("[Heap %p] Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
+  
+  if (isSlowAlloc) mutex_unlock(&self->lock);
+  if (gc_current->hooks->postObjectAlloc(&block->objMetadata) < 0)
+    goto failure;
+  if (isSlowAlloc) mutex_lock(&self->lock);
+  return block;
+
+failure:
+  if (isSlowAlloc) mutex_unlock(&self->lock);
+  heap_dealloc(self, block);
+  if (isSlowAlloc) mutex_lock(&self->lock);
+  return NULL;
 }
 
 // Also compensate for alignment
 // by giving extra space
-static size_t calcHeapBlockSize(size_t alignment, size_t objectSize) {
+static inline size_t calcHeapBlockSize(size_t alignment, size_t objectSize) {
   return ROUND_UP(sizeof(struct heap_block) + ROUND_UP(objectSize, alignment), alignof(struct heap_block));
 }
 
-static struct heap_block* adjustAlignmentAndInitDataPtr(struct heap_block* block, size_t alignment) {
-  block = PTR_ALIGN(block, alignof(struct heap_block));
-  block->dataPtr.ptr = PTR_ALIGN(&block->data, alignment);
+static void* allocFastRaw(struct heap* self, size_t size) {
+  void* block = NULL;
+  if (!util_atomic_add_if_less_uintptr(&self->bumpPointer, size, self->maxBumpPointer, (uintptr_t*) &block))
+    return NULL;
   return block;
 }
 
@@ -230,7 +257,7 @@ struct heap_block* heap_alloc_fast(struct heap* self, size_t dataAlignment, size
   
   context_block_gc();
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    block = aligned_alloc(calcHeapBlockAlignment(dataAlignment), objectSize);
+    block = malloc(sizeof(*block));
     goto alloc_sucess;
   }
   
@@ -253,20 +280,10 @@ struct heap_block* heap_alloc_fast(struct heap* self, size_t dataAlignment, size
   block = (struct heap_block*) localHeap->bumpPointer;
   localHeap->bumpPointer += size;
 alloc_sucess:
-  block = adjustAlignmentAndInitDataPtr(block, dataAlignment);
-  initAllocatedBlock(self, block, dataAlignment, size, objectSize);
-  if (postAllocHook(self, block) < 0) {
-    heap_dealloc(self, block);
-    block = NULL;
-    goto alloc_failure;
-  }
+  block = commonBlockInit(self, block, dataAlignment, size, objectSize, false);
 alloc_failure:
   context_unblock_gc();
   return block;
-}
-
-static void unlinkFromFreeList(struct heap* self, struct heap_block* block) {
-  list_del(&block->node);
 }
 
 struct heap_block* heap_alloc(struct heap* self, size_t dataAlignment, size_t objectSize) {
@@ -277,27 +294,22 @@ struct heap_block* heap_alloc(struct heap* self, size_t dataAlignment, size_t ob
   context_block_gc();
   if ((block = heap_alloc_fast(self, dataAlignment, objectSize)))
     return block;
-  size_t blockSize = calcHeapBlockSize(dataAlignment, objectSize);
+  size_t size = calcHeapBlockSize(dataAlignment, objectSize);
   
   // Slow alloc method
   mutex_lock(&self->lock);
-  block = heap_find_free_block(self, blockSize);
+  block = heap_find_free_block(self, size);
   if (!block) 
     goto alloc_failed;
   
-  block = splitFreeBlocks(self, block, blockSize);
-  unlinkFromFreeList(self, block);
+  block = splitFreeBlocks(self, block, size);
   
-  block = adjustAlignmentAndInitDataPtr(block, dataAlignment);
-  initAllocatedBlock(self, block, dataAlignment, blockSize, objectSize);
+  // Remove from free block list
+  list_del(&block->node);
   
+  block = commonBlockInit(self, block, dataAlignment, size, objectSize, true);
 alloc_failed:
   mutex_unlock(&self->lock);
-  
-  if (block && postAllocHook(self, block) < 0) {
-    heap_dealloc(self, block);
-    block = NULL;
-  }
   context_unblock_gc();
   return block;
 }
@@ -307,16 +319,18 @@ void heap_clear(struct heap* self) {
     return;
   
   mutex_lock(&self->lock);
-  struct list_head* current = self->recentFreeBlocks.next;
-  while (current != &self->recentAllocatedBlocks) {
-    current = current->next;
-    heap_dealloc(self, list_entry(current, struct heap_block, node));
-  }
+  
+  struct list_head* current;
+  struct list_head* next;
+  list_for_each_safe(current, next, &self->allocatedBlocks)
+    heapDeallocNoLock(self, list_entry(current, struct heap_block, node));
   
   // Resets allocation information
   list_head_init(&self->recentFreeBlocks);
-  list_head_init(&self->recentAllocatedBlocks);
+  list_head_init(&self->allocatedBlocks);
+  
   atomic_store(&self->bumpPointer, 0);
+  atomic_store(&self->usage, 0);
   mutex_unlock(&self->lock);
 }
 

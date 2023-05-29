@@ -4,10 +4,10 @@
 #include <stddef.h>
 
 #include "util/list_head.h"
+#include "gc/gc.h"
 
 enum object_type {
-  OBJECT_NORMAL,
-  OBJECT_OPAQUE
+  OBJECT_NORMAL
 };
 
 enum reference_strength {
@@ -34,6 +34,8 @@ struct object {
   int age; // Number of collection survived
   
   struct userptr dataPtr;
+  
+  struct list_head rememberedSetNode[GC_MAX_GENERATIONS];
 };
 
 /*

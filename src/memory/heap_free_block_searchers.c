@@ -7,7 +7,7 @@
 static struct heap_block* bestFit(struct heap* self,  size_t size) {
   struct heap_block* smallest = list_first_entry(&self->recentFreeBlocks, struct heap_block, node);
   struct list_head* current;
-  list_for_each(current, &smallest->node) {
+  list_for_each(current, &self->recentFreeBlocks) {
     struct heap_block* block = list_entry(current, struct heap_block, node);
     if (block->blockSize >= size && block->blockSize < smallest->blockSize)
       smallest = block;
@@ -21,7 +21,7 @@ static struct heap_block* bestFit(struct heap* self,  size_t size) {
 
 static struct heap_block* firstFit(struct heap* self, size_t size) {
   struct list_head* current;
-  list_for_each(current, &list_first_entry(&self->recentFreeBlocks, struct heap_block, node)->node) {
+  list_for_each(current, &self->recentFreeBlocks) {
     struct heap_block* block = list_entry(current, struct heap_block, node);
     if (block->blockSize >= size)
       return block;

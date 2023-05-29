@@ -5,7 +5,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdatomic.h>
+#include <stddef.h>
 
+#include "vec.h"
 #include "object.h"
 #include "util/refcount.h"
 
@@ -20,6 +22,14 @@ struct descriptor_field {
   enum reference_strength strength;
 };
 
+#define DESCRIPTOR_FIELD(type, member, _dataType, refStrength) { \
+  .name = #member, \
+  .offset = offsetof(type, member), \
+  .dataType = (_dataType), \
+  .strength = (refStrength) \
+}
+#define DESCRIPTOR_FIELD_END() {.name = NULL}
+
 struct descriptor_typeid {
   const char* name;
   
@@ -27,7 +37,7 @@ struct descriptor_typeid {
   uintptr_t typeID;
 };
 
-typedef struct descriptor {
+struct descriptor {
   struct descriptor_typeid id;
 
   size_t objectSize;
@@ -35,13 +45,19 @@ typedef struct descriptor {
   
   struct refcount refcount;
   
-  int numFields;
+  vec_t(struct descriptor_field) fields;
+};
+
+struct descriptor_type {
+  struct descriptor_typeid id;
+  size_t alignment;
+  size_t objectSize;
   struct descriptor_field fields[];
-} descriptor_t;
+};
 
-struct descriptor* descriptor_new(struct descriptor_typeid id, size_t alignment, size_t objectSize, int numPointers, struct descriptor_field* fields);
+struct descriptor* descriptor_new(struct descriptor_type* type);
 
-void descriptor_init(struct descriptor* self, struct object* obj);
+void descriptor_init_object(struct descriptor* self, struct object* obj);
 
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset);
 

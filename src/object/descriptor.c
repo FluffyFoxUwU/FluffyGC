@@ -12,6 +12,7 @@
 #include "object.h"
 #include "util/refcount.h"
 #include "util/util.h"
+#include "vec.h"
 
 static int compareByOffset(const void* _a, const void* _b) {
   const struct descriptor_field* a = _a;
@@ -25,28 +26,49 @@ static int compareByOffset(const void* _a, const void* _b) {
     return 0;
 }
 
-struct descriptor* descriptor_new(struct descriptor_typeid id, size_t alignment, size_t objectSize, int numFields, struct descriptor_field* offsets) {
-  struct descriptor* self = malloc(sizeof(*self) + sizeof(*offsets) * numFields);
+static void descriptor_free(struct descriptor* self) {
+  int i;
+  struct descriptor_field* field;
+  vec_foreach_ptr(&self->fields, field, i)
+    free((void*) field->name);
+  
+  vec_deinit(&self->fields);
+  free((void*) self->id.name);
+  free(self);
+}
+
+struct descriptor* descriptor_new(struct descriptor_type* type) {
+  struct descriptor* self = malloc(sizeof(*self));
   if (!self)
     return NULL;
   
   *self = (struct descriptor) {}; 
   
-  self->numFields = numFields;
-  self->id = id;
-  self->id.name = strdup(id.name);
-  self->objectSize = objectSize;
-  self->alignment = alignment;
+  self->id = type->id;
+  self->objectSize = type->objectSize;
+  self->alignment = type->alignment;
   
+  vec_init(&self->fields);
   refcount_init(&self->refcount);
+  
+  self->id.name = strdup(type->id.name);
+  if (!self->id.name)
+    goto failure;
 
-  for (int i = 0; i < numFields; i++) {
-    self->fields[i] = offsets[i];
-    self->fields[i].name = strdup(offsets[i].name);
+  for (int i = 0; type->fields[i].name != NULL; i++) {
+    vec_push(&self->fields, type->fields[i]);
+    self->fields.data[i].name = strdup(type->fields[i].name);
+    
+    if (!self->fields.data[i].name)
+      goto failure;
   }
 
-  qsort(self->fields, numFields, sizeof(*self->fields), compareByOffset); 
+  qsort(self->fields.data, self->fields.length, sizeof(*self->fields.data), compareByOffset); 
   return self;
+
+failure:
+  descriptor_free(self);
+  return NULL;
 }
 
 void descriptor_acquire(struct descriptor* self) {
@@ -56,24 +78,20 @@ void descriptor_acquire(struct descriptor* self) {
 void descriptor_release(struct descriptor* self) {
   if (refcount_release(&self->refcount))
     return;
-
-  for (int i = 0; i < self->numFields; i++)
-    free((void*) self->fields[i].name);
-  free((void*) self->id.name);
-  free(self);
+  descriptor_free(self);
 }
 
-void descriptor_init(struct descriptor* self, struct object* obj) {
-  for (int i = 0; i < self->numFields; i++)
+void descriptor_init_object(struct descriptor* self, struct object* obj) {
+  for (int i = 0; i < self->fields.length; i++)
     descriptor_write_ptr(self, obj, i, NULL);
 }
 
 void descriptor_write_ptr(struct descriptor* self, struct object* data, int index, struct object* ptr) {
-  object_write_reference(data, self->fields[index].offset, ptr);
+  object_write_reference(data, self->fields.data[index].offset, ptr);
 }
 
 struct root_ref* descriptor_read_ptr(struct descriptor* self, struct object* data, int index) {
-  return object_read_reference(data, self->fields[index].offset);
+  return object_read_reference(data, self->fields.data[index].offset);
 }
 
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
@@ -81,10 +99,10 @@ int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
     .offset = offset,
   };
 
-  struct descriptor_field* result = bsearch(&toSearch, self->fields, self->numFields, sizeof(*self->fields), compareByOffset);
+  struct descriptor_field* result = bsearch(&toSearch, self->fields.data, self->fields.length, sizeof(*self->fields.data), compareByOffset);
   if (!result)
     return -ESRCH;
-  return indexof(self->fields, result);
+  return indexof(self->fields.data, result);
 }
 
 

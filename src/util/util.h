@@ -65,6 +65,10 @@ void* util_malloc(size_t newSize, unsigned long flags);
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 #define container_of(ptr, type, member) ((type*) ((void*)ptr - offsetof(type,member)))
+#define ARRAY_SIZE(arr) (sizeof((arr)) /  sizeof(*(arr)))
+
+const uintptr_t* util_find_smallest_but_larger_or_equal_than(const uintptr_t* array, size_t count, uintptr_t search);
+void util_shift_array(void* start, size_t offset, size_t size);
 
 #endif
 

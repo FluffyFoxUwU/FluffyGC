@@ -42,10 +42,13 @@ static struct soc_chunk* getOwningChunk(void* ptr) {
 }
 
 void* soc_alloc(struct small_object_cache* self) {
+  BUG(); /* TODO: Make BTree working so dealloc can find where the allocated came from */
   return soc_alloc_explicit(self, NULL);
 }
 
 void soc_dealloc(struct small_object_cache* self, void* ptr) {
+  /* TODO: Make BTree working so dealloc can find where the allocated came from */
+  BUG();
   soc_dealloc_explicit(self, getOwningChunk(ptr), ptr);
 }
 

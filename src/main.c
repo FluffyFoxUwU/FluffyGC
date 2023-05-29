@@ -9,6 +9,8 @@
 #include "memory/heap.h"
 #include "memory/soc.h"
 #include "context.h"
+#include "object/descriptor.h"
+#include "object/object.h"
 #include "util/btree.h"
 
 /*
@@ -76,16 +78,49 @@ int main3(int argc, char** argv) {
   return EXIT_SUCCESS;
 }
 
+struct test_object {
+  _Atomic(struct test_object*) next;
+  _Atomic(struct test_object*) prev;
+  
+  int data;
+};
+
+static struct descriptor_type type = {
+  .id.name = "test_object",
+  .id.ownerID = 0x00,
+  .id.typeID = 0x00,
+  .objectSize = sizeof(struct test_object),
+  .alignment = alignof(struct test_object),
+  .fields = {
+    DESCRIPTOR_FIELD(struct test_object, next, OBJECT_NORMAL, REFERENCE_STRONG),
+    DESCRIPTOR_FIELD(struct test_object, prev, OBJECT_NORMAL, REFERENCE_STRONG),
+    DESCRIPTOR_FIELD_END()
+  }
+};
 
 int main2(int argc, char** argv) {
   printf("Hello World!\n");
   
-  struct btree tree;
-  btree_init(&tree);
-  btree_cleanup(&tree);
+  // struct btree tree;
+  // btree_init(&tree);
+  // btree_add_range(&tree, &(struct btree_range) {3, 5}, (void*) 0xDEADBEE0);
+  // btree_cleanup(&tree);
   
-  // struct managed_heap* heap = managed_heap_new(GC_NOP_GC, 1, (size_t[]) {64 * 1024 * 1024}, 0);
+  struct generation_params params[] = {
+    {
+      .size = 4 * 1024 * 1024,
+      .earlyPromoteSize = 4 * 1024
+    }
+  };
   
-  // managed_heap_free(heap);
+  struct descriptor* desc = descriptor_new(&type);
+  struct managed_heap* heap = managed_heap_new(GC_NOP_GC, 1, params, 0);
+  managed_heap_attach_context(heap);
+  
+  struct object* obj = managed_heap_alloc_object(desc);
+  
+  managed_heap_detach_context(heap);
+  managed_heap_free(heap);
+  descriptor_release(desc);
   return EXIT_SUCCESS;
 }

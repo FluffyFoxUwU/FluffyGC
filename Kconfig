@@ -43,6 +43,7 @@ endmenu
 
 source "src/memory/Kconfig"
 source "src/fuzzing/Kconfig"
+source "src/gc/Kconfig"
 
 config DONT_START_SEPERATE_MAIN_THREAD
   bool "Don't start seperate main thread"

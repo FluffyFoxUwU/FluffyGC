@@ -17,13 +17,23 @@ struct small_object_cache;
 
 // Represents any context
 
+enum context_state {
+  CONTEXT_INACTIVE = 0,
+  CONTEXT_ACTIVE
+};
+#define CONTEXT_STATE_COUNT 2
+
 struct context {
+  struct list_head list;
+  
   struct managed_heap* managedHeap;
   
   // Amount of context_block_gc calls
-  atomic_uint blockCount;
+  unsigned int blockCount;
  
   struct list_head root;
+  bool gcInitHookCalled;
+  enum context_state state;
 };
 
 struct context* context_new();
@@ -39,6 +49,7 @@ struct root_ref {
   struct list_head node;
   struct refcount pinCounter;
   _Atomic(struct object*) obj;
+  struct soc_chunk* chunk;
 };
 
 void context_add_pinned_object(struct root_ref* obj);

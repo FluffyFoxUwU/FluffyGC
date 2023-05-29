@@ -40,8 +40,7 @@ struct root_ref* object_read_reference(struct object* self, size_t offset) {
   res = context_add_root_object(obj);
   // Called in blocked GC state to ensure GC cycle not starting before
   // obj is checked for liveness
-  if (gc_current->hooks->postReadBarrier(obj) < 0)
-    BUG();
+  gc_current->hooks->postReadBarrier(obj);
 obj_is_null:
   context_unblock_gc();
   return res;
@@ -52,17 +51,20 @@ void object_write_reference(struct object* self, size_t offset, struct object* o
   struct object* old = atomic_exchange(getAtomicPtrToReference(self, offset), obj);
   
   // TODO: implement conditional write barriers
-  if (gc_current->hooks->postWriteBarrier(old) < 0)
-    BUG();
+  gc_current->hooks->postWriteBarrier(old);
   
   // Remembered set management
-  if (gc_current->algoritmn != GC_NOP_GC && self->generationID != obj->generationID)
-    list_add(&obj->list, &context_current->managedHeap->generations[obj->generationID].rememberedSet);
+  if (self->generationID != obj->generationID)
+    list_add(&self->list, &context_current->managedHeap->generations[self->generationID].rememberedSet);
   context_unblock_gc();
 }
 
 void object_cleanup(struct object* self) {
   list_del(&self->list);
+  
+  for (int i = 0; i < GC_MAX_GENERATIONS; i++)
+    if (list_is_valid(&self->rememberedSetNode[i]))
+      list_del(&self->rememberedSetNode[i]);
 }
 
 struct userptr object_get_dma(struct root_ref* rootRef) {
@@ -84,5 +86,7 @@ void object_init(struct object* self, struct descriptor* desc, void* data) {
     .dataPtr = {data}
   };
   
-  descriptor_init(desc, self);
+  for (int i = 0; i < GC_MAX_GENERATIONS; i++)
+    list_init_as_invalid(&self->rememberedSetNode[i]);
+  descriptor_init_object(desc, self);
 }

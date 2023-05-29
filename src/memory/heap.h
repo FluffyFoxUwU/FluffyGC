@@ -31,10 +31,14 @@ struct heap {
   
   atomic_uintptr_t bumpPointer;
   uintptr_t maxBumpPointer;
+  
+  atomic_size_t usage;
   size_t size;
   
   struct list_head recentFreeBlocks;
-  struct list_head recentAllocatedBlocks;
+  
+  // Purpose of GC traversing whole heap
+  struct list_head allocatedBlocks;
 };
 
 struct heap_block {
