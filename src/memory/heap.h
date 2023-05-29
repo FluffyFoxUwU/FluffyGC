@@ -93,7 +93,5 @@ void heap_init(struct heap* self);
 // Pass size == 0 to disable local heap
 int heap_param_set_local_heap_size(struct heap* self, size_t size);
 
-int heap_is_belong_to_this_heap(struct heap* self, void* ptr);
-
 #endif
 

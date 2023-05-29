@@ -49,7 +49,7 @@ int gc_generation_count(enum gc_algorithm algo, int gcFlags) {
 }
 
 void gc_start(struct gc_struct* self, struct generation* generation, size_t freeSizeHint) {
-  self->hooks->mark();
+  self->hooks->mark(generation);
   self->hooks->collect(generation, freeSizeHint);
   if (IS_ENABLED(CONFIG_GC_COMPACTING))
     self->hooks->compact(generation, freeSizeHint);

@@ -52,7 +52,7 @@ struct managed_heap {
 struct managed_heap* managed_heap_new(enum gc_algorithm algo, int genCount, struct generation_params* generationParams, int gcFlags);
 void managed_heap_free(struct managed_heap* self);
 
-struct object* managed_heap_alloc_object(struct descriptor* desc);
+struct root_ref* managed_heap_alloc_object(struct descriptor* desc);
 
 int managed_heap_attach_context(struct managed_heap* self);
 void managed_heap_detach_context(struct managed_heap* self);

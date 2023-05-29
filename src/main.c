@@ -117,7 +117,14 @@ int main2(int argc, char** argv) {
   struct managed_heap* heap = managed_heap_new(GC_NOP_GC, 1, params, 0);
   managed_heap_attach_context(heap);
   
-  struct object* obj = managed_heap_alloc_object(desc);
+  while (true) {
+    struct root_ref* obj = managed_heap_alloc_object(desc);
+    if (!obj) {
+      printf("[Main] Heap OOM-ed\n");
+      BUG();
+    }
+    context_remove_root_object(obj);
+  }
   
   managed_heap_detach_context(heap);
   managed_heap_free(heap);

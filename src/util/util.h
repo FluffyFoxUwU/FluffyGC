@@ -9,9 +9,10 @@
 
 #include "bits.h"
 
+// return true if assigned
 bool util_atomic_add_if_less_uint(volatile atomic_uint* data, unsigned int n, unsigned int max, unsigned int* result);
 bool util_atomic_add_if_less_uintptr(volatile atomic_uintptr_t* data, uintptr_t n, uintptr_t max, uintptr_t* result);
-
+bool util_atomic_add_if_less_size_t(volatile atomic_size_t* data, size_t n, size_t max, size_t* result);
 bool util_atomic_add_if_less_int(volatile atomic_int* data, int n, int max, int* result);
 int util_atomic_min_int(volatile atomic_int* object, int newVal);
 

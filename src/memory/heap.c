@@ -203,6 +203,11 @@ static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* 
   if (!IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
     block = fixAlignment(block);
   
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC) && !util_atomic_add_if_less_size_t(&self->usage, blockSize, self->size, NULL)) {
+    printf("[Heap %p] Out of memory: Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
+    return NULL;
+  }
+  
   *block = (struct heap_block) {
     .isFree = false,
     .blockSize = blockSize,
@@ -221,9 +226,10 @@ static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* 
     block->dataPtr.ptr = PTR_ALIGN(&block->data, dataAlignment);
   }
   
-  atomic_fetch_add(&self->usage, block->blockSize);
   printf("[Heap %p] Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
   
+  // Fast alloc dont lock the heap
+  // and GC hooks need to be called with no lock held on heap
   if (isSlowAlloc) mutex_unlock(&self->lock);
   if (gc_current->hooks->postObjectAlloc(&block->objMetadata) < 0)
     goto failure;
@@ -231,9 +237,7 @@ static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* 
   return block;
 
 failure:
-  if (isSlowAlloc) mutex_unlock(&self->lock);
   heap_dealloc(self, block);
-  if (isSlowAlloc) mutex_lock(&self->lock);
   return NULL;
 }
 
@@ -279,8 +283,11 @@ struct heap_block* heap_alloc_fast(struct heap* self, size_t dataAlignment, size
 
   block = (struct heap_block*) localHeap->bumpPointer;
   localHeap->bumpPointer += size;
-alloc_sucess:
-  block = commonBlockInit(self, block, dataAlignment, size, objectSize, false);
+alloc_sucess:;
+  struct heap_block* computedBlock = commonBlockInit(self, block, dataAlignment, size, objectSize, false);
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC) && computedBlock == NULL)
+    free(block);
+  block = computedBlock;
 alloc_failure:
   context_unblock_gc();
   return block;
@@ -294,6 +301,11 @@ struct heap_block* heap_alloc(struct heap* self, size_t dataAlignment, size_t ob
   context_block_gc();
   if ((block = heap_alloc_fast(self, dataAlignment, objectSize)))
     return block;
+  
+  // The rest of the logic not applicable for malloc based
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
+    return NULL;
+  
   size_t size = calcHeapBlockSize(dataAlignment, objectSize);
   
   // Slow alloc method
@@ -315,9 +327,6 @@ alloc_failed:
 }
 
 void heap_clear(struct heap* self) {
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
-    return;
-  
   mutex_lock(&self->lock);
   
   struct list_head* current;
@@ -334,7 +343,3 @@ void heap_clear(struct heap* self) {
   mutex_unlock(&self->lock);
 }
 
-int heap_is_belong_to_this_heap(struct heap* self, void* ptr) {
-  return (uintptr_t) self->pool <= (uintptr_t) ptr &&
-         (uintptr_t) self->pool <  (uintptr_t) (self->pool + self->size);
-}

@@ -33,7 +33,7 @@ struct gc_hooks {
   
   void (*onSafepoint)();
   
-  int (*mark)();
+  int (*mark)(struct generation*);
   
   // These return reclaimed bytes
   size_t (*collect)(struct generation*, size_t sizeHint);
@@ -101,7 +101,7 @@ bool gc_use_fast_on_gen(enum gc_algorithm algo, int gcFlags, int genID);
 struct gc_struct* gc_new(enum gc_algorithm algo, int gcFlags);
 void gc_free(struct gc_struct* self);
 
-// Always blocking (do not call while GC blocked by caller)
+// Always blocking (handles case where the caller blocks GC)
 // should be protected from starting multiple GCs
 // NULL invokes FullGC
 void gc_start(struct gc_struct* self, struct generation* generation, size_t freeSizeHint);
@@ -111,8 +111,12 @@ void gc_start(struct gc_struct* self, struct generation* generation, size_t free
 // Cannot be nested
 // consider using context_(un)block_gc functions instead
 
-#define gc_block(self) rwlock_wrlock(&(self)->gcLock)
-#define gc_unblock(self) rwlock_unlock(&(self)->gcLock)
+#define gc_block(self) do { \
+  rwlock_rdlock(&(self)->gcLock); \
+} while (0)
+#define gc_unblock(self) do { \
+  rwlock_unlock(&(self)->gcLock); \
+} while (0)
 
 #endif
 

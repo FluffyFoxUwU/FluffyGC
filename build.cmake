@@ -10,7 +10,8 @@ set(BUILD_SOURCES
   src/managed_heap.c
   
   src/util/util.c
-  src/util/btree.c
+  # turn off btree for now
+  #src/util/btree.c
   src/util/thread_pool.c
   
   src/object/descriptor.c

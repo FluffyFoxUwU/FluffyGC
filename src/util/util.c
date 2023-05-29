@@ -27,7 +27,8 @@ bool util_atomic_add_if_less_uint(volatile atomic_uint* data, unsigned int n, un
       return false;
   } while (!atomic_compare_exchange_weak(data, &old, new));
 
-  *result = old;
+  if (result)
+    *result = old;
   return true;
 }
 
@@ -41,7 +42,23 @@ bool util_atomic_add_if_less_uintptr(volatile atomic_uintptr_t* data, uintptr_t 
       return false;
   } while (!atomic_compare_exchange_weak(data, &old, new));
 
-  *result = old;
+  if (result)
+    *result = old;
+  return true;
+}
+
+bool util_atomic_add_if_less_size_t(volatile atomic_size_t* data, size_t n, size_t max, size_t* result) {
+  size_t new;
+  size_t old = atomic_load(data);
+  do {
+    new = old + n;
+    
+    if (new >= max)
+      return false;
+  } while (!atomic_compare_exchange_weak(data, &old, new));
+
+  if (result)
+    *result = old;
   return true;
 }
 
@@ -68,7 +85,8 @@ bool util_atomic_add_if_less_int(volatile atomic_int* data, int n, int max, int*
       return false;
   } while (!atomic_compare_exchange_weak(data, &old, new));
 
-  *result = old;
+  if (result)
+    *result = old;
   return true;
 }
 

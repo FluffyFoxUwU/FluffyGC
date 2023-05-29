@@ -8,6 +8,7 @@ menu "Heap allocator"
       If in doubt, answer N
   choice
     prompt "Free block finder type"
+    depends on !HEAP_USE_MALLOC
     default HEAP_FREE_BLOCK_BEST_FIT
     
     config HEAP_FREE_BLOCK_BEST_FIT

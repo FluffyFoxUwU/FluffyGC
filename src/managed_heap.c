@@ -11,6 +11,7 @@
 #include "object/descriptor.h"
 #include "object/object.h"
 #include "util/list_head.h"
+#include "util/util.h"
 
 static void freeGeneration(struct managed_heap* self, struct generation* gen) {
   struct list_head* current;
@@ -79,37 +80,59 @@ void managed_heap_free(struct managed_heap* self) {
   gc_current = prev;
 }
 
-static struct object* doAlloc(struct managed_heap* self, struct descriptor* desc) {
-  BUG_ON(context_current->blockCount > 0);
-  
-  struct object* obj = NULL;
+static struct object* doAlloc(struct managed_heap* self, struct descriptor* desc, struct heap** allocFrom) {
+  struct heap_block* block = NULL;
+  struct generation* gen = NULL;
   for (int i = 0; i < self->generationCount; i++) {
-    struct generation* gen = &self->generations[i];
-    if (desc->objectSize >= gen->param.earlyPromoteSize)
-      continue;
-    
-    struct heap_block* (*allocFunc)(struct heap*,size_t,size_t);
-    allocFunc = gen->useFastOnly ? heap_alloc_fast : heap_alloc;
-    obj = &allocFunc(gen->fromHeap, desc->alignment, desc->objectSize)->objMetadata;
-    
-    if (!obj) {
-      gc_start(gc_current, gen, desc->objectSize);
-      obj = &allocFunc(gen->fromHeap, desc->alignment, desc->objectSize)->objMetadata;
+    struct generation* tmp = &self->generations[i];
+    if (desc->objectSize < tmp->param.earlyPromoteSize) {
+      gen = tmp;
+      break;
     }
   }
   
-  return obj;
+  // No generation big enough
+  if (!gen)
+    return NULL;
+  
+  struct heap_block* (*allocFunc)(struct heap*,size_t,size_t);
+  allocFunc = gen->useFastOnly ? heap_alloc_fast : heap_alloc;
+  block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);
+  if (block) {
+    *allocFrom = gen->fromHeap;
+    goto sucess;
+  }
+  
+  gc_start(gc_current, gen, desc->objectSize);
+  block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);
+  
+  if (block)
+    *allocFrom = gen->fromHeap;
+sucess:
+  return block ? &block->objMetadata : NULL;
 }
 
-struct object* managed_heap_alloc_object(struct descriptor* desc) {
-  struct object* obj = doAlloc(context_current->managedHeap, desc);
+struct root_ref* managed_heap_alloc_object(struct descriptor* desc) {
+  context_block_gc();
+  struct heap* allocFrom;
+  struct root_ref* rootRef = NULL;
+  struct object* obj = doAlloc(context_current->managedHeap, desc, &allocFrom);
   
   if (!obj) { 
     // Trigger Full GC
     gc_start(gc_current, NULL, SIZE_MAX);
-    obj = doAlloc(context_current->managedHeap, desc);
+    obj = doAlloc(context_current->managedHeap, desc, &allocFrom);
   }
-  return obj;
+  
+  if (!obj)
+    goto failure;
+  
+  rootRef = context_add_root_object(obj);
+  if (!rootRef)
+    heap_dealloc(allocFrom, container_of(obj, struct heap_block, objMetadata));
+failure:
+  context_unblock_gc();
+  return rootRef;
 }
 
 int managed_heap_attach_context(struct managed_heap* self) {
