@@ -33,7 +33,7 @@ struct heap* heap_from_existing(size_t size, void* ptr, void (*destroyer)(void*)
   if (!self)
     return NULL;
   *self = (struct heap) {};
-  size = ROUND_DOWN(size, alignof(struct heap_block));
+  size = ROUND_UP(size, alignof(struct heap_block));
   
   self->pool = ptr;
   self->destroyerUwU = destroyer;
@@ -115,7 +115,7 @@ static void initFreeBlock(struct heap* self, struct heap_block* block, size_t bl
 static void postFreeHook(struct heap* self, struct heap_block* block) {
   gc_current->hooks->preObjectDealloc(&block->objMetadata);
   atomic_fetch_sub(&self->usage, block->blockSize);
-  printf("[Heap %p] Usage %10zu bytes / %10zu bytes (dealloc)\n", self, self->usage, self->size);
+  // printf("[Heap %p] Usage %10zu bytes / %10zu bytes (dealloc)\n", self, self->usage, self->size);
   
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
     free(block->dataPtr.ptr);
@@ -203,8 +203,9 @@ static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* 
   if (!IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
     block = fixAlignment(block);
   
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC) && !util_atomic_add_if_less_size_t(&self->usage, blockSize, self->size, NULL)) {
-    printf("[Heap %p] Out of memory: Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
+  bool isOOM = !util_atomic_add_if_less_size_t(&self->usage, blockSize, self->size, NULL);
+  if (isOOM) {
+    //printf("[Heap %p] Out of memory: Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
     return NULL;
   }
   
@@ -216,7 +217,9 @@ static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* 
   };
   block->dataPtr = USERPTR(PTR_ALIGN(&block->data, block->alignment));
   
+  mutex_lock(&self->lock);
   list_add(&block->node, &self->allocatedBlocks);
+  mutex_unlock(&self->lock);
   
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
     block->dataPtr = USERPTR(aligned_alloc(block->alignment, block->dataSize));
@@ -226,14 +229,12 @@ static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* 
     block->dataPtr.ptr = PTR_ALIGN(&block->data, dataAlignment);
   }
   
-  printf("[Heap %p] Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
+  //printf("[Heap %p] Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
   
   // Fast alloc dont lock the heap
   // and GC hooks need to be called with no lock held on heap
-  if (isSlowAlloc) mutex_unlock(&self->lock);
   if (gc_current->hooks->postObjectAlloc(&block->objMetadata) < 0)
     goto failure;
-  if (isSlowAlloc) mutex_lock(&self->lock);
   return block;
 
 failure:
@@ -319,9 +320,9 @@ struct heap_block* heap_alloc(struct heap* self, size_t dataAlignment, size_t ob
   // Remove from free block list
   list_del(&block->node);
   
+  mutex_unlock(&self->lock);
   block = commonBlockInit(self, block, dataAlignment, size, objectSize, true);
 alloc_failed:
-  mutex_unlock(&self->lock);
   context_unblock_gc();
   return block;
 }

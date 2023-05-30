@@ -101,8 +101,8 @@ bool gc_use_fast_on_gen(enum gc_algorithm algo, int gcFlags, int genID);
 struct gc_struct* gc_new(enum gc_algorithm algo, int gcFlags);
 void gc_free(struct gc_struct* self);
 
-// Always blocking (handles case where the caller blocks GC)
-// should be protected from starting multiple GCs
+// Always blocking, caller responsible to handle multi calls
+// caller should be in
 // NULL invokes FullGC
 void gc_start(struct gc_struct* self, struct generation* generation, size_t freeSizeHint);
 

@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -12,6 +13,7 @@
 #include "object/descriptor.h"
 #include "object/object.h"
 #include "util/btree.h"
+#include "util/util.h"
 
 /*
 layout of object
@@ -28,60 +30,14 @@ actual writable address is `obj->payload + obj->redzoneSize` to
 account redzones which are implemented using ASAN poisoning facility
 */
 
-struct obj {
-  long uwu;
-  void* owo;
-  int fur;
-  double furry;
-};
-
-static void escape(void *p) {
-  //asm volatile("" : : "g"(p) : "memory");
-}
-
-int main3(int argc, char** argv) {
-  printf("Hello World!\n");
-  
-  struct context* context = context_new();
-  context_current = context;
-  
-  struct heap* heap = heap_new(32 * 1024 * 1024 /* 256 * 1024 * 1024 */);
-  // Set parameters
-  heap_param_set_local_heap_size(heap, 4 * 1024 * 1024);
-  heap_init(heap);
-  
-  // 16863: Just before fast alloc failed
-  clock_t clk = clock();
-  for (int i = 0; i <= i /* 10863 */; i++) {
-    if (1) {
-      struct obj* block = malloc(sizeof(struct obj));
-      struct obj* block2 = malloc(sizeof(struct obj) + 1);
-      escape(block);
-      escape(block2);
-      free(block);
-      free(block2);
-    } else {
-      struct heap_block* block = heap_alloc(heap, alignof(struct obj), sizeof(struct obj));
-      struct heap_block* block2 = heap_alloc(heap, alignof(struct obj), sizeof(struct obj) + 1);
-      escape(block);
-      escape(block2);
-      heap_dealloc(heap, block);
-      heap_dealloc(heap, block2);
-    }
-  }
-  double timeMS = (double) (clock() - clk) / (double) CLOCKS_PER_SEC;
-  printf("Time: %.2lf ms\n", timeMS);
-  
-  heap_merge_free_blocks(heap);
-  heap_free(heap);
-  context_free(context);
-  return EXIT_SUCCESS;
-}
-
 struct test_object {
   _Atomic(struct test_object*) next;
   _Atomic(struct test_object*) prev;
   
+  long uwu;
+  void* owo;
+  int fur;
+  double furry;
   int data;
 };
 
@@ -98,6 +54,23 @@ static struct descriptor_type type = {
   }
 };
 
+struct descriptor* desc;
+struct managed_heap* heap;
+static void* worker(void*) {
+  managed_heap_attach_context(heap);
+  
+  while (true) {
+    struct root_ref* obj = managed_heap_alloc_object(desc);
+    if (!obj) {
+      printf("[Main] Heap OOM-ed\n");
+      BUG();
+    }
+    context_remove_root_object(obj);
+  }
+  
+  managed_heap_detach_context(heap);
+}
+
 int main2(int argc, char** argv) {
   printf("Hello World!\n");
   
@@ -113,21 +86,46 @@ int main2(int argc, char** argv) {
     }
   };
   
-  struct descriptor* desc = descriptor_new(&type);
-  struct managed_heap* heap = managed_heap_new(GC_NOP_GC, 1, params, 0);
-  managed_heap_attach_context(heap);
+  desc = descriptor_new(&type);
+  heap = managed_heap_new(GC_NOP_GC, ARRAY_SIZE(params), params, 0);
+  BUG_ON(!heap);
   
-  while (true) {
-    struct root_ref* obj = managed_heap_alloc_object(desc);
-    if (!obj) {
-      printf("[Main] Heap OOM-ed\n");
-      BUG();
-    }
-    context_remove_root_object(obj);
-  }
+  pthread_t threads[2] = {};
+  for (int i = 0; i < ARRAY_SIZE(threads); i++)
+    pthread_create(&threads[i], NULL, worker, NULL);
+  for (int i = 0; i < ARRAY_SIZE(threads); i++)
+    pthread_join(threads[i], NULL);
   
-  managed_heap_detach_context(heap);
   managed_heap_free(heap);
   descriptor_release(desc);
+  return EXIT_SUCCESS;
+}
+
+static void* worker2(void* _udata) {
+  gc_current = gc_new(GC_NOP_GC, 0);
+  context_current = context_new();
+  
+  struct heap* heap = _udata;
+  for (int i = 0; i < 1'000'000; i++) {
+    struct heap_block* blk = heap_alloc(heap, alignof(struct test_object), sizeof(struct test_object));
+    BUG_ON(!blk);
+    heap_dealloc(heap, blk);
+  }
+  
+  context_free(context_current);
+  gc_free(gc_current);
+  return NULL;
+}
+
+int main32(int argc, char** argv) {
+  struct heap* heap = heap_new(8 * 1024 * 1024);
+  
+  pthread_t threads[2] = {};
+  for (int i = 0; i < ARRAY_SIZE(threads); i++)
+    pthread_create(&threads[i], NULL, worker2, heap);
+  for (int i = 0; i < ARRAY_SIZE(threads); i++)
+    pthread_join(threads[i], NULL);
+  
+  heap_free(heap);
   return EXIT_SUCCESS;
 }

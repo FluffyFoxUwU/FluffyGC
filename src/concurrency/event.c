@@ -37,22 +37,22 @@ void event__wait(struct event* self) {
 
 void event__fire(struct event* self) {
   mutex_lock(&self->lock);
-  event_fire_locked(self);
+  event_fire_nolock(self);
   mutex_unlock(&self->lock);
 }
 
-void event__fire_locked(struct event* self) {
+void event__fire_nolock(struct event* self) {
   self->fireState = EVENT_FIRE_ONE;
   condition_wake(&self->cond);
 }
 
 void event__fire_all(struct event* self) {
   mutex_lock(&self->lock);
-  event_fire_all_locked(self);
+  event_fire_all_nolock(self);
   mutex_unlock(&self->lock);
 }
 
-void event__fire_all_locked(struct event* self) {
+void event__fire_all_nolock(struct event* self) {
   self->fireState = EVENT_FIRE_ALL;
   condition_wake_all(&self->cond);
 }

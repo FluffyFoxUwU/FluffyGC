@@ -20,19 +20,19 @@ void completion__complete(struct completion* self);
 void completion__wait_for_completion(struct completion* self);
 
 #define complete_all(self) do { \
-  completion__complete_all((self)); \
   atomic_thread_fence(memory_order_release); \
+  completion__complete_all((self)); \
 } while (0)
 
 #define complete(self) do { \
-  completion__complete((self)); \
   atomic_thread_fence(memory_order_release); \
+  completion__complete((self)); \
 } while (0)
 
 #define wait_for_completion(self) do { \
-  atomic_thread_fence(memory_order_acquire); \
-  completion__wait_for_completion((self)); \
   atomic_thread_fence(memory_order_release); \
+  completion__wait_for_completion((self)); \
+  atomic_thread_fence(memory_order_acquire); \
 } while (0)
 
 

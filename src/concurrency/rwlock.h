@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 
+#include "attributes.h"
+
 struct rwlock {
   pthread_rwlock_t rwlock;
   bool inited;
@@ -13,24 +15,23 @@ struct rwlock {
 int rwlock_init(struct rwlock* self);
 void rwlock_cleanup(struct rwlock* self);
 
-void rwlock__rdlock(struct rwlock* self);
-void rwlock__wrlock(struct rwlock* self);
-void rwlock__unlock(struct rwlock* self);
+ATTRIBUTE_USED()
+static inline void rwlock_wrlock(struct rwlock* self) {
+  pthread_rwlock_wrlock(&(self)->rwlock);
+  atomic_thread_fence(memory_order_acquire);
+}
 
-#define rwlock_rdlock(self) do { \
-  atomic_thread_fence(memory_order_acquire); \
-  rwlock__rdlock((self)); \
-} while (0)
+ATTRIBUTE_USED()
+static inline void rwlock_rdlock(struct rwlock* self) {
+  pthread_rwlock_rdlock(&(self)->rwlock);
+  atomic_thread_fence(memory_order_acquire);
+}
 
-#define rwlock_wrlock(self) do { \
-  atomic_thread_fence(memory_order_acquire); \
-  rwlock__wrlock((self)); \
-} while (0)
-
-#define rwlock_unlock(self) do { \
-  rwlock__unlock((self)); \
-  atomic_thread_fence(memory_order_release); \
-} while (0)
+ATTRIBUTE_USED()
+static inline void rwlock_unlock(struct rwlock* self) {
+  atomic_thread_fence(memory_order_release);
+  pthread_rwlock_unlock(&(self)->rwlock);
+}
 
 #endif
 

@@ -198,8 +198,10 @@ void soc_free(struct small_object_cache* self) {
 }
 
 void* soc_alloc_explicit(struct small_object_cache* self, struct soc_chunk** chunkPtr) {
-  if (IS_ENABLED(CONFIG_SOC_USE_MALLOC))
+  if (IS_ENABLED(CONFIG_SOC_USE_MALLOC)) {
+    *chunkPtr = NULL;
     return aligned_alloc(self->alignment, self->objectSize);
+  }
   
   struct soc_chunk* chunk = getChunk(self);
   void* res = NULL;

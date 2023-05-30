@@ -4,6 +4,12 @@
 // The global state
 // Tracking various things
 
+#include <stdatomic.h>
+
+#include "concurrency/event.h"
+#include "concurrency/mutex.h"
+#include "concurrency/rwlock.h"
+#include "concurrency/rwulock.h"
 #include "util/list_head.h"
 #include "vec.h"
 #include "context.h"
@@ -41,6 +47,10 @@ struct generation {
 struct managed_heap {
   struct gc_struct* gcState;
   
+  struct event gcCompleted;
+  struct rwulock concurrentAllocationPreventer;
+  
+  struct mutex contextTrackerLock;
   struct list_head contextStates[CONTEXT_STATE_COUNT];
   
   vec_t(struct context*) threads;
@@ -48,6 +58,8 @@ struct managed_heap {
   int generationCount;
   struct generation generations[];
 };
+
+#define MANAGED_GC_MAX_RETRIES 5
 
 struct managed_heap* managed_heap_new(enum gc_algorithm algo, int genCount, struct generation_params* generationParams, int gcFlags);
 void managed_heap_free(struct managed_heap* self);

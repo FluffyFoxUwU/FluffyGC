@@ -31,36 +31,36 @@ void event_reset(struct event* self);
 void event__fire_all(struct event* self);
 void event__fire(struct event* self);
 
-void event__fire_all_locked(struct event* self);
-void event__fire_locked(struct event* self);
+void event__fire_all_nolock(struct event* self);
+void event__fire_nolock(struct event* self);
 
 // self->lock must held
 void event__wait(struct event* self);
 
 #define event_wait(self) do { \
-  atomic_thread_fence(memory_order_acquire); \
-  event__wait((self)); \
   atomic_thread_fence(memory_order_release); \
+  event__wait((self)); \
+  atomic_thread_fence(memory_order_acquire); \
 } while (0)
 
 #define event_fire(self) do { \
-  event__fire((self)); \
   atomic_thread_fence(memory_order_release); \
+  event__fire((self)); \
 } while (0)
 
-#define event_fire_locked(self) do { \
-  event__fire_locked((self)); \
+#define event_fire_nolock(self) do { \
   atomic_thread_fence(memory_order_release); \
+  event__fire_nolock((self)); \
 } while (0)
 
 #define event_fire_all(self) do { \
-  event__fire_all((self)); \
   atomic_thread_fence(memory_order_release); \
+  event__fire_all((self)); \
 } while (0)
 
-#define event_fire_all_locked(self) do { \
-  event__fire_all_locked((self)); \
+#define event_fire_all_nolock(self) do { \
   atomic_thread_fence(memory_order_release); \
+  event__fire_all_nolock((self)); \
 } while (0)
 
 #endif
