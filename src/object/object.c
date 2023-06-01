@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "config.h"
 #include "gc/gc.h"
 #include "managed_heap.h"
 #include "memory/heap.h"
@@ -68,8 +69,6 @@ void object_write_reference(struct object* self, size_t offset, struct object* o
   gc_current->hooks->postWriteBarrier(old);
   
   // Add current object to `obj`'s generation remembered set
-  if (obj->generationID < 0)
-    printf("Ptr self: %p new child is %p\n", self, obj);
   if (obj && self->generationID != obj->generationID && !list_is_valid(&self->rememberedSetNode[obj->generationID])) {
     struct generation* target = &context_current->managedHeap->generations[obj->generationID];
     mutex_lock(&target->rememberedSetLock);
@@ -130,11 +129,18 @@ struct object* object_move(struct object* self, struct heap* dest) {
   
   newBlockObj->generationID = self->generationID;
   newBlockObj->descriptor = self->descriptor;
+  newBlockObj->age = self->age;
   
   // Poison self
   self->generationID = INT_MIN;
-  self->dataPtr = USERPTR_NULL;
+  //self->dataPtr = USERPTR_NULL;
   self->descriptor = NULL;
+  
+  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
+    struct heap_block* block = container_of(self, struct heap_block, objMetadata);
+    free(block->dataPtr.ptr);
+    block->dataPtr.ptr = NULL;
+  }
   return newBlockObj;
 }
 

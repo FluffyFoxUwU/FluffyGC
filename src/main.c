@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -48,7 +49,7 @@ static void* worker(void*) {
   managed_heap_attach_context(heap);
   
   struct root_ref* obj = managed_heap_alloc_object(testObjectClass);
-  for (int i = 0; i < 100'000; i++) {
+  for (int i = 0; i >= 0; i++) {
     struct root_ref* obj2 = managed_heap_alloc_object(testObjectClass);
     if (!obj2) {
       printf("[Main] Heap OOM-ed\n");
@@ -57,7 +58,7 @@ static void* worker(void*) {
     
     context_block_gc();
     object_write_reference(atomic_load(&obj2->obj), offsetof(struct test_object, next), atomic_load(&obj->obj));
-    //swap(obj2, obj);
+    // swap(obj2, obj);
     context_unblock_gc();
     
     context_remove_root_object(obj2);
@@ -74,15 +75,15 @@ int main2(int argc, char** argv) {
   // btree_add_range(&tree, &(struct btree_range) {3, 5}, (void*) 0xDEADBEE0);
   // btree_cleanup(&tree);
   
-  gc_flags gcFlags = 0; //SERIAL_GC_USE_2_GENERATIONS;
+  gc_flags gcFlags = SERIAL_GC_USE_2_GENERATIONS;
   struct generation_params params[] = {
     {
-      .size = 1 * 1024,
+      .size = 16 * 1024 * 1024,
       .earlyPromoteSize = 4 * 1024,
       .promotionAge = 1
     },
     {
-      .size = 2 * 1024,
+      .size = 64 * 1024 * 1024,
       .earlyPromoteSize = -1,
       .promotionAge = -1
     }
@@ -107,10 +108,10 @@ int main2(int argc, char** argv) {
   
   descriptor_define(testObjectClass, &type);
   
-  heap = managed_heap_new(GC_SERIAL_GC, 1, params, gcFlags);
+  heap = managed_heap_new(GC_SERIAL_GC, 2, params, gcFlags);
   BUG_ON(!heap);
   
-  pthread_t threads[1] = {};
+  pthread_t threads[2] = {};
   for (int i = 0; i < ARRAY_SIZE(threads); i++)
     pthread_create(&threads[i], NULL, worker, NULL);
   for (int i = 0; i < ARRAY_SIZE(threads); i++)

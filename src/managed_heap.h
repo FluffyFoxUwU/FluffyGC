@@ -56,7 +56,7 @@ struct managed_heap {
   struct list_head contextStates[CONTEXT_STATE_COUNT];
   
   int generationCount;
-  struct generation generations[GC_MAX_GENERATIONS];
+  struct generation generations[];
 };
 
 #define MANAGED_GC_MAX_RETRIES 5

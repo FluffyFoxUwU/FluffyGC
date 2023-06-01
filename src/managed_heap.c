@@ -1,6 +1,7 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 
@@ -49,7 +50,7 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
   if (generationCount > GC_MAX_GENERATIONS || gc_generation_count(algo, gcFlags) != generationCount)
     return NULL;
   
-  struct managed_heap* self = malloc(sizeof(*self));
+  struct managed_heap* self = malloc(sizeof(*self) + sizeof(*self->generations) * generationCount);
   if (!self)
     return NULL;
   
@@ -127,17 +128,13 @@ retry:
       // This thread is the winner
       // and this thread got first attempt to allocate
       
+      printf("[GC start]\n");
       if (isFullGC)
         gc_start(self->gcState, NULL);
       else {
-        puts("fuwa fuwa1");
         gc_start(self->gcState, gen);
-        //gc_start(self->gcState, &context_current->managedHeap->generations[1]);
-        
-        gc_start(self->gcState, gen);
-        gc_start(self->gcState, gen);
-        puts("fuwa fuwa2");
       }
+      printf("[GC end]\n\n");
       
       block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);
       event_fire_all(&self->gcCompleted);

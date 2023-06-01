@@ -19,17 +19,17 @@ static void clearRememberedSetFor(struct object* obj) {
       list_del(&obj->rememberedSetNode[i]);
 }
 
-static void recomputeRememberedSet(struct object* obj) {
-  clearRememberedSetFor(obj);
-  object_for_each_field(obj, ^(struct object* child, size_t) {
+static void recomputeRememberedSet(struct object* self) {
+  clearRememberedSetFor(self);
+  object_for_each_field(self, ^(struct object* child, size_t) {
     if (!child)
       return;
     
-    BUG_ON(obj->generationID < 0);
-    BUG_ON(child->generationID < 0);
-    if (child && obj->generationID != child->generationID && !list_is_valid(&obj->rememberedSetNode[child->generationID])) {
+    if (child->generationID < 0)
+      *(volatile int*) child->dataPtr.ptr;
+    if (child && self->generationID != child->generationID && !list_is_valid(&self->rememberedSetNode[child->generationID])) {
       struct generation* target = &context_current->managedHeap->generations[child->generationID];
-      list_add(&obj->rememberedSetNode[child->generationID], &target->rememberedSet);
+      list_add(&self->rememberedSetNode[child->generationID], &target->rememberedSet);
     }
   });
 }
@@ -46,8 +46,12 @@ static void objectIsAlive(struct generation* gen, struct object* oldObj) {
 static thread_local struct list_head promotedList;
 static void postCollect(struct generation* gen) {
   struct managed_heap* managedHeap = context_current->managedHeap;
-  // Update so that no forward pointers exists in fromHeap
+  int currentGenID = indexof(managedHeap->generations, gen);
+  
   struct list_head* current;
+  struct list_head* next;
+  
+  // Update so that no forward pointers exists in fromHeap
   list_for_each(current, &gen->toHeap->allocatedBlocks) {
     struct heap_block* objBlock = list_entry(current, struct heap_block, node);
     object_fix_pointers(&objBlock->objMetadata);
@@ -63,12 +67,13 @@ static void postCollect(struct generation* gen) {
     atomic_store(&ref->obj, new);
   });
   
-  int currentGenID = indexof(managedHeap->generations, gen);
-  
-  struct list_head* next;
-  
   list_for_each_safe(current, next, &promotedList) {
     struct object* obj = list_entry(current, struct object, inPromotionList);
+    object_fix_pointers(obj);
+  }
+  
+  list_for_each(current, &gen->rememberedSet) {
+    struct object* obj = list_entry(current, struct object, rememberedSetNode[currentGenID]);
     object_fix_pointers(obj);
   }
   
@@ -87,10 +92,14 @@ static void postCollect(struct generation* gen) {
     list_del(current);
   }
   
+  list_for_each_safe(current, next, &gen->rememberedSet) {
+    struct object* obj = list_entry(current, struct object, rememberedSetNode[currentGenID]);
+    *(volatile int*) obj->dataPtr.ptr;
+    recomputeRememberedSet(obj);
+  }
+  
   heap_clear(gen->fromHeap);
   swap(gen->fromHeap, gen->toHeap);
-  BUG_ON(!gen->fromHeap);
-  BUG_ON(!gen->toHeap);
   
   printf("[GC] Heap stat: ");
   for (int i = 0; i < managedHeap->generationCount; i++) {
@@ -114,7 +123,6 @@ static size_t collectGeneration(struct generation* gen) {
     
     // Dead object!
     if (!obj->isMarked) {
-      printf("[Object %p] Object is killed\n", obj);
       clearRememberedSetFor(obj);
       object_cleanup(obj);
       reclaimedSize += objBlock->blockSize;
@@ -123,28 +131,26 @@ static size_t collectGeneration(struct generation* gen) {
     
     // Promote if there next generation
     if (obj->age + 1 >= gen->param.promotionAge && obj->generationID + 1 < managedHeap->generationCount) {
-      // struct object* newLocation;
-      // int nextGenID = obj->generationID + 1;
-      // struct generation* promoteTo = &managedHeap->generations[nextGenID];
+      struct object* newLocation;
+      int nextGenID = obj->generationID + 1;
+      struct generation* promoteTo = &managedHeap->generations[nextGenID];
       
-      // if (!(newLocation = object_move(obj, promoteTo->fromHeap))) {
-      //   printf("[GC promoter] Error promoting %p to Gen%d -w-\n", obj, nextGenID);
-        
-      //   obj->age--;
-      //   goto object_is_alive;
-      // }
+      if (!(newLocation = object_move(obj, promoteTo->fromHeap))) {
+        obj->age = 0;
+        objectIsAlive(gen, obj);
+        continue;
+      }
       
-      // clearRememberedSetFor(obj);
+      clearRememberedSetFor(obj);
       
-      // newLocation->generationID = nextGenID;
-      // newLocation->age = 0;
+      newLocation->generationID = nextGenID;
+      newLocation->age = 0;
       
-      // printf("[Object %p] Promotion success now is %p\n", obj, newLocation);
-      // list_add(&newLocation->inPromotionList, &promotedList);
-      // continue;
-      BUG();
+      list_add(&newLocation->inPromotionList, &promotedList);
+      continue;
     }
     
+object_is_alive:
     // Alive object send to toHeap
     objectIsAlive(gen, obj);
   }
@@ -199,6 +205,16 @@ int gc_generic_mark(struct generation* gen) {
     vec_push(&currentPath, obj);
     doDFSMark(currentGenID, &currentPath);
   });
+  
+  struct list_head* current;
+  list_for_each(current, &gen->rememberedSet) {
+    struct object* obj = list_entry(current, struct object, rememberedSetNode[currentGenID]);
+    object_for_each_field(obj, ^(struct object* child, size_t) {
+      if (child)
+        vec_push(&currentPath, child);
+    });
+    doDFSMark(currentGenID, &currentPath);
+  }
 mark_failure:
   vec_deinit(&currentPath);
   return res;
