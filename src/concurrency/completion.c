@@ -21,7 +21,7 @@ void completion__complete(struct completion* self) {
   mutex_lock(&self->onComplete.lock);
   BUG_ON(self->done == UINT_MAX);
   self->done++;
-  event_fire_nolock(&self->onComplete);
+  event_fire(&self->onComplete);
   mutex_unlock(&self->onComplete.lock);
 }
 
@@ -33,7 +33,7 @@ void completion_reset(struct completion* self) {
 void completion__complete_all(struct completion* self) {
   mutex_lock(&self->onComplete.lock);
   self->done = UINT_MAX;
-  event_fire_all_nolock(&self->onComplete);
+  event_fire_all(&self->onComplete);
   mutex_unlock(&self->onComplete.lock);
 }
 

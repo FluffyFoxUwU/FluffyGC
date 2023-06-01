@@ -21,7 +21,7 @@ enum event_fire_type {
 struct event {
   struct mutex lock;
   struct condition cond;
-  enum event_fire_type fireState;
+  _Atomic(enum event_fire_type) fireState;
 };
 
 int event_init(struct event* self);
@@ -30,9 +30,6 @@ void event_reset(struct event* self);
 
 void event__fire_all(struct event* self);
 void event__fire(struct event* self);
-
-void event__fire_all_nolock(struct event* self);
-void event__fire_nolock(struct event* self);
 
 // self->lock must held
 void event__wait(struct event* self);
@@ -48,19 +45,9 @@ void event__wait(struct event* self);
   event__fire((self)); \
 } while (0)
 
-#define event_fire_nolock(self) do { \
-  atomic_thread_fence(memory_order_release); \
-  event__fire_nolock((self)); \
-} while (0)
-
 #define event_fire_all(self) do { \
   atomic_thread_fence(memory_order_release); \
   event__fire_all((self)); \
-} while (0)
-
-#define event_fire_all_nolock(self) do { \
-  atomic_thread_fence(memory_order_release); \
-  event__fire_all_nolock((self)); \
 } while (0)
 
 #endif

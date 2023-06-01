@@ -3,38 +3,40 @@
 #include "gc/gc.h"
 #include "gc/nop/nop.h"
 #include "util/util.h"
+#include "managed_heap.h"
 
-static void freeHook(struct gc_hooks* self) {
-  free(self);
-}
-
-static int mark(struct generation* gen) {
+int gc_nop_mark(struct generation* gen) {
   return 0;
 }
 
-static size_t collect(struct generation*, size_t sizeHint) {
+size_t gc_nop_collect(struct generation* gen) {
   return 0;
 }
 
-static size_t compact(struct generation*, size_t sizeHint) {
-  return 0;
+void gc_nop_compact(struct generation* gen) {
 }
 
-struct gc_hooks* gc_nop_new(int flags) {
-  struct gc_hooks* self = malloc(sizeof(*self));
-  *self = (struct gc_hooks) { GC_HOOKS_DEFAULT,
-    .mark = mark,
-    .collect = collect,
-    .compact = compact
-  };
-  self->free = freeHook;
-  return self;
+void gc_nop_start_cycle(struct generation*) {
 }
 
-int gc_nop_generation_count(int flags) {
+void gc_nop_end_cycle(struct generation*) {
+}
+
+void gc_nop_free(struct gc_hooks*) {}
+
+static struct gc_hooks hooks = { GC_HOOKS_DEFAULT,
+  .collect = gc_nop_collect,
+  .free = gc_nop_free
+};
+
+struct gc_hooks* gc_nop_new(gc_flags flags) {
+  return &hooks;
+}
+
+int gc_nop_generation_count(gc_flags flags) {
   return 1;
 }
 
-bool gc_nop_use_fast_on_gen(int flags, int genID) {
+bool gc_nop_use_fast_on_gen(gc_flags flags, int genID) {
   return true;
 }

@@ -11,14 +11,14 @@
 #include "object.h"
 #include "util/refcount.h"
 
-struct region;
+struct descriptor;
 struct object;
 
 struct descriptor_field {
   const char* name;
   size_t offset;
-
-  enum object_type dataType;
+  
+  struct descriptor* dataType;
   enum reference_strength strength;
 };
 
@@ -39,6 +39,8 @@ struct descriptor_typeid {
 
 struct descriptor {
   struct descriptor_typeid id;
+  enum object_type objectType;
+  bool isDefined;
 
   size_t objectSize;
   size_t alignment;
@@ -52,20 +54,32 @@ struct descriptor_type {
   struct descriptor_typeid id;
   size_t alignment;
   size_t objectSize;
-  struct descriptor_field fields[];
+  enum object_type objectType;
+  struct descriptor_field* fields;
 };
 
-struct descriptor* descriptor_new(struct descriptor_type* type);
+struct descriptor* descriptor_new();
+int descriptor_define(struct descriptor* self, struct descriptor_type* type);
 
 void descriptor_init_object(struct descriptor* self, struct object* obj);
 
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset);
 
-void descriptor_write_ptr(struct descriptor* self, struct object* data, int index, struct object* ptr);
-struct root_ref* descriptor_read_ptr(struct descriptor* self, struct object* data, int index);
-
 void descriptor_acquire(struct descriptor* self);
 void descriptor_release(struct descriptor* self);
+
+void descriptor_for_each_field(struct object* self, void (^iterator)(struct object* obj,size_t offset));
+
+// Different object type is not compatible
+// Incompatible cases
+// TypeA    ->  TypeA[]     is not compatible
+// TypeA    ->  TypeB       is not compatible
+// TypeA[]  ->  TypeB[]     is not compatible
+// Compatible cases
+// TypeA    ->  TypeA       is compatible
+// TypeA[]  ->  TypeA[]     is compatible
+// Return bool on sucess and -errno on error
+int descriptor_is_assignable_to(struct descriptor* self, size_t offset, struct descriptor* desc);
 
 #endif
 

@@ -6,6 +6,7 @@
 
 #include "bug.h"
 #include "gc/gc.h"
+#include "gc/gc_flags.h"
 #include "managed_heap.h"
 #include "memory/heap.h"
 #include "memory/soc.h"
@@ -41,31 +42,25 @@ struct test_object {
   int data;
 };
 
-static struct descriptor_type type = {
-  .id.name = "test_object",
-  .id.ownerID = 0x00,
-  .id.typeID = 0x00,
-  .objectSize = sizeof(struct test_object),
-  .alignment = alignof(struct test_object),
-  .fields = {
-    DESCRIPTOR_FIELD(struct test_object, next, OBJECT_NORMAL, REFERENCE_STRONG),
-    DESCRIPTOR_FIELD(struct test_object, prev, OBJECT_NORMAL, REFERENCE_STRONG),
-    DESCRIPTOR_FIELD_END()
-  }
-};
-
-struct descriptor* desc;
+struct descriptor* testObjectClass;
 struct managed_heap* heap;
 static void* worker(void*) {
   managed_heap_attach_context(heap);
   
-  while (true) {
-    struct root_ref* obj = managed_heap_alloc_object(desc);
-    if (!obj) {
+  struct root_ref* obj = managed_heap_alloc_object(testObjectClass);
+  for (int i = 0; i < 100'000; i++) {
+    struct root_ref* obj2 = managed_heap_alloc_object(testObjectClass);
+    if (!obj2) {
       printf("[Main] Heap OOM-ed\n");
       BUG();
     }
-    context_remove_root_object(obj);
+    
+    context_block_gc();
+    object_write_reference(atomic_load(&obj2->obj), offsetof(struct test_object, next), atomic_load(&obj->obj));
+    //swap(obj2, obj);
+    context_unblock_gc();
+    
+    context_remove_root_object(obj2);
   }
   
   managed_heap_detach_context(heap);
@@ -79,53 +74,49 @@ int main2(int argc, char** argv) {
   // btree_add_range(&tree, &(struct btree_range) {3, 5}, (void*) 0xDEADBEE0);
   // btree_cleanup(&tree);
   
+  gc_flags gcFlags = 0; //SERIAL_GC_USE_2_GENERATIONS;
   struct generation_params params[] = {
     {
-      .size = 4 * 1024 * 1024,
-      .earlyPromoteSize = 4 * 1024
+      .size = 1 * 1024,
+      .earlyPromoteSize = 4 * 1024,
+      .promotionAge = 1
+    },
+    {
+      .size = 2 * 1024,
+      .earlyPromoteSize = -1,
+      .promotionAge = -1
     }
   };
   
-  desc = descriptor_new(&type);
-  heap = managed_heap_new(GC_NOP_GC, ARRAY_SIZE(params), params, 0);
+  testObjectClass = descriptor_new();
+  
+  struct descriptor_field typeFields[] = {
+    DESCRIPTOR_FIELD(struct test_object, next, testObjectClass, REFERENCE_STRONG),
+    DESCRIPTOR_FIELD(struct test_object, prev, testObjectClass, REFERENCE_STRONG),
+    DESCRIPTOR_FIELD_END()
+  };
+  struct descriptor_type type = {
+    .id.name = "test_object",
+    .id.ownerID = 0x00,
+    .id.typeID = 0x00,
+    .objectSize = sizeof(struct test_object),
+    .alignment = alignof(struct test_object),
+    .fields = typeFields,
+    .objectType = OBJECT_NORMAL
+  };
+  
+  descriptor_define(testObjectClass, &type);
+  
+  heap = managed_heap_new(GC_SERIAL_GC, 1, params, gcFlags);
   BUG_ON(!heap);
   
-  pthread_t threads[2] = {};
+  pthread_t threads[1] = {};
   for (int i = 0; i < ARRAY_SIZE(threads); i++)
     pthread_create(&threads[i], NULL, worker, NULL);
   for (int i = 0; i < ARRAY_SIZE(threads); i++)
     pthread_join(threads[i], NULL);
   
   managed_heap_free(heap);
-  descriptor_release(desc);
-  return EXIT_SUCCESS;
-}
-
-static void* worker2(void* _udata) {
-  gc_current = gc_new(GC_NOP_GC, 0);
-  context_current = context_new();
-  
-  struct heap* heap = _udata;
-  for (int i = 0; i < 1'000'000; i++) {
-    struct heap_block* blk = heap_alloc(heap, alignof(struct test_object), sizeof(struct test_object));
-    BUG_ON(!blk);
-    heap_dealloc(heap, blk);
-  }
-  
-  context_free(context_current);
-  gc_free(gc_current);
-  return NULL;
-}
-
-int main32(int argc, char** argv) {
-  struct heap* heap = heap_new(8 * 1024 * 1024);
-  
-  pthread_t threads[2] = {};
-  for (int i = 0; i < ARRAY_SIZE(threads); i++)
-    pthread_create(&threads[i], NULL, worker2, heap);
-  for (int i = 0; i < ARRAY_SIZE(threads); i++)
-    pthread_join(threads[i], NULL);
-  
-  heap_free(heap);
+  descriptor_release(testObjectClass);
   return EXIT_SUCCESS;
 }

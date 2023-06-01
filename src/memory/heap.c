@@ -10,8 +10,6 @@
 #include <errno.h>
 
 #include "concurrency/thread_local.h"
-#include "context.h"
-#include "gc/gc.h"
 #include "heap.h"
 #include "bug.h"
 #include "config.h"
@@ -35,7 +33,7 @@ struct heap* heap_from_existing(size_t size, void* ptr, void (*destroyer)(void*)
   *self = (struct heap) {};
   size = ROUND_UP(size, alignof(struct heap_block));
   
-  self->pool = ptr;
+  self->base = ptr;
   self->destroyerUwU = destroyer;
   self->bumpPointer = (uintptr_t) ptr;
   self->maxBumpPointer = (uintptr_t) ptr + size;
@@ -61,7 +59,7 @@ void heap_free(struct heap* self) {
   heap_clear(self);
   thread_local_cleanup(&self->localHeapKey);
   mutex_cleanup(&self->lock);
-  self->destroyerUwU(self->pool);
+  self->destroyerUwU(self->base);
   free(self);
 }
 
@@ -205,7 +203,8 @@ static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* 
   
   bool isOOM = !util_atomic_add_if_less_size_t(&self->usage, blockSize, self->size, NULL);
   if (isOOM) {
-    //printf("[Heap %p] Out of memory: Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
+    BUG_ON(!IS_ENABLED(CONFIG_HEAP_USE_MALLOC));
+     // printf("[Heap %p] Out of memory: Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
     return NULL;
   }
   
@@ -229,7 +228,7 @@ static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* 
     block->dataPtr.ptr = PTR_ALIGN(&block->data, dataAlignment);
   }
   
-  //printf("[Heap %p] Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
+  // printf("[Heap %p] Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
   
   // Fast alloc dont lock the heap
   // and GC hooks need to be called with no lock held on heap
@@ -260,7 +259,6 @@ struct heap_block* heap_alloc_fast(struct heap* self, size_t dataAlignment, size
   struct heap_block* block = NULL;
   size_t size = calcHeapBlockSize(dataAlignment, objectSize);
   
-  context_block_gc();
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
     block = malloc(sizeof(*block));
     goto alloc_sucess;
@@ -290,7 +288,6 @@ alloc_sucess:;
     free(block);
   block = computedBlock;
 alloc_failure:
-  context_unblock_gc();
   return block;
 }
 
@@ -299,7 +296,6 @@ struct heap_block* heap_alloc(struct heap* self, size_t dataAlignment, size_t ob
     return NULL;
   struct heap_block* block = NULL;
   
-  context_block_gc();
   if ((block = heap_alloc_fast(self, dataAlignment, objectSize)))
     return block;
   
@@ -323,7 +319,6 @@ struct heap_block* heap_alloc(struct heap* self, size_t dataAlignment, size_t ob
   mutex_unlock(&self->lock);
   block = commonBlockInit(self, block, dataAlignment, size, objectSize, true);
 alloc_failed:
-  context_unblock_gc();
   return block;
 }
 
@@ -339,7 +334,7 @@ void heap_clear(struct heap* self) {
   list_head_init(&self->recentFreeBlocks);
   list_head_init(&self->allocatedBlocks);
   
-  atomic_store(&self->bumpPointer, 0);
+  atomic_store(&self->bumpPointer, (uintptr_t) self->base);
   atomic_store(&self->usage, 0);
   mutex_unlock(&self->lock);
 }

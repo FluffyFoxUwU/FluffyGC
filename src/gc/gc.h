@@ -1,16 +1,19 @@
 #ifndef _headers_1682059498_FluffyGC_gc
 #define _headers_1682059498_FluffyGC_gc
 
+#include <stdint.h>
 #include <threads.h>
 
 #include "attributes.h"
-#include "concurrency/rwlock.h"
+#include "gc_flags.h"
+#include "concurrency/rwulock.h"
 
-#define GC_MAX_GENERATIONS 2
+#define GC_MAX_GENERATIONS 3
 
 extern thread_local struct gc_struct* gc_current;
 
 struct object;
+struct root_ref;
 struct context;
 struct generation;
 
@@ -33,11 +36,8 @@ struct gc_hooks {
   
   void (*onSafepoint)();
   
-  int (*mark)(struct generation*);
-  
   // These return reclaimed bytes
-  size_t (*collect)(struct generation*, size_t sizeHint);
-  size_t (*compact)(struct generation*, size_t sizeHint);
+  size_t (*collect)(struct generation*);
   
   void (*free)(struct gc_hooks*);
 };
@@ -86,25 +86,26 @@ static void ___gc_callback_nop_void2() {
 
 enum gc_algorithm {
   GC_UNKNOWN,
-  GC_NOP_GC
+  GC_NOP_GC,
+  GC_SERIAL_GC
 };
 
 struct gc_struct {
   struct gc_hooks* hooks;
   enum gc_algorithm algoritmn;
-  struct rwlock gcLock;
+  struct rwulock gcLock;
 };
 
-int gc_generation_count(enum gc_algorithm algo, int gcFlags);
-bool gc_use_fast_on_gen(enum gc_algorithm algo, int gcFlags, int genID);
+int gc_generation_count(enum gc_algorithm algo, gc_flags gcFlags);
+bool gc_use_fast_on_gen(enum gc_algorithm algo, gc_flags gcFlags, int genID);
 
-struct gc_struct* gc_new(enum gc_algorithm algo, int gcFlags);
+struct gc_struct* gc_new(enum gc_algorithm algo, gc_flags gcFlags);
 void gc_free(struct gc_struct* self);
 
 // Always blocking, caller responsible to handle multi calls
 // caller should be in
 // NULL invokes FullGC
-void gc_start(struct gc_struct* self, struct generation* generation, size_t freeSizeHint);
+void gc_start(struct gc_struct* self, struct generation* generation);
 
 #define gc_safepoint() gc_current->hooks->onSafepoint()
 
@@ -112,11 +113,16 @@ void gc_start(struct gc_struct* self, struct generation* generation, size_t free
 // consider using context_(un)block_gc functions instead
 
 #define gc_block(self) do { \
-  rwlock_rdlock(&(self)->gcLock); \
+  rwulock_rdlock(&(self)->gcLock); \
 } while (0)
 #define gc_unblock(self) do { \
-  rwlock_unlock(&(self)->gcLock); \
+  rwulock_unlock(&(self)->gcLock); \
 } while (0)
+
+bool gc_upgrade_to_gc_mode(struct gc_struct* self);
+void gc_downgrade_from_gc_mode(struct gc_struct* self);
+
+void gc_for_each_root_entry(struct gc_struct* self, void (^iterator)(struct root_ref*));
 
 #endif
 

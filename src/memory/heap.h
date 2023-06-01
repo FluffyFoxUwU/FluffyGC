@@ -23,7 +23,7 @@ struct heap {
   struct mutex lock;
   struct thread_local_struct localHeapKey;
   
-  void* pool;
+  void* base;
   void (*destroyerUwU)(void*);
   
   bool initialized;

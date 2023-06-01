@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include "bug.h"
 #include "context.h"
 #include "descriptor.h"
 #include "object.h"
@@ -37,38 +38,48 @@ static void descriptor_free(struct descriptor* self) {
   free(self);
 }
 
-struct descriptor* descriptor_new(struct descriptor_type* type) {
+struct descriptor* descriptor_new() {
   struct descriptor* self = malloc(sizeof(*self));
   if (!self)
     return NULL;
   
   *self = (struct descriptor) {}; 
-  
-  self->id = type->id;
-  self->objectSize = type->objectSize;
-  self->alignment = type->alignment;
-  
   vec_init(&self->fields);
   refcount_init(&self->refcount);
   
+  return self;
+
+  descriptor_free(self);
+  return NULL;
+}
+
+int descriptor_define(struct descriptor* self, struct descriptor_type* type) {
+  int res = 0;
+  self->id = type->id;
+  self->objectSize = type->objectSize;
+  self->alignment = type->alignment;
+  self->isDefined = true;
+  self->objectType = type->objectType;
+  
   self->id.name = strdup(type->id.name);
-  if (!self->id.name)
+  if (!self->id.name) {
+    res = -ENOMEM;
     goto failure;
+  }
 
   for (int i = 0; type->fields[i].name != NULL; i++) {
     vec_push(&self->fields, type->fields[i]);
     self->fields.data[i].name = strdup(type->fields[i].name);
     
-    if (!self->fields.data[i].name)
+    if (!self->fields.data[i].name) {
+      res = -ENOMEM;
       goto failure;
+    }
   }
 
   qsort(self->fields.data, self->fields.length, sizeof(*self->fields.data), compareByOffset); 
-  return self;
-
 failure:
-  descriptor_free(self);
-  return NULL;
+  return res;
 }
 
 void descriptor_acquire(struct descriptor* self) {
@@ -82,16 +93,15 @@ void descriptor_release(struct descriptor* self) {
 }
 
 void descriptor_init_object(struct descriptor* self, struct object* obj) {
-  for (int i = 0; i < self->fields.length; i++)
-    descriptor_write_ptr(self, obj, i, NULL);
-}
-
-void descriptor_write_ptr(struct descriptor* self, struct object* data, int index, struct object* ptr) {
-  object_write_reference(data, self->fields.data[index].offset, ptr);
-}
-
-struct root_ref* descriptor_read_ptr(struct descriptor* self, struct object* data, int index) {
-  return object_read_reference(data, self->fields.data[index].offset);
+  switch (self->objectType) {
+    case OBJECT_NORMAL: {
+      int i;
+      struct descriptor_field* field;
+      vec_foreach_ptr(&self->fields, field, i)
+        atomic_init((_Atomic(struct object*)*) (obj->dataPtr.ptr + field->offset), NULL);
+      break;
+    }
+  }
 }
 
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
@@ -105,5 +115,28 @@ int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
   return indexof(self->fields.data, result);
 }
 
+void descriptor_for_each_field(struct object* self, void (^iterator)(struct object* obj,size_t offset)) {
+  switch (self->descriptor->objectType) {
+    case OBJECT_NORMAL: {
+      int i;
+      struct descriptor_field* field;
+      vec_foreach_ptr(&self->descriptor->fields, field, i)
+        iterator(atomic_load((_Atomic(struct object*)*) (self->dataPtr.ptr + field->offset)), field->offset);
+      break;
+    }
+  }
+}
 
-
+int descriptor_is_assignable_to(struct descriptor* self, size_t offset, struct descriptor* b) {
+  struct descriptor* a = NULL;
+  int index;
+  switch (self->objectType) {
+    case OBJECT_NORMAL: {
+      index = descriptor_get_index_from_offset(self, offset);
+      BUG_ON(index < 0);
+      break;
+    }
+  }
+  a = self->fields.data[index].dataType;
+  return a == b;
+}

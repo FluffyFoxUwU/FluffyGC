@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <errno.h>
 
+#include "memory/heap.h"
 #include "concurrency/completion.h"
 #include "concurrency/event.h"
 #include "concurrency/rwlock.h"
@@ -52,23 +53,26 @@ void context_free(struct context* self) {
 void context__block_gc() {
   context_current->blockCount++;
   
-  if (context_current->blockCount == 1 && context_current->managedHeap)
+  if (context_current->blockCount == 1)
     gc_block(gc_current);
 }
 
 void context__unblock_gc() {
   context_current->blockCount--;
   
-  if (context_current->blockCount == 0 && context_current->managedHeap)
+  if (context_current->blockCount == 0)
     gc_unblock(gc_current);
 }
 
+// TODO: Remove GC blocks once object can be safely pinned
 void context_add_pinned_object(struct root_ref* obj) {
+  context_block_gc();
   refcount_acquire(&obj->pinCounter);
 }
 
 void context_remove_pinned_object(struct root_ref* obj) {
   refcount_release(&obj->pinCounter);
+  context_unblock_gc();
 }
 
 struct root_ref* context_add_root_object(struct object* obj) {

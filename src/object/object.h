@@ -1,11 +1,13 @@
 #ifndef _headers_1673090887_FluffyGC_object
 #define _headers_1673090887_FluffyGC_object
 
+#include <stdatomic.h>
 #include <stddef.h>
 
 #include "util/list_head.h"
 #include "gc/gc.h"
 
+struct heap;
 enum object_type {
   OBJECT_NORMAL
 };
@@ -22,20 +24,23 @@ struct userptr {
 #define USERPTR_NULL USERPTR(NULL)
 
 struct object {
-  struct list_head list;
-  int generationID;
+  struct list_head inPromotionList;
   
   // Used during compaction phase
   // Does not need to be _Atomic because it only modified during GC
   struct object* forwardingPointer;
   
-  struct descriptor* descriptor;
   size_t objectSize; // Represent size of data
   int age; // Number of collection survived
   
   struct userptr dataPtr;
   
   struct list_head rememberedSetNode[GC_MAX_GENERATIONS];
+  atomic_bool isMarked;
+  
+  // Must preserved when moved
+  struct descriptor* descriptor;
+  int generationID;
 };
 
 /*
@@ -59,13 +64,21 @@ void object_cleanup(struct object* self);
 struct root_ref* object_read_reference(struct object* self, size_t offset);
 void object_write_reference(struct object* self, size_t offset, struct object* obj);
 
-// These guarantee to be safe for DMA for non object field
+void object_fix_pointers(struct object* self);
+
+// These guarantee to be safe for DMA for non reference field
 // If there object_get_dma there must be corresponding object_put_dma
 // the resulting userptr is not guarantee to be same
+// WARNING: DO NOT trample or write or anything on reference field
 struct userptr object_get_dma(struct root_ref* rootRef);
 int object_put_dma(struct root_ref* rootRef, struct userptr dma);
 
 struct object* object_resolve_forwarding(struct object* self);
+
+struct object* object_move(struct object* self, struct heap* dest);
+
+// Generic iterating the object for references
+void object_for_each_field(struct object* self, void (^iterator)(struct object* obj,size_t offset));
 
 #endif
 

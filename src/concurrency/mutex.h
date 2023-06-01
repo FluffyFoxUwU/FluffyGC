@@ -57,7 +57,11 @@ static inline void mutex_unlock(struct mutex* self) {
 ATTRIBUTE_USED()
 static inline bool mutex_is_owned_by_current(struct mutex* self) {
   rwlock_rdlock(&self->ownerLock);
-  bool res = pthread_equal(self->owner, pthread_self());
+  bool res = false;
+  if (!self->locked)
+    goto is_locked;
+  res = pthread_equal(self->owner, pthread_self());
+is_locked:
   rwlock_unlock(&self->ownerLock);
   return res;
 }

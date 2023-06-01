@@ -10,7 +10,9 @@
 #include "concurrency/mutex.h"
 #include "concurrency/rwlock.h"
 #include "concurrency/rwulock.h"
+#include "gc/gc.h"
 #include "util/list_head.h"
+#include "gc/gc_flags.h"
 #include "vec.h"
 #include "context.h"
 
@@ -40,6 +42,7 @@ struct generation {
   struct heap* toHeap;
   struct generation_params param;
   
+  struct mutex rememberedSetLock;
   struct list_head rememberedSet;
   bool useFastOnly;
 };
@@ -48,20 +51,17 @@ struct managed_heap {
   struct gc_struct* gcState;
   
   struct event gcCompleted;
-  struct rwulock concurrentAllocationPreventer;
   
   struct mutex contextTrackerLock;
   struct list_head contextStates[CONTEXT_STATE_COUNT];
   
-  vec_t(struct context*) threads;
-  
   int generationCount;
-  struct generation generations[];
+  struct generation generations[GC_MAX_GENERATIONS];
 };
 
 #define MANAGED_GC_MAX_RETRIES 5
 
-struct managed_heap* managed_heap_new(enum gc_algorithm algo, int genCount, struct generation_params* generationParams, int gcFlags);
+struct managed_heap* managed_heap_new(enum gc_algorithm algo, int genCount, struct generation_params* generationParams, gc_flags gcFlags);
 void managed_heap_free(struct managed_heap* self);
 
 struct root_ref* managed_heap_alloc_object(struct descriptor* desc);

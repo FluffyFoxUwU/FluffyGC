@@ -59,13 +59,13 @@ struct root_ref* context_add_root_object(struct object* obj);
 int context_remove_root_object(struct root_ref* obj);
 
 #define context_block_gc() do { \
-  atomic_thread_fence(memory_order_acquire); \
   context__block_gc(); \
+  atomic_thread_fence(memory_order_acquire); \
 } while (0)
 
 #define context_unblock_gc() do { \
-  context__unblock_gc(); \
   atomic_thread_fence(memory_order_release); \
+  context__unblock_gc(); \
 } while (0)
 
 #endif

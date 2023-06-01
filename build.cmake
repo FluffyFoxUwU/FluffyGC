@@ -19,6 +19,8 @@ set(BUILD_SOURCES
   
   src/gc/gc.c
   src/gc/nop/nop.c
+  src/gc/serial/serial.c
+  src/gc/generic/generic.c
   
   src/memory/soc.c
   src/memory/heap.c

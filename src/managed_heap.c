@@ -1,5 +1,6 @@
 #include <pthread.h>
 #include <stdatomic.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>
 
@@ -22,11 +23,14 @@ static void freeGeneration(struct managed_heap* self, struct generation* gen) {
   struct list_head* next;
   list_for_each_safe(current, next, &gen->rememberedSet)
     list_del(current);
+  mutex_cleanup(&gen->rememberedSetLock);
   heap_free(gen->fromHeap);
   heap_free(gen->toHeap);
 }
 
 static int initGeneration(struct managed_heap* self, struct generation* gen, struct generation_params* param, bool useFastOnly) {
+  if (mutex_init(&gen->rememberedSetLock) < 0)
+    goto failure;
   if (!(gen->fromHeap = heap_new(param->size / 2)))
     goto failure;
   if (!(gen->toHeap = heap_new(param->size / 2)))
@@ -41,11 +45,11 @@ failure:
   return -ENOMEM;
 }
 
-struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCount, struct generation_params* genParam, int gcFlags) {
-  if (gc_generation_count(algo, gcFlags) != generationCount)
+struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCount, struct generation_params* genParam, gc_flags gcFlags) {
+  if (generationCount > GC_MAX_GENERATIONS || gc_generation_count(algo, gcFlags) != generationCount)
     return NULL;
   
-  struct managed_heap* self = malloc(sizeof(*self) + sizeof(*self->generations) * generationCount);
+  struct managed_heap* self = malloc(sizeof(*self));
   if (!self)
     return NULL;
   
@@ -57,7 +61,6 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
     list_head_init(&self->contextStates[i]);
   
   if (mutex_init(&self->contextTrackerLock) < 0 ||
-      rwulock_init(&self->concurrentAllocationPreventer) < 0 ||
       event_init(&self->gcCompleted) < 0)
     goto failure;
   
@@ -85,19 +88,18 @@ void managed_heap_free(struct managed_heap* self) {
     freeGeneration(self, &self->generations[i]);
   
   mutex_cleanup(&self->contextTrackerLock);
-  rwulock_cleanup(&self->concurrentAllocationPreventer);
   event_cleanup(&self->gcCompleted);
   gc_free(self->gcState);
   free(self);
   gc_current = prev;
 }
 
-static struct object* doAlloc(struct managed_heap* self, struct descriptor* desc, struct generation** attemptedOn, bool isFullGC) {
+static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* desc, struct generation** attemptedOn, bool isFullGC) {
   struct heap_block* block = NULL;
   struct generation* gen = NULL;
   for (int i = 0; i < self->generationCount; i++) {
     struct generation* tmp = &self->generations[i];
-    if (desc->objectSize < tmp->param.earlyPromoteSize) {
+    if (i + 1 >= self->generationCount || desc->objectSize < tmp->param.earlyPromoteSize) {
       gen = tmp;
       break;
     }
@@ -117,56 +119,68 @@ static struct object* doAlloc(struct managed_heap* self, struct descriptor* desc
   struct heap_block* (*allocFunc)(struct heap*,size_t,size_t);
   allocFunc = gen->useFastOnly ? heap_alloc_fast : heap_alloc;
   
-  rwulock_rdlock(&self->concurrentAllocationPreventer);
 retry:
   block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);
   
   if (!block && retryCounts < MANAGED_GC_MAX_RETRIES) {
-    if (rwulock_try_upgrade(&self->concurrentAllocationPreventer)) {
+    if (gc_upgrade_to_gc_mode(gc_current)) {
       // This thread is the winner
       // and this thread got first attempt to allocate
       
-      mutex_lock(&self->gcCompleted.lock);
-      gc_start(self->gcState, !isFullGC ? *attemptedOn : NULL, desc->objectSize);
+      if (isFullGC)
+        gc_start(self->gcState, NULL);
+      else {
+        puts("fuwa fuwa1");
+        gc_start(self->gcState, gen);
+        //gc_start(self->gcState, &context_current->managedHeap->generations[1]);
+        
+        gc_start(self->gcState, gen);
+        gc_start(self->gcState, gen);
+        puts("fuwa fuwa2");
+      }
+      
       block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);
-      event_fire_all_nolock(&self->gcCompleted);
-      mutex_unlock(&self->gcCompleted.lock);
+      event_fire_all(&self->gcCompleted);
     } else {
       // Concurrent thread tried to start GC
       // so make the rest waits then retry
       // so be sure it wont spam GC cycles with no benefit
       
       retryCounts++;
-      rwulock_unlock(&self->concurrentAllocationPreventer);
+      gc_unblock(gc_current);
       mutex_lock(&self->gcCompleted.lock);
       event_wait(&self->gcCompleted);
       mutex_unlock(&self->gcCompleted.lock);
-      rwulock_rdlock(&self->concurrentAllocationPreventer);
+      gc_block(gc_current);
       goto retry;
     }
   }
-  rwulock_unlock(&self->concurrentAllocationPreventer);
   
   *attemptedOn = gen;
-  return block ? &block->objMetadata : NULL;
+  return block;
 }
 
 struct root_ref* managed_heap_alloc_object(struct descriptor* desc) {
   context_block_gc();
   struct generation* attemptedOn;
   struct root_ref* rootRef = NULL;
-  struct object* obj = doAlloc(context_current->managedHeap, desc, &attemptedOn, false);
+  struct heap_block* newBlock = doAlloc(context_current->managedHeap, desc, &attemptedOn, false);
   
   // Do again but with Full GC
-  if (!obj)
-    obj = doAlloc(context_current->managedHeap, desc, &attemptedOn, true);
+  if (!newBlock)
+    newBlock = doAlloc(context_current->managedHeap, desc, &attemptedOn, true);
   
-  if (!obj)
+  if (!newBlock)
     goto failure;
   
-  rootRef = context_add_root_object(obj);
-  if (!rootRef && obj)
-    heap_dealloc(attemptedOn->fromHeap, container_of(obj, struct heap_block, objMetadata));
+  rootRef = context_add_root_object(&newBlock->objMetadata);
+  if (!rootRef && newBlock) {
+    heap_dealloc(attemptedOn->fromHeap, newBlock);
+    goto failure;
+  }
+  object_init(&newBlock->objMetadata, desc, newBlock->dataPtr.ptr);
+  BUG_ON(!attemptedOn);
+  newBlock->objMetadata.generationID = indexof(context_current->managedHeap->generations, attemptedOn);
 failure:
   context_unblock_gc();
   return rootRef;
