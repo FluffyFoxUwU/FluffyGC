@@ -1,5 +1,6 @@
 #include <stdatomic.h>
 #include <stdio.h>
+#include <strings.h>
 #include <threads.h>
 
 #include "generic.h"
@@ -25,37 +26,44 @@ static void recomputeRememberedSet(struct object* self) {
     if (!child)
       return;
     
-    if (child->generationID < 0)
-      *(volatile int*) child->dataPtr.ptr;
     if (child && self->generationID != child->generationID && !list_is_valid(&self->rememberedSetNode[child->generationID])) {
-      struct generation* target = &context_current->managedHeap->generations[child->generationID];
+      struct generation* target = &managed_heap_current->generations[child->generationID];
       list_add(&self->rememberedSetNode[child->generationID], &target->rememberedSet);
     }
   });
 }
 
-static void objectIsAlive(struct generation* gen, struct object* oldObj) {
+static void objectIsAlive(struct generation* gen, struct object* oldObj, int ageDelta) {
   struct object* newLocation;
   clearRememberedSetFor(oldObj);
   
   if (!(newLocation = object_move(oldObj, gen->toHeap)))
     BUG();
-  newLocation->age++;
+  newLocation->age += ageDelta;
 }
 
 static thread_local struct list_head promotedList;
 static void postCollect(struct generation* gen) {
-  struct managed_heap* managedHeap = context_current->managedHeap;
-  int currentGenID = indexof(managedHeap->generations, gen);
-  
   struct list_head* current;
   struct list_head* next;
   
+# define doGenerationStart() \
+  for (int i = 0; i < managed_heap_current->generationCount; i++) { \
+    struct generation* innerGen = gen; \
+    if (!gen) \
+      innerGen = &managed_heap_current->generations[i];
+# define doGenerationEnd() \
+    if (gen) \
+      break; \
+  }
+  
+  doGenerationStart()
   // Update so that no forward pointers exists in fromHeap
-  list_for_each(current, &gen->toHeap->allocatedBlocks) {
+  list_for_each(current, &innerGen->toHeap->allocatedBlocks) {
     struct heap_block* objBlock = list_entry(current, struct heap_block, node);
     object_fix_pointers(&objBlock->objMetadata);
   }
+  doGenerationEnd()
   
   gc_for_each_root_entry(gc_current, ^(struct root_ref* ref) {
     struct object* new;
@@ -67,20 +75,24 @@ static void postCollect(struct generation* gen) {
     atomic_store(&ref->obj, new);
   });
   
+  doGenerationStart()
+  list_for_each(current, &innerGen->rememberedSet) {
+    struct object* obj = list_entry(current, struct object, rememberedSetNode[innerGen->genID]);
+    object_fix_pointers(obj);
+  }
+  doGenerationEnd()
+  
   list_for_each_safe(current, next, &promotedList) {
     struct object* obj = list_entry(current, struct object, inPromotionList);
     object_fix_pointers(obj);
   }
   
-  list_for_each(current, &gen->rememberedSet) {
-    struct object* obj = list_entry(current, struct object, rememberedSetNode[currentGenID]);
-    object_fix_pointers(obj);
-  }
-  
-  list_for_each(current, &gen->toHeap->allocatedBlocks) {
+  doGenerationStart()
+  list_for_each(current, &innerGen->toHeap->allocatedBlocks) {
     struct heap_block* objBlock = list_entry(current, struct heap_block, node);
     recomputeRememberedSet(&objBlock->objMetadata);
   }
+  doGenerationEnd()
   
   gc_for_each_root_entry(gc_current, ^(struct root_ref* ref) {
     recomputeRememberedSet(atomic_load(&ref->obj));
@@ -92,53 +104,62 @@ static void postCollect(struct generation* gen) {
     list_del(current);
   }
   
-  list_for_each_safe(current, next, &gen->rememberedSet) {
-    struct object* obj = list_entry(current, struct object, rememberedSetNode[currentGenID]);
-    *(volatile int*) obj->dataPtr.ptr;
+  doGenerationStart()
+  list_for_each_safe(current, next, &innerGen->rememberedSet) {
+    struct object* obj = list_entry(current, struct object, rememberedSetNode[innerGen->genID]);
     recomputeRememberedSet(obj);
   }
+  doGenerationEnd()
   
-  heap_clear(gen->fromHeap);
-  swap(gen->fromHeap, gen->toHeap);
+  doGenerationStart()
+  heap_clear(innerGen->fromHeap);
+  swap(innerGen->fromHeap, innerGen->toHeap);
+  doGenerationEnd()
   
-  printf("[GC] Heap stat: ");
-  for (int i = 0; i < managedHeap->generationCount; i++) {
-    struct generation* gen = &managedHeap->generations[i];
-    printf("Gen%d: %10zu bytes / %10zu bytes   ", i, gen->fromHeap->usage, gen->fromHeap->size);
-  }
-  puts("");
+# undef doGenerationStart
+# undef doGenerationEnd
 }
 
-static size_t collectGeneration(struct generation* gen) {
-  list_head_init(&promotedList);
+static size_t collectGeneration(struct generation* gen, struct generation** promoteTargetFailurePtr, bool fullGC, size_t* thisGenerationReclaimedSizePtr) {
+  // Net worth of reclaimed space (dead objects)
+  size_t globallyReclaimedSize = 0;
   
-  size_t reclaimedSize = 0;
+  // Reclaimed space within this generatio (promoted objects + dead objects)
+  size_t thisGenerationReclaimedSize = 0;
+  
   struct list_head* current;
-  struct list_head* next;
-  struct managed_heap* managedHeap = context_current->managedHeap;
+  struct managed_heap* managedHeap = managed_heap_current;
+  struct generation* promoteTo = NULL;
   
-  list_for_each_safe(current, next, &gen->fromHeap->allocatedBlocks) {
+  int nextGenID = gen->genID + 1;
+  if (nextGenID < managedHeap->generationCount)
+    promoteTo = gen + 1;
+  
+  // Where promotion has failed
+  struct generation* promoteTargetFailure = NULL;
+  
+  list_for_each(current, &gen->fromHeap->allocatedBlocks) {
     struct heap_block* objBlock = list_entry(current, struct heap_block, node);
     struct object* obj = &objBlock->objMetadata;
+    int ageDelta = 1;
     
     // Dead object!
     if (!obj->isMarked) {
+      globallyReclaimedSize += objBlock->blockSize;
+      thisGenerationReclaimedSize += objBlock->blockSize;
       clearRememberedSetFor(obj);
       object_cleanup(obj);
-      reclaimedSize += objBlock->blockSize;
       continue;
     }
     
     // Promote if there next generation
-    if (obj->age + 1 >= gen->param.promotionAge && obj->generationID + 1 < managedHeap->generationCount) {
+    if (obj->age + 1 >= gen->param.promotionAge && promoteTargetFailure == NULL && promoteTo && !fullGC) {
       struct object* newLocation;
-      int nextGenID = obj->generationID + 1;
-      struct generation* promoteTo = &managedHeap->generations[nextGenID];
       
       if (!(newLocation = object_move(obj, promoteTo->fromHeap))) {
-        obj->age = 0;
-        objectIsAlive(gen, obj);
-        continue;
+        promoteTargetFailure = promoteTo;
+        ageDelta = 0;
+        goto object_is_alive;
       }
       
       clearRememberedSetFor(obj);
@@ -147,25 +168,31 @@ static size_t collectGeneration(struct generation* gen) {
       newLocation->age = 0;
       
       list_add(&newLocation->inPromotionList, &promotedList);
+      thisGenerationReclaimedSize += objBlock->blockSize;
       continue;
     }
     
 object_is_alive:
     // Alive object send to toHeap
-    objectIsAlive(gen, obj);
+    objectIsAlive(gen, obj, ageDelta);
   }
   
-  postCollect(gen);
-  return reclaimedSize;
-}
-
-static size_t doCollectAndMark(struct generation* gen) {
-  if (gc_generic_mark(gen) < 0)
-    return 0;
-  return gc_generic_collect(gen);
+  if (promoteTargetFailurePtr)
+    *promoteTargetFailurePtr = promoteTargetFailure;
+  if (thisGenerationReclaimedSizePtr)
+    *thisGenerationReclaimedSizePtr = thisGenerationReclaimedSize;
+  return globallyReclaimedSize;
 }
 
 typedef vec_t(struct object*) mark_state_stack;
+
+static bool isEligibleForScanning(struct object* obj, int targetGenID) {
+  if (!obj)
+    return false;
+  if (targetGenID == -1)
+    return true;
+  return obj->generationID == targetGenID;
+}
 
 // Basicly iterative DFS search
 static int doDFSMark(int targetGenID, mark_state_stack* stack) {
@@ -177,7 +204,7 @@ static int doDFSMark(int targetGenID, mark_state_stack* stack) {
     
     current->isMarked = true;
     object_for_each_field(current, ^(struct object* obj, size_t) {
-      if (!obj || obj->generationID != targetGenID)
+      if (!isEligibleForScanning(obj, targetGenID))
         return;
       vec_push(stack, obj);
     });
@@ -194,45 +221,75 @@ int gc_generic_mark(struct generation* gen) {
     goto mark_failure;
   }
   
-  struct managed_heap* managedHeap = context_current->managedHeap;
-  int currentGenID = indexof(managedHeap->generations, gen);
-  
+  int targetGenID = gen ? gen->genID : -1;
   gc_for_each_root_entry(gc_current, ^(struct root_ref* ref) {
     struct object* obj = atomic_load(&ref->obj);
-    if (!obj || obj->generationID != currentGenID)
+    if (!isEligibleForScanning(obj, targetGenID))
       return;
     
     vec_push(&currentPath, obj);
-    doDFSMark(currentGenID, &currentPath);
+    doDFSMark(targetGenID, &currentPath);
   });
   
-  struct list_head* current;
-  list_for_each(current, &gen->rememberedSet) {
-    struct object* obj = list_entry(current, struct object, rememberedSetNode[currentGenID]);
-    object_for_each_field(obj, ^(struct object* child, size_t) {
-      if (child)
-        vec_push(&currentPath, child);
-    });
-    doDFSMark(currentGenID, &currentPath);
+  // We don't need scan remembered set when doing FullGC
+  if (targetGenID >= 0) {
+    struct list_head* current;
+    list_for_each(current, &gen->rememberedSet) {
+      struct object* obj = list_entry(current, struct object, rememberedSetNode[targetGenID]);
+      object_for_each_field(obj, ^(struct object* child, size_t) {
+        if (child)
+          vec_push(&currentPath, child);
+      });
+      doDFSMark(targetGenID, &currentPath);
+    }
   }
 mark_failure:
   vec_deinit(&currentPath);
   return res;
 }
 
-size_t gc_generic_collect_and_mark(struct generation* gen) {
-  if (gen)
-    return doCollectAndMark(gen);
-  
-  size_t reclaimedSize = 0;
-  struct managed_heap* managedHeap = context_current->managedHeap;
-  for (int i = 0; i < managedHeap->generationCount; i++)
-    reclaimedSize += doCollectAndMark(&managedHeap->generations[i]);
-  return reclaimedSize;
+static size_t doCollectAndMark(struct generation* gen, struct generation** promoteTargetFailure, size_t* thisGenerationReclaimedSizePtr) {
+  if (gc_current->hooks->mark(gen) < 0)
+    return 0;
+  return collectGeneration(gen, promoteTargetFailure, false, thisGenerationReclaimedSizePtr);
 }
 
 size_t gc_generic_collect(struct generation* gen) {
-  return collectGeneration(gen);
+  list_head_init(&promotedList);
+  
+  if (!gen) {
+    size_t reclaimedSize = 0;
+    for (int i = 0; i < managed_heap_current->generationCount; i++)
+      reclaimedSize += collectGeneration(&managed_heap_current->generations[i], NULL, true, NULL);
+    
+    postCollect(NULL);
+    return reclaimedSize;
+  }
+  
+  struct generation* promoteTargetFailure = NULL;
+  size_t thisGenerationReclaimedSizeTotal = 0;
+  size_t reclaimedSize = collectGeneration(gen, &promoteTargetFailure, false, &thisGenerationReclaimedSizeTotal);
+  postCollect(gen);
+  
+  // Early promote size is minimum size so that allocator dont false positive
+  while (thisGenerationReclaimedSizeTotal < gen->param.earlyPromoteSize) {
+    if (promoteTargetFailure) {
+      doCollectAndMark(promoteTargetFailure, NULL, NULL);
+      postCollect(promoteTargetFailure);
+    }
+    
+    size_t thisGenerationReclaimedSize = 0;
+    reclaimedSize += doCollectAndMark(gen, &promoteTargetFailure, &thisGenerationReclaimedSize);
+    thisGenerationReclaimedSizeTotal += thisGenerationReclaimedSize;
+    postCollect(gen);
+    
+    // Fruitless retry and also avoid infinite loops
+    // if no progress
+    if (thisGenerationReclaimedSize == 0)
+      break;
+    promoteTargetFailure = NULL;
+  }
+  return reclaimedSize;
 }
 
 void gc_generic_compact(struct generation* gen) {

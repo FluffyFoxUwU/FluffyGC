@@ -59,10 +59,10 @@ obj_is_null:
 }
 
 void object_write_reference(struct object* self, size_t offset, struct object* obj) {
+  context_block_gc();
   if (!descriptor_is_assignable_to(self->descriptor, offset, obj->descriptor))
     BUG();
   
-  context_block_gc();
   struct object* old = atomic_exchange(getAtomicPtrToReference(self, offset), obj);
   
   // TODO: implement conditional write barriers
@@ -70,7 +70,7 @@ void object_write_reference(struct object* self, size_t offset, struct object* o
   
   // Add current object to `obj`'s generation remembered set
   if (obj && self->generationID != obj->generationID && !list_is_valid(&self->rememberedSetNode[obj->generationID])) {
-    struct generation* target = &context_current->managedHeap->generations[obj->generationID];
+    struct generation* target = &managed_heap_current->generations[obj->generationID];
     mutex_lock(&target->rememberedSetLock);
     list_add(&self->rememberedSetNode[obj->generationID], &target->rememberedSet);
     mutex_unlock(&target->rememberedSetLock);

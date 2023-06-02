@@ -316,9 +316,10 @@ struct heap_block* heap_alloc(struct heap* self, size_t dataAlignment, size_t ob
   // Remove from free block list
   list_del(&block->node);
   
-  mutex_unlock(&self->lock);
-  block = commonBlockInit(self, block, dataAlignment, size, objectSize, true);
 alloc_failed:
+  mutex_unlock(&self->lock);
+  if (block)
+    block = commonBlockInit(self, block, dataAlignment, size, objectSize, true);
   return block;
 }
 

@@ -5,6 +5,9 @@
 #include "util/list_head.h"
 
 static struct heap_block* bestFit(struct heap* self,  size_t size) {
+  if (list_is_empty(&self->recentFreeBlocks))
+    return NULL;
+  
   struct heap_block* smallest = list_first_entry(&self->recentFreeBlocks, struct heap_block, node);
   struct list_head* current;
   list_for_each(current, &self->recentFreeBlocks) {
@@ -20,6 +23,9 @@ static struct heap_block* bestFit(struct heap* self,  size_t size) {
 }
 
 static struct heap_block* firstFit(struct heap* self, size_t size) {
+  if (list_is_empty(&self->recentFreeBlocks))
+    return NULL;
+  
   struct list_head* current;
   list_for_each(current, &self->recentFreeBlocks) {
     struct heap_block* block = list_entry(current, struct heap_block, node);

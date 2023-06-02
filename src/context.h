@@ -26,7 +26,7 @@ enum context_state {
 struct context {
   struct list_head list;
   
-  struct managed_heap* managedHeap;
+  struct managed_heap* managedHeapa;
   
   // Amount of context_block_gc calls
   unsigned int blockCount;

@@ -43,8 +43,8 @@ static inline bool rwulock_try_upgrade(struct rwulock* self) {
 
 static inline void rwulock_downgrade(struct rwulock* self) {
   rwlock_unlock(&self->lock);
-  rwlock_rdlock(&self->lock);
   mutex_unlock(&self->upgradeLock);
+  rwlock_rdlock(&self->lock);
 }
 
 static inline void rwulock_unlock(struct rwulock* self) {

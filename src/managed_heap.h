@@ -5,7 +5,9 @@
 // Tracking various things
 
 #include <stdatomic.h>
+#include <threads.h>
 
+#include "concurrency/completion.h"
 #include "concurrency/event.h"
 #include "concurrency/mutex.h"
 #include "concurrency/rwlock.h"
@@ -41,6 +43,7 @@ struct generation {
   struct heap* fromHeap;
   struct heap* toHeap;
   struct generation_params param;
+  int genID;
   
   struct mutex rememberedSetLock;
   struct list_head rememberedSet;
@@ -50,7 +53,7 @@ struct generation {
 struct managed_heap {
   struct gc_struct* gcState;
   
-  struct event gcCompleted;
+  struct completion gcCompleted;
   
   struct mutex contextTrackerLock;
   struct list_head contextStates[CONTEXT_STATE_COUNT];
@@ -59,7 +62,7 @@ struct managed_heap {
   struct generation generations[];
 };
 
-#define MANAGED_GC_MAX_RETRIES 5
+extern thread_local struct managed_heap* managed_heap_current;
 
 struct managed_heap* managed_heap_new(enum gc_algorithm algo, int genCount, struct generation_params* generationParams, gc_flags gcFlags);
 void managed_heap_free(struct managed_heap* self);

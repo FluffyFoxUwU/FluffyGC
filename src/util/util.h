@@ -40,7 +40,7 @@ void* util_mmap_anonymous(size_t size, int protection);
   b = _UwU_Swap_a; \
 } while(0)
 
-#define indexof(array, member) ((size_t) ((void*) (member) - ((void*) array)) / sizeof(*array))
+#define indexof(array, member) ((size_t) (((void*) (member)) - ((void*) array)) / sizeof(*array))
 
 typedef _Atomic(void*) atomic_untyped_ptr;
 typedef struct {

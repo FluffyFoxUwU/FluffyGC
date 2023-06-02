@@ -55,9 +55,19 @@ int gc_generation_count(enum gc_algorithm algo, gc_flags gcFlags) {
 void gc_start(struct gc_struct* self, struct generation* generation) {
   int genID = -1;
   if (generation)
-    genID = indexof(context_current->managedHeap->generations, generation);
+    genID = generation->genID;
   printf("[GC at Gen%d] Start reclaiming :3\n", genID);
-  size_t reclaimedBytes = self->hooks->collect(generation);
+  size_t reclaimedBytes = 0;
+  
+  if (self->hooks->mark(generation) == 0)
+    reclaimedBytes = self->hooks->collect(generation);
+  
+  printf("[GC] Heap stat: ");
+  for (int i = 0; i < managed_heap_current->generationCount; i++) {
+    struct generation* gen = &managed_heap_current->generations[i];
+    printf("Gen%d: %10zu bytes / %10zu bytes   ", i, gen->fromHeap->usage, gen->fromHeap->size);
+  }
+  puts("");
   printf("[GC at Gen%d] Reclaimed %zu bytes :3\n", genID, reclaimedBytes);
 }
 
@@ -84,7 +94,7 @@ bool gc_upgrade_to_gc_mode(struct gc_struct* self) {
 void gc_for_each_root_entry(struct gc_struct* self, void (^iterator)(struct root_ref*)) {
   for (int i = 0; i < CONTEXT_STATE_COUNT; i++) {
     struct list_head* currentContext;
-    list_for_each(currentContext, &context_current->managedHeap->contextStates[i]) {
+    list_for_each(currentContext, &managed_heap_current->contextStates[i]) {
       struct list_head* current;
       list_for_each(current, &list_entry(currentContext, struct context, list)->root)
         iterator(list_entry(current, struct root_ref, node));

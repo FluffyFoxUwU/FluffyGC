@@ -11,7 +11,5 @@ void gc_generic_compact(struct generation*);
 size_t gc_generic_collect(struct generation*);
 int gc_generic_mark(struct generation*);
 
-size_t gc_generic_collect_and_mark(struct generation*);
-
 #endif
 

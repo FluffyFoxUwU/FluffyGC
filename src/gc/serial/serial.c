@@ -13,7 +13,8 @@ static void freeHook(struct gc_hooks* self) {
 struct gc_hooks* gc_serial_new(gc_flags flags) {
   struct gc_hooks* self = malloc(sizeof(*self));
   *self = (struct gc_hooks) { GC_HOOKS_DEFAULT,
-    .collect = gc_generic_collect_and_mark,
+    .mark = gc_generic_mark,
+    .collect = gc_generic_collect,
   };
   self->free = freeHook;
   return self;

@@ -24,26 +24,24 @@ void event_cleanup(struct event* self) {
 }
 
 void event_reset(struct event* self) {
-  atomic_store(&self->fireState, EVENT_FIRE_NONE);
+  self->fireState = EVENT_FIRE_NONE;
 }
 
 void event__wait(struct event* self) {
   enum event_fire_type wakeupCause;
   
-  do {
-    while ((wakeupCause = atomic_load(&self->fireState)) == EVENT_FIRE_NONE)
-      condition_wait(&self->cond, &self->lock);
-    if (wakeupCause == EVENT_FIRE_ALL)
-      break;
-  } while (!atomic_compare_exchange_strong(&self->fireState, &wakeupCause, EVENT_FIRE_NONE));
+  while ((wakeupCause = self->fireState) == EVENT_FIRE_NONE)
+    condition_wait(&self->cond, &self->lock);
+  if (wakeupCause == EVENT_FIRE_ONE)
+    self->fireState = EVENT_FIRE_NONE;
 }
 
-void event__fire(struct event* self) {
-  atomic_store(&self->fireState, EVENT_FIRE_ONE);
+void event__fire_nolock(struct event* self) {
+  self->fireState = EVENT_FIRE_ONE;
   condition_wake(&self->cond);
 }
 
-void event__fire_all(struct event* self) {
-  atomic_store(&self->fireState, EVENT_FIRE_ALL);
+void event__fire_all_nolock(struct event* self) {
+  self->fireState = EVENT_FIRE_ALL;
   condition_wake_all(&self->cond);
 }
