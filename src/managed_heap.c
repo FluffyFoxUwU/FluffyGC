@@ -130,8 +130,10 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
     // and this thread got first attempt to allocate
     
     gc_start(self->gcState, gen);
-    if ((block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize)))
+    if ((block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize))) { 
+      complete_all(&self->gcCompleted);
       goto allocSuccess;
+    }
     
     gc_start(self->gcState, NULL);
     block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);

@@ -5,6 +5,7 @@
 #include <threads.h>
 
 #include "attributes.h"
+#include "gc/gc_statistic.h"
 #include "gc_flags.h"
 #include "concurrency/rwulock.h"
 
@@ -94,6 +95,8 @@ struct gc_struct {
   struct gc_hooks* hooks;
   enum gc_algorithm algoritmn;
   struct rwulock gcLock;
+  
+  struct gc_statistic stat;
 };
 
 int gc_generation_count(enum gc_algorithm algo, gc_flags gcFlags);

@@ -1,9 +1,11 @@
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "bug.h"
 #include "gc/gc.h"
@@ -70,6 +72,28 @@ static void* worker(void*) {
   }
   
   managed_heap_detach_context(heap);
+  
+  return NULL;
+}
+
+static atomic_bool shutDownFlag;
+static void* statPrinter(void*) {
+  managed_heap_attach_context(heap);
+  
+  while (atomic_load(&shutDownFlag) == false) {
+    context_block_gc();
+    printf("[Heap] Heap stat: ");
+    for (int i = 0; i < managed_heap_current->generationCount; i++) {
+      struct generation* gen = &managed_heap_current->generations[i];
+      printf("Gen%d: %10zu bytes / %10zu bytes   ", i, gen->fromHeap->usage, gen->fromHeap->size);
+    }
+    puts("");
+    context_unblock_gc();
+    sleep(1);
+  }
+  
+  managed_heap_detach_context(heap);
+  return NULL;
 }
 
 int main2(int argc, char** argv) {
@@ -83,17 +107,17 @@ int main2(int argc, char** argv) {
   gc_flags gcFlags = SERIAL_GC_USE_3_GENERATIONS;
   struct generation_params params[] = {
     {
-      .size = 1 * 1024 * 1024,
+      .size = 64 * 1024 * 1024,
       .earlyPromoteSize = 4 * 1024,
       .promotionAge = 5
     },
     {
-      .size = 4 * 1024 * 1024,
+      .size = 128 * 1024 * 1024,
       .earlyPromoteSize = 8 * 1024,
       .promotionAge = 5
     },
     {
-      .size = 16 * 1024 * 1024,
+      .size = 256 * 1024 * 1024,
       .earlyPromoteSize = -1,
       .promotionAge = -1
     }
@@ -121,11 +145,19 @@ int main2(int argc, char** argv) {
   heap = managed_heap_new(GC_SERIAL_GC, 3, params, gcFlags);
   BUG_ON(!heap);
   
+  atomic_init(&shutDownFlag, false);
+  
   pthread_t threads[2] = {};
+  pthread_t statPrinterThread;
+  pthread_create(&statPrinterThread, NULL, statPrinter, NULL);
+  
   for (int i = 0; i < ARRAY_SIZE(threads); i++)
     pthread_create(&threads[i], NULL, worker, NULL);
   for (int i = 0; i < ARRAY_SIZE(threads); i++)
     pthread_join(threads[i], NULL);
+  
+  atomic_store(&shutDownFlag, true);
+  pthread_join(statPrinterThread, NULL);
   
   managed_heap_free(heap);
   descriptor_release(testObjectClass);

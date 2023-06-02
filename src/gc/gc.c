@@ -53,21 +53,7 @@ int gc_generation_count(enum gc_algorithm algo, gc_flags gcFlags) {
 }
 
 void gc_start(struct gc_struct* self, struct generation* generation) {
-  int genID = -1;
-  if (generation)
-    genID = generation->genID;
-  printf("[GC at Gen%d] Start reclaiming :3\n", genID);
-  size_t reclaimedBytes = 0;
-  
-  reclaimedBytes = self->hooks->collect(generation);
-  
-  printf("[GC] Heap stat: ");
-  for (int i = 0; i < managed_heap_current->generationCount; i++) {
-    struct generation* gen = &managed_heap_current->generations[i];
-    printf("Gen%d: %10zu bytes / %10zu bytes   ", i, gen->fromHeap->usage, gen->fromHeap->size);
-  }
-  puts("");
-  printf("[GC at Gen%d] Reclaimed %zu bytes :3\n", genID, reclaimedBytes);
+  self->stat.reclaimedBytes += self->hooks->collect(generation);
 }
 
 void gc_free(struct gc_struct* self) {
