@@ -248,10 +248,34 @@ mark_failure:
   return res;
 }
 
-static size_t doCollectAndMark(struct generation* gen, struct generation** promoteTargetFailure, size_t* thisGenerationReclaimedSizePtr) {
-  if (gc_current->hooks->mark(gen) < 0)
-    return 0;
-  return collectGeneration(gen, promoteTargetFailure, false, thisGenerationReclaimedSizePtr);
+static size_t doCollectAndMark(struct generation* gen) {
+  struct generation* promoteTargetFailure = NULL;
+  size_t thisGenerationReclaimedSizeTotal = 0;
+  size_t reclaimedSize = 0;
+  
+  for (int i = 0; i <= gen->param.promotionAge; i++) {
+    size_t thisGenerationReclaimedSize = 0;
+    if (gc_generic_mark(gen) < 0)
+      goto mark_failure;
+    
+    reclaimedSize += collectGeneration(gen, &promoteTargetFailure, false, &thisGenerationReclaimedSizeTotal);
+    thisGenerationReclaimedSizeTotal += thisGenerationReclaimedSize;
+    postCollect(gen);
+    
+    if (promoteTargetFailure) {
+      if (gc_generic_mark(promoteTargetFailure) < 0)
+        goto mark_failure;
+      reclaimedSize += doCollectAndMark(promoteTargetFailure);
+      promoteTargetFailure = NULL;
+    }
+    
+    // Bail out if there more than enough space
+    if (thisGenerationReclaimedSizeTotal >= gen->param.earlyPromoteSize)
+      break;
+  }
+
+mark_failure:
+  return reclaimedSize;
 }
 
 size_t gc_generic_collect(struct generation* gen) {
@@ -259,37 +283,18 @@ size_t gc_generic_collect(struct generation* gen) {
   
   if (!gen) {
     size_t reclaimedSize = 0;
-    for (int i = 0; i < managed_heap_current->generationCount; i++)
+    for (int i = 0; i < managed_heap_current->generationCount; i++) {
+      if (gc_generic_mark(&managed_heap_current->generations[i]) < 0)
+        goto mark_failure;
       reclaimedSize += collectGeneration(&managed_heap_current->generations[i], NULL, true, NULL);
+      postCollect(&managed_heap_current->generations[i]);
+    }
     
-    postCollect(NULL);
+mark_failure:
     return reclaimedSize;
   }
   
-  struct generation* promoteTargetFailure = NULL;
-  size_t thisGenerationReclaimedSizeTotal = 0;
-  size_t reclaimedSize = collectGeneration(gen, &promoteTargetFailure, false, &thisGenerationReclaimedSizeTotal);
-  postCollect(gen);
-  
-  // Early promote size is minimum size so that allocator dont false positive
-  while (thisGenerationReclaimedSizeTotal < gen->param.earlyPromoteSize) {
-    if (promoteTargetFailure) {
-      doCollectAndMark(promoteTargetFailure, NULL, NULL);
-      postCollect(promoteTargetFailure);
-    }
-    
-    size_t thisGenerationReclaimedSize = 0;
-    reclaimedSize += doCollectAndMark(gen, &promoteTargetFailure, &thisGenerationReclaimedSize);
-    thisGenerationReclaimedSizeTotal += thisGenerationReclaimedSize;
-    postCollect(gen);
-    
-    // Fruitless retry and also avoid infinite loops
-    // if no progress
-    if (thisGenerationReclaimedSize == 0)
-      break;
-    promoteTargetFailure = NULL;
-  }
-  return reclaimedSize;
+  return doCollectAndMark(gen);
 }
 
 void gc_generic_compact(struct generation* gen) {

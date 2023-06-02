@@ -13,6 +13,7 @@ typedef uint64_t gc_flags;
 
 // Serial GC flags
 #define SERIAL_GC_USE_2_GENERATIONS        (1 << 0)
+#define SERIAL_GC_USE_3_GENERATIONS        (1 << 1)
 
 #endif
 

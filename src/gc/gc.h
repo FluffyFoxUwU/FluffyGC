@@ -37,7 +37,6 @@ struct gc_hooks {
   void (*onSafepoint)();
   
   // These return reclaimed bytes
-  int (*mark)(struct generation*);
   size_t (*collect)(struct generation*);
   
   void (*free)(struct gc_hooks*);

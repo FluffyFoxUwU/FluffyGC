@@ -59,8 +59,7 @@ void gc_start(struct gc_struct* self, struct generation* generation) {
   printf("[GC at Gen%d] Start reclaiming :3\n", genID);
   size_t reclaimedBytes = 0;
   
-  if (self->hooks->mark(generation) == 0)
-    reclaimedBytes = self->hooks->collect(generation);
+  reclaimedBytes = self->hooks->collect(generation);
   
   printf("[GC] Heap stat: ");
   for (int i = 0; i < managed_heap_current->generationCount; i++) {

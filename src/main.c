@@ -63,7 +63,7 @@ static void* worker(void*) {
     
     context_block_gc();
     object_write_reference(atomic_load(&obj2->obj), offsetof(struct test_object, next), atomic_load(&obj->obj));
-    swap(obj2, obj);
+    //swap(obj2, obj);
     context_unblock_gc();
     
     context_remove_root_object(obj2);
@@ -80,15 +80,20 @@ int main2(int argc, char** argv) {
   // btree_add_range(&tree, &(struct btree_range) {3, 5}, (void*) 0xDEADBEE0);
   // btree_cleanup(&tree);
   
-  gc_flags gcFlags = SERIAL_GC_USE_2_GENERATIONS;
+  gc_flags gcFlags = SERIAL_GC_USE_3_GENERATIONS;
   struct generation_params params[] = {
     {
-      .size = 2 * 1024 * 1024,
+      .size = 1 * 1024 * 1024,
       .earlyPromoteSize = 4 * 1024,
-      .promotionAge = 2
+      .promotionAge = 5
     },
     {
-      .size = 32 * 1024 * 1024,
+      .size = 4 * 1024 * 1024,
+      .earlyPromoteSize = 8 * 1024,
+      .promotionAge = 5
+    },
+    {
+      .size = 16 * 1024 * 1024,
       .earlyPromoteSize = -1,
       .promotionAge = -1
     }
@@ -113,7 +118,7 @@ int main2(int argc, char** argv) {
   
   descriptor_define(testObjectClass, &type);
   
-  heap = managed_heap_new(GC_SERIAL_GC, 2, params, gcFlags);
+  heap = managed_heap_new(GC_SERIAL_GC, 3, params, gcFlags);
   BUG_ON(!heap);
   
   pthread_t threads[2] = {};
