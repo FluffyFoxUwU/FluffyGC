@@ -38,7 +38,11 @@ menu General
 endmenu
 
 menu "Managed heap"
-  
+  config DISABLE_THREADS
+    bool "Disable threads"
+    help
+      Disable threads for platform which has no threading capability
+      Note: multithreaded usage is fine
 endmenu
 
 source "src/memory/Kconfig"

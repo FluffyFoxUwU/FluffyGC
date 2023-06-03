@@ -16,9 +16,10 @@ extern thread_local struct gc_struct* gc_current;
 struct object;
 struct root_ref;
 struct context;
+struct managed_heap;
 struct generation;
 
-struct gc_hooks {
+struct gc_ops {
   // These are callback for various spot that some GC implementation may
   // be interested in
   
@@ -40,7 +41,7 @@ struct gc_hooks {
   // These return reclaimed bytes
   size_t (*collect)(struct generation*);
   
-  void (*free)(struct gc_hooks*);
+  void (*free)(struct gc_ops*);
 };
 
 ATTRIBUTE_USED()
@@ -64,7 +65,7 @@ static int ___gc_callback_nop_context2(struct context*) {
 }
 
 ATTRIBUTE_USED()
-static void ___gc_callback_nop_void(struct gc_hooks*) {
+static void ___gc_callback_nop_void(struct gc_ops*) {
   return;
 }
 
@@ -92,11 +93,56 @@ enum gc_algorithm {
 };
 
 struct gc_struct {
-  struct gc_hooks* hooks;
+  struct gc_ops* ops;
   enum gc_algorithm algoritmn;
   struct rwulock gcLock;
   
   struct gc_statistic stat;
+  
+  struct channel* responseChannel;
+  struct channel* commandChannel;
+  
+  bool mainThreadIsUpAndSqueaking;
+  pthread_t mainThread;
+};
+
+enum gc_operation {
+  /*
+  Args: none
+  Ret : none
+  */
+  GC_OP_PING,
+  
+  /*
+  Args: @Nonnull enum gc_init_data* initData
+  Ret : none
+  */
+  GC_OP_INIT,
+  
+  /*
+  Args: none
+  Ret : none
+  */
+  
+  GC_OP_SHUTDOWN,
+  
+  /*
+  Args: @Nullable struct generation* gen
+  Ret: NONE
+  */
+  GC_OP_COLLECT
+};
+
+struct gc_init_data {
+  struct managed_heap* heap;
+  struct gc_struct* gc;
+  enum gc_algorithm algo;
+  gc_flags gcFlags;
+};
+
+enum gc_status {
+  GC_STATUS_OK,
+  GC_STATUS_FAILED
 };
 
 int gc_generation_count(enum gc_algorithm algo, gc_flags gcFlags);

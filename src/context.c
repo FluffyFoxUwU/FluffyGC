@@ -32,7 +32,7 @@ struct context* context_new() {
   
   list_head_init(&self->root);
   
-  if (gc_current->hooks->postContextInit(self) < 0) {
+  if (gc_current->ops->postContextInit(self) < 0) {
     context_free(self);
     return NULL;
   }
@@ -41,7 +41,7 @@ struct context* context_new() {
 
 void context_free(struct context* self) {
   if (!self->gcInitHookCalled)
-    gc_current->hooks->preContextCleanup(self);
+    gc_current->ops->preContextCleanup(self);
   
   struct list_head* current;
   struct list_head* n;

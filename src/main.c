@@ -51,6 +51,7 @@ struct descriptor* testObjectClass;
 struct managed_heap* heap;
 static void* worker(void*) {
   managed_heap_attach_context(heap);
+  util_set_thread_name("FlGC: Worker");
   
   struct root_ref* obj = managed_heap_alloc_object(testObjectClass);
   if (!obj) {
@@ -89,6 +90,8 @@ static void* worker(void*) {
 static atomic_bool shutDownFlag;
 static void* statPrinter(void*) {
   managed_heap_attach_context(heap);
+  
+  util_set_thread_name("FlGC: Stat printer");
   
   struct gc_statistic prev = {};
   while (atomic_load(&shutDownFlag) == false) {
@@ -170,7 +173,7 @@ int main2(int argc, char** argv) {
   
   atomic_init(&shutDownFlag, false);
   
-  pthread_t threads[4] = {};
+  pthread_t threads[2] = {};
   pthread_t statPrinterThread;
   pthread_create(&statPrinterThread, NULL, statPrinter, NULL);
   

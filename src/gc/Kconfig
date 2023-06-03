@@ -2,4 +2,14 @@ menu "GC"
   config GC_COMPACTING
     bool "Enable heap compaction"
     depends on !HEAP_USE_MALLOC
+  
+  config GC_SEPERATE_THREAD
+    bool "Seperate GC thread"
+    depends on !DISABLE_THREADS
+    default y
+    help
+      This let main GC part runs on its own thread
+      to hopefully improve cache locality and also
+      for convenience of watching GC CPU usage for
+      main part
 endmenu

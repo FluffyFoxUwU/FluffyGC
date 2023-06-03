@@ -52,7 +52,7 @@ struct root_ref* object_read_reference(struct object* self, size_t offset) {
   res = context_add_root_object(obj);
   // Called in blocked GC state to ensure GC cycle not starting before
   // obj is checked for liveness
-  gc_current->hooks->postReadBarrier(obj);
+  gc_current->ops->postReadBarrier(obj);
 obj_is_null:
   context_unblock_gc();
   return res;
@@ -66,7 +66,7 @@ void object_write_reference(struct object* self, size_t offset, struct object* o
   struct object* old = atomic_exchange(getAtomicPtrToReference(self, offset), obj);
   
   // TODO: implement conditional write barriers
-  gc_current->hooks->postWriteBarrier(old);
+  gc_current->ops->postWriteBarrier(old);
   
   // Add current object to `obj`'s generation remembered set
   if (obj && self->generationID != obj->generationID && !list_is_valid(&self->rememberedSetNode[obj->generationID])) {

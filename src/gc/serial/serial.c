@@ -6,13 +6,13 @@
 #include "gc/nop/nop.h"
 #include "util/util.h"
 
-static void freeHook(struct gc_hooks* self) {
+static void freeHook(struct gc_ops* self) {
   free(self);
 }
 
-struct gc_hooks* gc_serial_new(gc_flags flags) {
-  struct gc_hooks* self = malloc(sizeof(*self));
-  *self = (struct gc_hooks) { GC_HOOKS_DEFAULT,
+struct gc_ops* gc_serial_new(gc_flags flags) {
+  struct gc_ops* self = malloc(sizeof(*self));
+  *self = (struct gc_ops) { GC_HOOKS_DEFAULT,
     .collect = gc_generic_collect
   };
   self->free = freeHook;

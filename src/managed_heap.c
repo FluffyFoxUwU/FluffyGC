@@ -68,7 +68,12 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
       completion_init(&self->gcCompleted) < 0)
     goto failure;
   
-  if (!(self->gcState = gc_new(algo, gcFlags)))
+  struct managed_heap* backup = managed_heap_current;
+  managed_heap_current = self;
+  self->gcState = gc_new(algo, gcFlags);
+  managed_heap_current = backup;
+  
+  if (!self->gcState)
     goto failure;
   
   for (int i = 0; i < generationCount; i++) {

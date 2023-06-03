@@ -33,6 +33,8 @@ set(BUILD_SOURCES
   src/concurrency/completion.c
   src/concurrency/thread_local.c
   
+  src/itc/channel.c
+  
   deps/list/list_node.c
   deps/list/list.c
   deps/list/list_iterator.c  

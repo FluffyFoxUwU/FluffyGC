@@ -22,14 +22,14 @@ void gc_nop_start_cycle(struct generation*) {
 void gc_nop_end_cycle(struct generation*) {
 }
 
-void gc_nop_free(struct gc_hooks*) {}
+void gc_nop_free(struct gc_ops*) {}
 
-static struct gc_hooks hooks = { GC_HOOKS_DEFAULT,
+static struct gc_ops hooks = { GC_HOOKS_DEFAULT,
   .collect = gc_nop_collect,
   .free = gc_nop_free
 };
 
-struct gc_hooks* gc_nop_new(gc_flags flags) {
+struct gc_ops* gc_nop_new(gc_flags flags) {
   return &hooks;
 }
 
