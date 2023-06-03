@@ -142,11 +142,12 @@ static size_t collectGeneration(struct generation* gen, struct generation** prom
     struct heap_block* objBlock = list_entry(current, struct heap_block, node);
     struct object* obj = &objBlock->objMetadata;
     int ageDelta = 1;
+    size_t objectSize = objBlock->blockSize;
     
     // Dead object!
     if (!obj->isMarked) {
-      globallyReclaimedSize += objBlock->blockSize;
-      thisGenerationReclaimedSize += objBlock->blockSize;
+      globallyReclaimedSize += objectSize;
+      thisGenerationReclaimedSize += objectSize;
       clearRememberedSetFor(obj);
       object_cleanup(obj);
       continue;
@@ -167,8 +168,11 @@ static size_t collectGeneration(struct generation* gen, struct generation** prom
       newLocation->generationID = nextGenID;
       newLocation->age = 0;
       
+      thisGenerationReclaimedSize += objectSize;
+      gc_current->stat.promotedObjects++;
+      gc_current->stat.promotedBytes += objectSize;
+      
       list_add(&newLocation->inPromotionList, &promotedList);
-      thisGenerationReclaimedSize += objBlock->blockSize;
       continue;
     }
     

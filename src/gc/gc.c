@@ -53,7 +53,10 @@ int gc_generation_count(enum gc_algorithm algo, gc_flags gcFlags) {
 }
 
 void gc_start(struct gc_struct* self, struct generation* generation) {
+  struct context* backup = context_current;
+  context_current = NULL;
   self->stat.reclaimedBytes += self->hooks->collect(generation);
+  context_current = backup;
 }
 
 void gc_free(struct gc_struct* self) {

@@ -6,10 +6,12 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #include "bug.h"
 #include "gc/gc.h"
 #include "gc/gc_flags.h"
+#include "gc/gc_statistic.h"
 #include "managed_heap.h"
 #include "memory/heap.h"
 #include "memory/soc.h"
@@ -57,18 +59,26 @@ static void* worker(void*) {
   }
   
   for (int i = 0; i >= 0; i++) {
-    struct root_ref* obj2 = managed_heap_alloc_object(testObjectClass);
-    if (!obj2) {
+    struct root_ref* obj3 = managed_heap_alloc_object(testObjectClass);
+    if (!obj3) {
       printf("[Main] Heap OOM-ed\n");
       BUG();
     }
-    
-    context_block_gc();
-    object_write_reference(atomic_load(&obj2->obj), offsetof(struct test_object, next), atomic_load(&obj->obj));
-    //swap(obj2, obj);
-    context_unblock_gc();
-    
-    context_remove_root_object(obj2);
+    for (int i = 0; i <= 2'000; i++) {
+      struct root_ref* obj2 = managed_heap_alloc_object(testObjectClass);
+      if (!obj2) {
+        printf("[Main] Heap OOM-ed\n");
+        BUG();
+      }
+      
+      context_block_gc();
+      //object_write_reference(atomic_load(&obj2->obj), offsetof(struct test_object, next), atomic_load(&obj->obj));
+      //swap(obj2, obj);
+      context_unblock_gc();
+      
+      context_remove_root_object(obj2);
+    }
+    context_remove_root_object(obj3);
   }
   
   managed_heap_detach_context(heap);
@@ -80,15 +90,28 @@ static atomic_bool shutDownFlag;
 static void* statPrinter(void*) {
   managed_heap_attach_context(heap);
   
+  struct gc_statistic prev = {};
   while (atomic_load(&shutDownFlag) == false) {
     context_block_gc();
-    printf("[Heap] Heap stat: ");
+    printf("[Heap] ");
     for (int i = 0; i < managed_heap_current->generationCount; i++) {
       struct generation* gen = &managed_heap_current->generations[i];
-      printf("Gen%d: %10zu bytes / %10zu bytes   ", i, gen->fromHeap->usage, gen->fromHeap->size);
+      printf("Gen%d: %8zu bytes / %8zu bytes   ", i, gen->fromHeap->usage, gen->fromHeap->size);
     }
     puts("");
+    
+    struct gc_statistic updated = gc_current->stat;
+    struct gc_statistic diff = {
+      .promotedBytes = updated.promotedBytes - prev.promotedBytes,
+      .reclaimedBytes = updated.reclaimedBytes - prev.reclaimedBytes,
+      .promotedObjects = updated.promotedObjects - prev.promotedObjects,
+    };
+    printf("[GC] Promoted  %15zu bytes/s\n", diff.promotedBytes);
+    printf("[GC] Reclaimed %15zu MiB/s\n", diff.reclaimedBytes / 1024 / 1024);
+    printf("[GC] Promoted  %15" PRIu64 " objects/s\n", diff.promotedObjects);
+    prev = gc_current->stat;
     context_unblock_gc();
+    
     sleep(1);
   }
   
@@ -107,17 +130,17 @@ int main2(int argc, char** argv) {
   gc_flags gcFlags = SERIAL_GC_USE_3_GENERATIONS;
   struct generation_params params[] = {
     {
-      .size = 64 * 1024 * 1024,
+      .size = 1 * 1024 * 1024,
       .earlyPromoteSize = 4 * 1024,
-      .promotionAge = 5
+      .promotionAge = 0
     },
     {
-      .size = 128 * 1024 * 1024,
+      .size = 8 * 1024 * 1024,
       .earlyPromoteSize = 8 * 1024,
-      .promotionAge = 5
+      .promotionAge = 0
     },
     {
-      .size = 256 * 1024 * 1024,
+      .size = 16 * 1024 * 1024,
       .earlyPromoteSize = -1,
       .promotionAge = -1
     }
@@ -147,7 +170,7 @@ int main2(int argc, char** argv) {
   
   atomic_init(&shutDownFlag, false);
   
-  pthread_t threads[2] = {};
+  pthread_t threads[4] = {};
   pthread_t statPrinterThread;
   pthread_create(&statPrinterThread, NULL, statPrinter, NULL);
   

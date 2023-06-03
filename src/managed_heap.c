@@ -120,35 +120,45 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
   
   if ((block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize)))
     goto allocSuccess;
-    
-  if (gc_upgrade_to_gc_mode(gc_current)) {
-    mutex_lock(&self->gcCompleted.onComplete.lock);
-    completion_reset(&self->gcCompleted);
-    mutex_unlock(&self->gcCompleted.onComplete.lock);
-    
-    // This thread is the winner
-    // and this thread got first attempt to allocate
-    
-    gc_start(self->gcState, gen);
-    if ((block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize))) { 
+  
+  while (!block) {
+    if (gc_upgrade_to_gc_mode(gc_current)) {
+      mutex_lock(&self->gcCompleted.onComplete.lock);
+      completion_reset(&self->gcCompleted);
+      mutex_unlock(&self->gcCompleted.onComplete.lock);
+      
+      // This thread is the winner
+      // and this thread got first attempt to allocate
+      
+      gc_start(self->gcState, gen);
+      block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);
       complete_all(&self->gcCompleted);
-      goto allocSuccess;
+      if (block)
+        break;
+      
+      mutex_lock(&self->gcCompleted.onComplete.lock);
+      completion_reset(&self->gcCompleted);
+      mutex_unlock(&self->gcCompleted.onComplete.lock);
+      
+      gc_start(self->gcState, NULL);
+      block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);
+      complete_all(&self->gcCompleted);
+      if (!block)
+        break;
+      
+      gc_downgrade_from_gc_mode(gc_current);
+    } else {
+      // Concurrent thread tried to start GC
+      // so make the rest waits then retry
+      // so be sure it wont spam GC cycles with no benefit
+      
+      gc_unblock(gc_current);
+      wait_for_completion(&self->gcCompleted);
+      gc_block(gc_current);
+      
+      if ((block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize)))
+        break;
     }
-    
-    gc_start(self->gcState, NULL);
-    block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);
-    
-    complete_all(&self->gcCompleted);
-    gc_downgrade_from_gc_mode(gc_current);
-  } else {
-    // Concurrent thread tried to start GC
-    // so make the rest waits then retry
-    // so be sure it wont spam GC cycles with no benefit
-    
-    gc_unblock(gc_current);
-    wait_for_completion(&self->gcCompleted);
-    gc_block(gc_current);
-    block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);
   }
   
 allocSuccess:
@@ -184,12 +194,13 @@ int managed_heap_attach_context(struct managed_heap* self) {
   struct context* ctx = managed_heap_new_context(self);
   if (!ctx)
     return -ENOMEM;
+  managed_heap_current = self;
   managed_heap_switch_context_in(ctx);
   return 0;
 }
 
 void managed_heap_detach_context(struct managed_heap* self) {
-  BUG_ON(!context_current || context_current->managedHeapa != self);
+  BUG_ON(!context_current || context_current->managedHeap != self);
   managed_heap_free_context(self, managed_heap_switch_context_out());
 }
 
@@ -212,7 +223,6 @@ struct context* managed_heap_switch_context_out() {
   
   context_current = NULL;
   gc_current = NULL;
-  managed_heap_current = NULL;
   return current;
 }
 
@@ -220,7 +230,7 @@ void managed_heap_switch_context_in(struct context* new) {
   BUG_ON(new->state != CONTEXT_INACTIVE);
   BUG_ON(context_current);
   
-  managed_heap_current = new->managedHeapa;
+  managed_heap_current = new->managedHeap;
   context_current = new;
   gc_current = managed_heap_current->gcState;
   context_current->state = CONTEXT_ACTIVE;
@@ -239,7 +249,7 @@ struct context* managed_heap_new_context(struct managed_heap* self) {
   if (!ctx)
     goto failure;
   
-  ctx->managedHeapa = self;
+  ctx->managedHeap = self;
   mutex_lock(&self->contextTrackerLock);
   list_add(&ctx->list, &self->contextStates[CONTEXT_INACTIVE]);
   mutex_unlock(&self->contextTrackerLock);
@@ -250,7 +260,7 @@ failure:
 }
 
 void managed_heap_free_context(struct managed_heap* self, struct context* ctx) {
-  BUG_ON(ctx->managedHeapa != self);
+  BUG_ON(ctx->managedHeap != self);
   struct context* prev = context_current;
   context_current = ctx;
   gc_current = managed_heap_current->gcState;
