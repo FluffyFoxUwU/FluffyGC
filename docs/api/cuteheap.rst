@@ -1,8 +1,8 @@
 *****************
-`struct cuteheap*`
+``struct cuteheap*``
 *****************
 
-`cuteheap*` state is the primary state where all
+``struct cuteheap*`` is the primary state where all
 operations operated on it serves these purpose
 1. Managing contexts
 2. Allocating
