@@ -29,6 +29,7 @@ Static functions
 cuteheap_new
 ************
 `(Back to listing) <#functions>`_
+
 .. code-block:: c
 
    struct cuteheap* cuteheap_new(struct cuteheap_param* param)
