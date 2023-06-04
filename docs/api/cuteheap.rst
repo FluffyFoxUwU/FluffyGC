@@ -26,7 +26,7 @@ Static functions
 | void             | cuteheap_free(struct cuteheap* self)       | `cuteheap_free`_ |
 +------------------+--------------------------------------------+------------------+
 
-cuteheap_new `(Back to listing) <functions>`_
+cuteheap_new `(Back to listing) <#functions>`_
 ************
 .. code-block:: c
 
