@@ -13,9 +13,11 @@ Since
 *****
 Version 0.1
 
-Static functions
+Functions
 ****************
 
+Static functions
+################
 +------------------+--------------------------------------------+------------------+
 | Return value     | Function description                       | Link             |
 +==================+============================================+==================+
@@ -24,7 +26,7 @@ Static functions
 | void             | cuteheap_free(struct cuteheap* self)       | `cuteheap_free`_ |
 +------------------+--------------------------------------------+------------------+
 
-cuteheap_new
+cuteheap_new `(Back to listing) <Functions>`
 ************
 .. code-block:: c
 
