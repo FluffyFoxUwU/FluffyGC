@@ -3,6 +3,6 @@ Hello UwU
 
 Structures
 **********
-  * ``struct fluffyheap*`` :doc:`fluffyheap`
+  * :doc:`struct fluffyheap* <fluffyheap>`
 
 
