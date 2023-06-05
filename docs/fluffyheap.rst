@@ -30,7 +30,7 @@ Destructor Detail
 
    void fh_free(struct fluffyheap* self)
 
-.. danger::
+.. warning::
 
    Do not call this while heap in use
 
