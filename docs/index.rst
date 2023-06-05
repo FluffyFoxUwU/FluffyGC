@@ -3,6 +3,7 @@ Hello UwU
 
 Structures
 **********
-  * :doc:`struct fluffyheap* <fluffyheap>`
+  * :doc:`fluffyheap* <fluffyheap>`
+  * :doc:`Mods <mods>`
 
 
