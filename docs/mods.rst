@@ -19,6 +19,7 @@ enum fh_mod
 ###########
 Enum of defined standard mods. Range 0x0000 to 0x10000
 reserved for standard the rest is implementation detail
+
 +--------------------+--------+-----------------------------+-----------------+
 | Enum               | Value  | Description                 | Link            |
 +====================+========+=============================+=================+
