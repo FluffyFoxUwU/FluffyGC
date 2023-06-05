@@ -1,13 +1,9 @@
-*****************
-``struct cuteheap*``
-*****************
+**********************
+``struct fluffyheap*``
+**********************
 
-``struct cuteheap*`` is the primary state where all
-operations operated on it serves these purpose
-
-1. Managing contexts
-2. Allocating
-3. GC controls
+``struct fluffyheap*`` is the primary state where all
+operations operated on
 
 Since
 *****
@@ -18,21 +14,19 @@ Functions
 
 Static functions
 ################
-+------------------+--------------------------------------------+------------------+
-| Return value     | Function description                       | Link             |
-+==================+============================================+==================+
-| struct cuteheap* | cuteheap_new(struct cuteheap_param* param) | `cuteheap_new`_  |
-+------------------+--------------------------------------------+------------------+
-| void             | cuteheap_free(struct cuteheap* self)       | `cuteheap_free`_ |
-+------------------+--------------------------------------------+------------------+
++--------------------+-------------------------------------------+---------------------+
+| Return value       | Function description                      | Link                |
++====================+===========================================+=====================+
+| struct fh_context* | fh_attach_thread(struct fluffyheap* self) | `fh_attach_thread`_ |
++--------------------+-------------------------------------------+---------------------+
+| void               | fh_detach_thread(struct fluffyheap* self) | `fh_detach_thread`_ |
++--------------------+-------------------------------------------+---------------------+
 
-cuteheap_new
-************
-`(Back to listing) <#functions>`_
-
+Constructor
+###########
 .. code-block:: c
 
-   struct cuteheap* cuteheap_new(struct cuteheap_param* param)
+   struct cuteheap* fh_new(struct fh_param* param)
 
 
 
