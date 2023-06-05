@@ -1,8 +1,6 @@
-.. _struct-fluffyheap:
-
-**********************
 ``struct fluffyheap*``
-**********************
+######################
+
 ``struct fluffyheap*`` is the primary state where all
 operations operated on
 
@@ -45,4 +43,9 @@ fh_attach_thread
 
    void fh_attach_thread(struct fluffyheap* self)
 
+fh_detach_thread
+****************
+.. code-block:: c
+
+   void fh_detach_thread(struct fluffyheap* self)
 

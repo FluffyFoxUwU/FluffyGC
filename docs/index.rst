@@ -1,5 +1,6 @@
-Hi? i guess
+Hello UwU
+#########
 
 Structures
-##########
-* `struct fluffyheap* <_struct-fluffyheap>`_
+**********
+* `struct fluffyheap* <struct-fluffyheap>`_
