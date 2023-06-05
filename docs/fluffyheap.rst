@@ -1,3 +1,5 @@
+.. _struct-fluffyheap:
+
 **********************
 ``struct fluffyheap*``
 **********************
