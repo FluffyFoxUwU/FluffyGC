@@ -104,3 +104,6 @@ Parameters
   ``flags`` - Flags passed to the mod to be check for usability
               features (See individual mod's documentation)
 
+Return value
+============
+True if a ``mod`` and ``flags`` combination is available and usable

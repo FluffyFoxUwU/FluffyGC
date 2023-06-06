@@ -1,5 +1,5 @@
 Context
-=======
+#######
 
 Logical seperation of different stuff to allow usage of
 of ``setcontext`` family of function to implement coroutines
@@ -12,6 +12,7 @@ Version 0.1
 
 Functions
 #########
+
 +--------------+-----------------------------------------------+-------------------+
 | Return value | Function                                      | Link              |
 +==============+===============================================+===================+

@@ -18,7 +18,7 @@ Flags for this mod
 | FH_MOD_DMA_NONBLOCKING | 0x0002 | Enable non GC blocking DMA access |
 +------------------------+--------+-----------------------------------+
 
-Methods (Extends `fh_object*`)
+Methods (Extends ``fh_object*``)
 ##############################
 +--------------+-----------------------------------------------+----------------------+
 | Return Value | Method                                        | Link                 |
