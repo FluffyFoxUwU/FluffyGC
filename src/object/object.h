@@ -6,6 +6,7 @@
 
 #include "util/list_head.h"
 #include "gc/gc.h"
+#include "address_spaces.h"
 
 struct heap;
 enum object_type {
@@ -18,8 +19,9 @@ enum reference_strength {
 
 // Use this for pointers which points to user data
 struct userptr {
-  void* ptr;
+  void address_heap* ptr;
 };
+
 #define USERPTR(x) ((struct userptr) {x})
 #define USERPTR_NULL USERPTR(NULL)
 
@@ -56,7 +58,7 @@ struct node {
 };
 */
 
-void object_init(struct object* self, struct descriptor* desc, void* data);
+void object_init(struct object* self, struct descriptor* desc, void address_heap* data);
 void object_cleanup(struct object* self);
 
 // object_(read/write)_ptr are safe without DMA

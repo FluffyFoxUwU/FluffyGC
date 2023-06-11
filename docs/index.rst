@@ -10,7 +10,7 @@ Tips
 3. Behaviour of creating an instance of type on a thread 
   and use on other thread is undefined behaviour unless
   specified (be it read only or writing or anything really)
-4. Functions are not GC safepoints unless noted
+4. Functions cannot initiates blocking GC unless noted
 5. Uses Java's @Nullable and @Nonnull annotation because its nice
 
 Structures

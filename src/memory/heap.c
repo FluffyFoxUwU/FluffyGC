@@ -9,6 +9,7 @@
 #include <threads.h>
 #include <errno.h>
 
+#include "address_spaces.h"
 #include "concurrency/thread_local.h"
 #include "heap.h"
 #include "bug.h"
@@ -214,18 +215,18 @@ static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* 
     .dataSize = objectSize,
     .alignment = MAX(alignof(struct heap_block), dataAlignment),
   };
-  block->dataPtr = USERPTR(PTR_ALIGN(&block->data, block->alignment));
+  block->dataPtr = USERPTR((void address_heap*) PTR_ALIGN(&block->data, block->alignment));
   
   mutex_lock(&self->lock);
   list_add(&block->node, &self->allocatedBlocks);
   mutex_unlock(&self->lock);
   
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    block->dataPtr = USERPTR(aligned_alloc(block->alignment, block->dataSize));
+    block->dataPtr = USERPTR((void address_heap*) aligned_alloc(block->alignment, block->dataSize));
     if (!block->dataPtr.ptr)
       goto failure;
   } else {
-    block->dataPtr.ptr = PTR_ALIGN(&block->data, dataAlignment);
+    block->dataPtr.ptr = (void address_heap*) PTR_ALIGN(&block->data, dataAlignment);
   }
   
   // printf("[Heap %p] Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);

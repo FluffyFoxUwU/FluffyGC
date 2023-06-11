@@ -19,7 +19,7 @@ Flags for this mod
 +------------------------+--------+-----------------------------------+
 
 Methods (Extends ``fh_object*``)
-##############################
+################################
 +--------------+-----------------------------------------------+----------------------+
 | Return Value | Method                                        | Link                 |
 +==============+===============================================+======================+
@@ -72,6 +72,9 @@ Return value
   Return untyped pointer which can be casted to corresponding
   typed data and used directly
 
+Tags
+=================
+GC-Safepoint
 
 fh_object_put_dma
 *****************
@@ -95,3 +98,7 @@ Return Value
 ============
 Zero indicate success
  * -EINVAL: Invalid ``dma`` for ``self``
+
+Tags
+=================
+GC-Safepoint

@@ -67,7 +67,8 @@ set(BUILD_EXE_SOURCES
 # Public header to be exported
 # If this a library
 set(BUILD_PUBLIC_HEADERS
-  include/dummy.h
+  include/FluffyHeap.h
+  include/mods/dma.h
 )
 
 set(BUILD_PROTOBUF_FILES

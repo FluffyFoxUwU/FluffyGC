@@ -13,13 +13,13 @@ Version 0.1
 Functions
 #########
 
-+--------------+-----------------------------------------------+-------------------+
-| Return value | Function                                      | Link              |
-+==============+===============================================+===================+
-| int          | fh_context_set_current(@Nullable fh_context* context) | `fh_context_set_current`_ |
-+--------------+-----------------------------------------------+-------------------+
-| fh_context*  | fh_context_get_current()                              | `fh_context_get_current`_ |
-+--------------+-----------------------------------------------+-------------------+
++-----------------------+-----------------------------------------------+-------------------+
+| Return value          | Function                                      | Link              |
++=======================+===============================================+===================+
+| int                   | fh_set_current(@Nullable fh_context* context) | `fh_set_current`_ |
++-----------------------+-----------------------------------------------+-------------------+
+| @Nullable fh_context* | fh_get_current()                              | `fh_get_current`_ |
++-----------------------+-----------------------------------------------+-------------------+
 
 Constructor Detail
 ##################
@@ -63,7 +63,7 @@ fh_context_set
 **************
 .. code-block:: c
 
-   int fh_context_set_current(@Nullable fh_context* context)
+   int fh_set_current(@Nullable fh_context* context)
 
 This changes current thread's context to ``context`` and
 mark ``context`` as active and mark old ``context`` inactive
@@ -91,7 +91,7 @@ fh_context_get
 .. code-block:: c
 
    @Nullable
-   fh_context* fh_context_get_current()
+   fh_context* fh_get_current()
 
 Since
 =====

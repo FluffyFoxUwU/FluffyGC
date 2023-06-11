@@ -13,5 +13,11 @@
 // Properly tag function exported functions with this to ensure LTO not removing them
 #define ATTRIBUTE_USED() ATTRIBUTE((used))
 
+#if __clang__ && __has_attribute(__address_space__)
+# define ATTRIBUTE_ADDRESS_SPACE(n)  ATTRIBUTE((__address_space__(n)))
+#elif
+# define ATTRIBUTE_ADDRESS_SPACE(n) 
+#endif
+
 #endif
 

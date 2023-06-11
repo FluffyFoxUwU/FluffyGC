@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "address_spaces.h"
 #include "config.h"
 #include "gc/gc.h"
 #include "managed_heap.h"
@@ -96,7 +97,7 @@ int object_put_dma(struct root_ref* rootRef, struct userptr dma) {
   return 0;
 }
 
-void object_init(struct object* self, struct descriptor* desc, void* data) {
+void object_init(struct object* self, struct descriptor* desc, void address_heap* data) {
   *self = (struct object) {
     .descriptor = desc,
     .objectSize = desc->objectSize,
