@@ -13,7 +13,8 @@ Types
 .. code-block:: c
 
    @Nullable
-   fh_descriptor* (*fh_descriptor_loader)(const char* name, void* udata)
+   fh_descriptor* (*fh_descriptor_loader)(const char* name, @Nullable void* udata)
+   void (*fh_finalizer)(const void* objData, @Nullable void* udata)
 
 A type for application descriptor loader. Returned descriptor must
 be already acquired. Context at entrance and exit must not change

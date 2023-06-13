@@ -33,6 +33,8 @@ Methods
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
 | fh_descriptor*       | fh_object_get_descriptor(fh_object* self)                                             | `fh_object_get_descriptor`_              |
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
+| bool                 | fh_object_is_alias(@Nullable fh_object* a, @Nullable fh_object* b)                      | `fh_object_equals`_                      |
++----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
 
 Constructor detail
 #####################
@@ -251,3 +253,27 @@ Tags
 ====
 GC-Safepoint Need-Valid-Context
 
+fh_object_equals
+****************
+.. code-block:: c
+
+   bool fh_object_is_alias(@Nullable fh_object* a, @Nullable fh_object* b)
+
+Check if ``a`` and ``b`` refers to same object.
+
+Since
+=====
+Version 0.1
+
+Parameters
+==========
+  ``a`` - First object to compare
+  ``b`` - Second object to compare
+
+Return value
+============
+True if both objects refers to same object
+
+Tags
+====
+GC-Safepoint
