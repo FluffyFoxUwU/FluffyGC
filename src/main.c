@@ -20,6 +20,7 @@
 #include "object/object.h"
 #include "util/btree.h"
 #include "util/util.h"
+#include "vec.h"
 
 /*
 layout of object
@@ -156,17 +157,15 @@ int main2(int argc, char** argv) {
     DESCRIPTOR_FIELD(struct test_object, prev, testObjectClass, REFERENCE_STRONG),
     DESCRIPTOR_FIELD_END()
   };
-  struct descriptor_type type = {
-    .id.name = "test_object",
-    .id.ownerID = 0x00,
-    .id.typeID = 0x00,
-    .objectSize = sizeof(struct test_object),
-    .alignment = alignof(struct test_object),
-    .fields = typeFields,
-    .objectType = OBJECT_NORMAL
-  };
+  testObjectClass->name = strdup("test_object");
+  testObjectClass->objectSize = sizeof(struct test_object);
+  testObjectClass->alignment = alignof(struct test_object);
+  testObjectClass->objectType = OBJECT_NORMAL;
   
-  descriptor_define(testObjectClass, &type);
+  for (int i = 0; i < ARRAY_SIZE(typeFields); i++)
+    vec_push(&testObjectClass->fields, typeFields[i]);
+  
+  descriptor_init(testObjectClass);
   
   heap = managed_heap_new(GC_SERIAL_GC, 3, params, gcFlags);
   BUG_ON(!heap);

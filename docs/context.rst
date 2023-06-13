@@ -21,6 +21,14 @@ Functions
 | @Nullable fh_context* | fh_get_current()                              | `fh_get_current`_ |
 +-----------------------+-----------------------------------------------+-------------------+
 
+Method
+######
++--------------+---------------------------------------+------------------------+
+| Return value | Method Name                           | Link                   |
++==============+=======================================+========================+
+| fluffyheap*  | fh_context_get_heap(fh_context* self) | `fh_context_get_heap`_ |
++--------------+---------------------------------------+------------------------+
+
 Constructor Detail
 ##################
 .. code-block:: c
@@ -100,3 +108,26 @@ Version 0.1
 Return Value
 ============
 Return currently set context
+
+Method details
+##############
+
+fh_context_get_heap
+*******************
+.. code-block:: c
+
+   fluffyheap* fh_context_get_heap(fh_context* self)
+
+Get heap associated with ``self``
+
+Since
+=====
+Version 0.1
+
+Parameters
+==========
+  ``self`` - Context to retrieve heap from
+
+Return value
+============
+The heap

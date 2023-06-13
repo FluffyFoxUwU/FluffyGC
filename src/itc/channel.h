@@ -4,6 +4,9 @@
 #include <stdint.h>
 
 // Single direction
+// Multiple writer may has some trouble
+// because torn writes maybe?
+
 struct channel {
   int readFD;
   int writeFD;

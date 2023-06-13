@@ -1,9 +1,7 @@
 GC Roots
 ########
 
-This where GC starts marking for live objects. Functions
-defined here need a valid context in caller thread
-:doc:`fh_context_set_current <context#fh_context_set_current>`
+This where GC starts marking for live objects.
 
 Functions
 #########
@@ -40,7 +38,7 @@ Return
 
 Tags
 ====
-GC-Safepoint
+GC-Safepoint Need-Valid-Context
 
 fh_del_ref
 **********
@@ -58,5 +56,5 @@ Parameter
 
 Tags
 ====
-GC-Safepoint
+GC-Safepoint Need-Valid-Context
 

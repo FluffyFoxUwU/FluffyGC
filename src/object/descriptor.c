@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include "api/hooks.h"
 #include "bug.h"
 #include "context.h"
 #include "descriptor.h"
@@ -28,13 +29,7 @@ static int compareByOffset(const void* _a, const void* _b) {
 }
 
 static void descriptor_free(struct descriptor* self) {
-  int i;
-  struct descriptor_field* field;
-  vec_foreach_ptr(&self->fields, field, i)
-    free((void*) field->name);
-  
-  vec_deinit(&self->fields);
-  free((void*) self->id.name);
+  api_on_descriptor_free(self);
   free(self);
 }
 
@@ -48,38 +43,10 @@ struct descriptor* descriptor_new() {
   refcount_init(&self->refcount);
   
   return self;
-
-  descriptor_free(self);
-  return NULL;
 }
 
-int descriptor_define(struct descriptor* self, struct descriptor_type* type) {
-  int res = 0;
-  self->id = type->id;
-  self->objectSize = type->objectSize;
-  self->alignment = type->alignment;
-  self->isDefined = true;
-  self->objectType = type->objectType;
-  
-  self->id.name = strdup(type->id.name);
-  if (!self->id.name) {
-    res = -ENOMEM;
-    goto failure;
-  }
-
-  for (int i = 0; type->fields[i].name != NULL; i++) {
-    vec_push(&self->fields, type->fields[i]);
-    self->fields.data[i].name = strdup(type->fields[i].name);
-    
-    if (!self->fields.data[i].name) {
-      res = -ENOMEM;
-      goto failure;
-    }
-  }
-
+void descriptor_init(struct descriptor* self) {
   qsort(self->fields.data, self->fields.length, sizeof(*self->fields.data), compareByOffset); 
-failure:
-  return res;
 }
 
 void descriptor_acquire(struct descriptor* self) {

@@ -8,15 +8,30 @@ Since
 *****
 Version 0.1
 
+Types
+#####
+.. code-block:: c
+
+   @Nullable
+   fh_descriptor* (*fh_descriptor_loader)(const char* name, void* udata)
+
+A type for application descriptor loader. Returned descriptor must
+be already acquired. Context at entrance and exit must not change
+although changing context inside loader and switch back is valid
+
 Methods
 #######
-+--------------+------------------------------------+---------------------+
-| Return value | Function description               | Link                |
-+==============+====================================+=====================+
-| int          | fh_attach_thread(fluffyheap* self) | `fh_attach_thread`_ |
-+--------------+------------------------------------+---------------------+
-| int          | fh_detach_thread(fluffyheap* self) | `fh_detach_thread`_ |
-+--------------+------------------------------------+---------------------+
++--------------------------------+-------------------------------------------------------------------------+-----------------------------+
+| Return value                   | Function description                                                    | Link                        |
++================================+=========================================================================+=============================+
+| int                            | fh_attach_thread(fluffyheap* self)                                      | `fh_attach_thread`_         |
++--------------------------------+-------------------------------------------------------------------------+-----------------------------+
+| int                            | fh_detach_thread(fluffyheap* self)                                      | `fh_detach_thread`_         |
++--------------------------------+-------------------------------------------------------------------------+-----------------------------+
+| void                           | fh_set_descriptor_loader(fluffyheap* self, fh_descriptor_loader loader) | `fh_set_descriptor_loader`_ |
++--------------------------------+-------------------------------------------------------------------------+-----------------------------+
+| @Nullable fh_descriptor_loader | fh_get_descriptor_loader(fluffyheap* self)                              | `fh_get_descriptor_loader`_ |
++--------------------------------+-------------------------------------------------------------------------+-----------------------------+
 
 Constructor Detail
 ##################
@@ -107,4 +122,42 @@ Return value
   0 on success
   * -EBUSY: There is active context within current thread (See :doc:`fh_context_set_current <context#fh_context_set>`)
 
+fh_set_descriptor_loader
+************************
+.. code-block:: c 
+
+   void fh_set_descriptor_loader(fluffyheap* self, @Nullable fh_descriptor_loader loader);
+
+Set descriptor loader. This blocks caller until there no other thread which still doing
+descriptor loading and this must not be called inside loader function.
+
+Since
+=====
+Version 0.1
+
+Parameters
+==========
+  ``self`` - Heap state to set loader on
+  ``loader`` - The new loader
+
+fh_get_descriptor_loader
+************************
+.. code-block:: c
+
+   @Nullable
+   fh_descriptor_loader fh_get_descriptor_loader(fluffyheap* self);
+
+Get the descriptor loader
+
+Since
+=====
+Version 0.1
+
+Parameters
+==========
+  ``self`` - Heap state to get loader from
+
+Return value
+============
+The loader 
 

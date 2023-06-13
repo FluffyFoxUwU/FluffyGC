@@ -18,5 +18,9 @@ Structures
   * :doc:`fluffyheap* <fluffyheap>`
   * :doc:`Mods <mods>`
   * :doc:`Context <context>`
+  * :doc:`fh_object* <object>`
+  * :doc:`root`
+  * :doc:`fh_array* <array>`
+  * :doc:`fh_descriptor* <descriptor>`
 
 

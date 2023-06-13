@@ -30,15 +30,8 @@ struct descriptor_field {
 }
 #define DESCRIPTOR_FIELD_END() {.name = NULL}
 
-struct descriptor_typeid {
-  const char* name;
-  
-  uintptr_t ownerID;
-  uintptr_t typeID;
-};
-
 struct descriptor {
-  struct descriptor_typeid id;
+  const char* name;
   enum object_type objectType;
   bool isDefined;
 
@@ -50,16 +43,8 @@ struct descriptor {
   vec_t(struct descriptor_field) fields;
 };
 
-struct descriptor_type {
-  struct descriptor_typeid id;
-  size_t alignment;
-  size_t objectSize;
-  enum object_type objectType;
-  struct descriptor_field* fields;
-};
-
 struct descriptor* descriptor_new();
-int descriptor_define(struct descriptor* self, struct descriptor_type* type);
+void descriptor_init(struct descriptor* self);
 
 void descriptor_init_object(struct descriptor* self, struct object* obj);
 

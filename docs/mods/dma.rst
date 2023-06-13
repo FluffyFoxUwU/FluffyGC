@@ -15,35 +15,42 @@ Flags for this mod
 +========================+========+===================================+
 | FH_MOD_DMA_REFERENCES  | 0x0001 | Enable DMA access to references   |
 +------------------------+--------+-----------------------------------+
-| FH_MOD_DMA_NONBLOCKING | 0x0002 | Enable non GC blocking DMA access |
-+------------------------+--------+-----------------------------------+
+
+Access
+######
++-------------------------+--------+--------------+
+| Bitfield name           | Number | Purpose      |
++=========================+========+==============+
+| FH_MOD_DMA_ACCESS_READ  | 0x01   | Read access  |
++-------------------------+--------+--------------+
+| FH_MOD_DMA_ACCESS_WRITE | 0x02   | Write access |
++-------------------------+--------+--------------+
 
 Methods (Extends ``fh_object*``)
 ################################
-+--------------+-----------------------------------------------+----------------------+
-| Return Value | Method                                        | Link                 |
-+==============+===============================================+======================+
-| void*        | fh_object_get_dma(fh_object* self)            | `fh_object_get_dma`_ |
-+--------------+-----------------------------------------------+----------------------+
-| void         | fh_object_put_dma(fh_object* self, void* ptr) | `fh_object_put_dma`_ |
-+--------------+-----------------------------------------------+----------------------+
++--------------+----------------------------------------------------------------------------------+------------------------+
+| Return Value | Method                                                                           | Link                   |
++==============+==================================================================================+========================+
+| void*        | fh_object_map_dma(fh_object* self, size_t alignment, size_t offset, size_t size) | `fh_object_map_dma`_   |
++--------------+----------------------------------------------------------------------------------+------------------------+
+| void         | fh_object_unmap_dma(fh_object* self, void* ptr)                                  | `fh_object_unmap_dma`_ |
++--------------+----------------------------------------------------------------------------------+------------------------+
 
 Function details
 ################
 
-fh_object_get_dma
+fh_object_map_dma
 *****************
 .. code-block:: c
 
    @Nullable
-   void* fh_object_get_dma(fh_object* self)
+   void* fh_object_map_dma(fh_object* self, size_t offset, size_t size)
 
-Gets unique direct access pointer to the object which is
-accessible for the whole program's address space. Pointer
-returned is unique i.e. consecutive calls return different
-pointers. Operation which trigger GC must not be called if
-the caller has a DMA pointer if ``FH_MOD_DMA_NONBLOCKING``
-not set as it may cause deadlock
+Maps a part of the object so it can be DMA accessed for the 
+whole program's address space. Pointer returned is unique 
+i.e. consecutive calls return different pointers. Result of
+writing into DMA region may not immediately visible. Alignment
+for the pointer must follow what the descriptor say if possible
 
 .. tip::
    Implementations may return unique pointer for debug feature
@@ -66,24 +73,27 @@ Version 0.1
 Parameters
 ==========
   ``self`` - Object to get pointer from
+  ``offset`` - Offset where the mapping start
+  ``size`` - Size of region to be mapped
 
 Return value
 ============
   Return untyped pointer which can be casted to corresponding
-  typed data and used directly
+  typed data and used directly or NULL incase of error
 
 Tags
-=================
-GC-Safepoint
+====
+GC-Safepoint May-Block-GC Need-Valid-Context
 
-fh_object_put_dma
+fh_object_unmap_dma
 *****************
 .. code-block:: c
 
-   int fh_put_dma(fh_object* self, const void* dma)
+   int fh_unmap_dma(fh_object* self, const void* dma)
 
 Invalidate the ``dma`` pointer. ``dma`` pointer after
-this call considered to be free'd and must not be reused
+this call considered to be free'd and must not be reused.
+Writes that happen before this will be stored into object
 
 Since
 =====
@@ -100,5 +110,5 @@ Zero indicate success
  * -EINVAL: Invalid ``dma`` for ``self``
 
 Tags
-=================
-GC-Safepoint
+====
+GC-Safepoint May-Unblock-GC Need-Valid-Context

@@ -35,6 +35,8 @@ set(BUILD_SOURCES
   
   src/itc/channel.c
   
+  src/api/hooks.c
+  
   deps/list/list_node.c
   deps/list/list.c
   deps/list/list_iterator.c  
