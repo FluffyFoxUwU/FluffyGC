@@ -19,6 +19,34 @@ A type for application descriptor loader. Returned descriptor must
 be already acquired. Context at entrance and exit must not change
 although changing context inside loader and switch back is valid
 
+.. code-block:: c
+
+   // Hints for the implementation to select which
+   // implementation specific algorithmn or be 
+   // ignored (for one size fit all algorithmn)
+   enum fh_gc_hint {
+     FH_GC_BALANCED,        // App not preferring any type
+     FH_GC_LOW_LATENCY,     // App prefer lower latency GC (e.g. interactive apps)
+     FH_GC_HIGH_THROUGHPUT  // App prefer higher throughput GC (e.g. server workloads)
+   };
+
+   typedef struct {
+     enum fh_gc_hint hint;
+     
+     // Generation count with GC hint is not specified
+     // use ``fh_get_generation_count`` to retrieve count
+     int generationCount;
+     size_t generationSizes[];
+   } fh_param;
+
+Functions
+#########
++--------------+-----------------------------------------------+----------------------------+
+| Return value | Function name                                 | Link                       |
++==============+===============================================+============================+
+| int          | fh_get_generation_count(enum fh_gc_hint hint) | `fh_get_generation_count`_ |
++--------------+-----------------------------------------------+----------------------------+
+
 Methods
 #######
 +--------------------------------+-------------------------------------------------------------------------+-----------------------------+
@@ -40,6 +68,10 @@ Constructor Detail
    @Nullable
    fluffyheap* fh_new(fh_param* param)
 
+There may be another implementation specific way
+to create ``fluffyheap*`` if extra parameters not
+exist in this API needed
+
 Since
 =====
 Version 0.1
@@ -57,6 +89,33 @@ Destructor Detail
 Since
 =====
 Version 0.1
+
+Function details
+################
+
+fh_get_generation_count
+***********************
+.. code-block:: c
+
+   @Nonzero
+   @Positive
+   @ConstantResult
+   int fh_get_generation_count(enum fh_gc_hint hint)
+
+Get amount of generation required for specific hint
+and must not fail.
+
+Since
+=====
+Version 0.1
+
+Parameters
+==========
+  ``hint`` - Hint for which the generation count be retrieved from
+
+Return value
+============
+Return number of generations. Constant result for same parameter
 
 Method Details
 ##############

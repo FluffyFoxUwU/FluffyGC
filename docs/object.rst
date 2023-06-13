@@ -186,7 +186,12 @@ fh_object_get_descriptor
    fh_descriptor* fh_object_get_descriptor(fh_object* self)
 
 Get descriptor for current object. The address returned is same
-for exactly same object type so only need pointer comparison
+for exactly same object type so only need pointer comparison.
+Descriptor return can be reused to create new instance (also
+works for arrays or anything describe-able by descriptor)
+
+Acquires the descriptor and need ``fh_release_descriptor``
+to release the descriptor.
 
 Since
 =====

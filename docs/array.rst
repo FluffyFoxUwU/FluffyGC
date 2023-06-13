@@ -1,7 +1,7 @@
 ``fh_array*`` (extends ``fh_object*``)
 ######################################
 
-Object but extended for arrays
+Object but extended for arrays. Cast able to ``fh_object*``
 
 Since
 *****

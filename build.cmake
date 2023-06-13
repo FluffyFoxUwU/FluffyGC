@@ -49,6 +49,8 @@ set(BUILD_INCLUDE_DIRS
   deps/list/
   deps/templated-hashmap/
   deps/vec/
+  
+  include/
 )
 
 # Note that exe does not represent Windows' 

@@ -29,7 +29,7 @@ The definition is
      size_t alignment;
      
      // For arrays this only 1 long
-     fh_descriptor_field fields[];
+     fh_descriptor_field fields*;
    } fh_descriptor_param;
 
 For convenience following macro must present
@@ -54,7 +54,7 @@ Functions
 +--------------------------+------------------------------------------------------------------------+--------------------------+
 | @Nullable fh_descriptor* | fh_get_descriptor(const char* name, bool dontInvokeLoader)             | `fh_get_descriptor`_     |
 +--------------------------+------------------------------------------------------------------------+--------------------------+
-| void                     | fh_release_descriptor(fh_descriptor* desc)                             | `fh_release_descriptor`_ |
+| void                     | fh_release_descriptor(@Nullable fh_descriptor* desc)                             | `fh_release_descriptor`_ |
 +--------------------------+------------------------------------------------------------------------+--------------------------+
 
 ``fh_define_descriptor`` and ``fh_get_descriptor`` only valid for object
@@ -136,10 +136,11 @@ fh_release_descriptor
 *********************
 .. code-block:: c
 
-   void fh_release_descriptor(fh_descriptor* self)
+   void fh_release_descriptor(@Nullable fh_descriptor* self)
 
 Release the descriptor so it can be GC-ed. After this
-call usage of ``self`` considering undefined beahaviour
+call usage of ``self`` considering undefined beahaviour.
+or do nothing if ``self`` is NULL. 
 
 Since
 =====
@@ -160,8 +161,7 @@ fh_descriptor_get_param
 ***********************
 .. code-block:: c
 
-   @ReadOnly
-   fh_descriptor_param* fh_descriptor_get_param(fh_descriptor* self)
+   const fh_descriptor_param* fh_descriptor_get_param(fh_descriptor* self)
 
 Gets read only parameter for the ``self`` descriptor
 
