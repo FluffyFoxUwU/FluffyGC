@@ -87,9 +87,10 @@ static void ___gc_callback_nop_void2() {
   .onSafepoint = ___gc_callback_nop_void2
 
 enum gc_algorithm {
-  GC_UNKNOWN,
+  GC_UNKNOWN = 0,
   GC_NOP_GC,
-  GC_SERIAL_GC
+  GC_SERIAL_GC,
+  GC_COUNT
 };
 
 struct gc_struct {
@@ -145,6 +146,8 @@ enum gc_status {
   GC_STATUS_FAILED
 };
 
+size_t gc_preferred_promotion_size(enum gc_algorithm algo, gc_flags gcFlags, int genID);
+int gc_preferred_promotion_age(enum gc_algorithm algo, gc_flags gcFlags, int genID);
 int gc_generation_count(enum gc_algorithm algo, gc_flags gcFlags);
 bool gc_use_fast_on_gen(enum gc_algorithm algo, gc_flags gcFlags, int genID);
 

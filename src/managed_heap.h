@@ -7,15 +7,12 @@
 #include <stdatomic.h>
 #include <threads.h>
 
+#include "FluffyHeap.h"
 #include "concurrency/completion.h"
-#include "concurrency/event.h"
 #include "concurrency/mutex.h"
-#include "concurrency/rwlock.h"
-#include "concurrency/rwulock.h"
 #include "gc/gc.h"
 #include "util/list_head.h"
 #include "gc/gc_flags.h"
-#include "vec.h"
 #include "context.h"
 
 struct descriptor;
@@ -53,6 +50,10 @@ struct generation {
 struct managed_heap {
   struct gc_struct* gcState;
   
+  struct {
+    fh_descriptor_loader descriptorLoader;
+  } api;
+  
   struct completion gcCompleted;
   
   struct mutex contextTrackerLock;
@@ -78,7 +79,29 @@ void managed_heap_free_context(struct managed_heap* self, struct context* ctx);
 // Context swapping
 struct context* managed_heap_swap_context(struct context* new);
 struct context* managed_heap_switch_context_out();
-void managed_heap_switch_context_in(struct context* new);
+int managed_heap_switch_context_in(struct context* new);
+
+void managed_heap_set_context_state(struct context* ctx, enum context_state state);
+
+#define managed_heap_set_states(self, ctx) \
+  context_current = (ctx); \
+  gc_current = (self)->gcState; \
+  managed_heap_current = (self); \
+
+// These two context create new scope and MUST
+// NOT jump/goto to outside of the scope 
+#define managed_heap_push_states(self, ctx) do { \
+  struct context* ______prevContext = context_current; \
+  struct gc_struct* ______prevGC = gc_current; \
+  struct managed_heap* ______prevManangedHeap = managed_heap_current; \
+  managed_heap_set_states((self), (ctx)); \
+  do {} while (0)
+
+#define managed_heap_pop_states() \
+    managed_heap_current = ______prevManangedHeap; \
+    gc_current = ______prevGC; \
+    context_current = ______prevContext; \
+  } while(0)
 
 #endif
 

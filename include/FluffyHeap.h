@@ -6,7 +6,15 @@
 #include <stddef.h>
 #include <time.h>
 
-#define __FLUFFYHEAP_EXPORT extern
+#ifdef __GNUC__
+# ifndef __FLUFFYHEAP_EXPORT
+#   define __FLUFFYHEAP_EXPORT __attribute__((visibility("default"))) extern
+# endif
+#endif
+
+#ifndef __FLUFFYHEAP_EXPORT
+# define __FLUFFYHEAP_EXPORT extern
+#endif
 
 #if __clang__
 # define __FLUFFYHEAP_NONNULL(t) t _Nonnull
@@ -15,6 +23,13 @@
 # define __FLUFFYHEAP_NONNULL(t) t __attribute__((nonnull))
 # define __FLUFFYHEAP_NULLABLE(t) t
 #endif
+
+
+
+// TODO: Implement this file UwU and i will pet you and brush your tail, Fox
+
+
+
 
 // Types
 typedef struct fh_200d21fd_f92b_41e0_9ea3_32eaf2b4e455 fluffyheap;
@@ -27,9 +42,9 @@ typedef __FLUFFYHEAP_NULLABLE(fh_descriptor*) (*fh_descriptor_loader)(__FLUFFYHE
 typedef void (*fh_finalizer)(__FLUFFYHEAP_NONNULL(const void*) objData, __FLUFFYHEAP_NULLABLE(void*) udata);
 
 enum fh_gc_hint {
-  FH_GC_BALANCED,
-  FH_GC_LOW_LATENCY,
-  FH_GC_HIGH_THROUGHPUT
+  FH_GC_BALANCED = 0,
+  FH_GC_LOW_LATENCY = 1,
+  FH_GC_HIGH_THROUGHPUT = 2
 };
 
 typedef struct {
@@ -60,7 +75,7 @@ typedef struct {
   size_t alignment;
 
   // For arrays this only 1 long
-  __FLUFFYHEAP_NONNULL(fh_descriptor_field*) fields;
+  __FLUFFYHEAP_NULLABLE(fh_descriptor_field*) fields;
   __FLUFFYHEAP_NULLABLE(fh_finalizer) finalizer;
 } fh_descriptor_param;
 
@@ -116,11 +131,14 @@ __FLUFFYHEAP_EXPORT void fh_object_read_data(__FLUFFYHEAP_NONNULL(fh_object*) se
 __FLUFFYHEAP_EXPORT void fh_object_write_data(__FLUFFYHEAP_NONNULL(fh_object*) self, __FLUFFYHEAP_NONNULL(const void*) buffer, size_t offset, size_t size);
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_object*) fh_object_read_ref(__FLUFFYHEAP_NONNULL(fh_object*) self, size_t offset);
 __FLUFFYHEAP_EXPORT void fh_object_write_ref(__FLUFFYHEAP_NONNULL(fh_object*) self, size_t offset, __FLUFFYHEAP_NULLABLE(fh_object*) data);
+
+__FLUFFYHEAP_EXPORT int fh_init_synchronization_structs(__FLUFFYHEAP_NONNULL(fh_object*) self);
 __FLUFFYHEAP_EXPORT void fh_object_wait(__FLUFFYHEAP_NONNULL(fh_object*) self, __FLUFFYHEAP_NULLABLE(const struct timespec*) timeout);
 __FLUFFYHEAP_EXPORT void fh_object_wake(__FLUFFYHEAP_NONNULL(fh_object*) self);
 __FLUFFYHEAP_EXPORT void fh_object_wake_all(__FLUFFYHEAP_NONNULL(fh_object*) self);
 __FLUFFYHEAP_EXPORT void fh_object_lock(__FLUFFYHEAP_NONNULL(fh_object*) self);
 __FLUFFYHEAP_EXPORT void fh_object_unlock(__FLUFFYHEAP_NONNULL(fh_object*) self);
+
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NONNULL(fh_descriptor*) fh_object_get_descriptor(__FLUFFYHEAP_NONNULL(fh_object*) self);
 __FLUFFYHEAP_EXPORT bool fh_object_is_alias(__FLUFFYHEAP_NULLABLE(fh_object*) a, __FLUFFYHEAP_NULLABLE(fh_object*) b);
 

@@ -16,6 +16,8 @@ void gc_nop_compact(struct generation* gen);
 void gc_nop_start_cycle(struct generation*);
 void gc_nop_end_cycle(struct generation*);
 void gc_nop_free(struct gc_ops*);
+size_t gc_nop_preferred_promotion_size(gc_flags flags, int genID);
+int gc_nop_preferred_promotion_age(gc_flags flags, int genID);
 
 #endif
 

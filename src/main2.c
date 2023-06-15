@@ -14,11 +14,9 @@
 #include "gc/gc_statistic.h"
 #include "managed_heap.h"
 #include "memory/heap.h"
-#include "memory/soc.h"
 #include "context.h"
 #include "object/descriptor.h"
 #include "object/object.h"
-#include "util/btree.h"
 #include "util/util.h"
 #include "vec.h"
 

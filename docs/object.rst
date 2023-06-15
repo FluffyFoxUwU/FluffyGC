@@ -21,6 +21,8 @@ Methods
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
 | void                 | fh_object_write_ref(fh_object* self, size_t offset, @Nullable fh_object* data)        | `fh_object_write_ref`_                   |
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
+| int                  | fh_init_synchronization_structs(fh_object* self)                                      | `fh_init_synchronization_structs`_       |
++----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
 | void                 | fh_object_wait(fh_object* self, @Nullable const struct timespec* timeout)             | `fh_object_wait`_                        |
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
 | void                 | fh_object_wake(fh_object* self)                                                       | `fh_object_wake-and-fh_object_wake_all`_ |
@@ -33,7 +35,7 @@ Methods
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
 | fh_descriptor*       | fh_object_get_descriptor(fh_object* self)                                             | `fh_object_get_descriptor`_              |
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| bool                 | fh_object_is_alias(@Nullable fh_object* a, @Nullable fh_object* b)                      | `fh_object_equals`_                      |
+| bool                 | fh_object_is_alias(@Nullable fh_object* a, @Nullable fh_object* b)                    | `fh_object_equals`_                      |
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
 
 Constructor detail
@@ -120,6 +122,7 @@ fh_object_wait
 
 Wait until object is notified. The object must be already
 locked for this to be valid call. 
+Must init with ``fh_init_synchronization_structs`` before calling this
 
 Since
 =====
@@ -145,6 +148,7 @@ fh_object_wake and fh_object_wake_all
 
 Wake thread waiting on ``self`` (incase of 
 ``fh_object_wake_all`` wake all threads)
+Must init with ``fh_init_synchronization_structs`` before calling this
 
 Tags
 ====
@@ -166,7 +170,8 @@ fh_object_lock and fh_object_unlock
    void fh_object_lock(fh_object* self);
    void fh_object_unlock(fh_object* self);
 
-Lock the object and unlock the object
+Lock the object and unlock the object. Must init with
+``fh_init_synchronization_structs`` before calling this
 
 Since
 =====
@@ -273,6 +278,34 @@ Parameters
 Return value
 ============
 True if both objects refers to same object
+
+Tags
+====
+GC-Safepoint
+
+fh_init_synchronization_structs
+*******************************
+.. code-block:: c
+
+   int fh_init_synchronization_structs(fh_object* self)
+
+Init synchronization related structures for use.
+
+Since
+=====
+Version 0.1
+
+Parameters
+==========
+  ``self`` - Object to init on
+
+Return value
+============
+0 on success
+
+Errors:
+  -ENOMEM: Not enough memory to initialize the synchronization structure
+  -EAGAIN: System limit for the synchronization structure reached
 
 Tags
 ====

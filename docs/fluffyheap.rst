@@ -128,8 +128,7 @@ fh_attach_thread
    int fh_attach_thread(fluffyheap* self)
 
 Attach thread to a heap. Initially recently
-attached thread has no context associated
-therefore not ready for usage yet
+attached thread already has a context associated
 
 Since
 =====

@@ -9,8 +9,9 @@ int mutex_init(struct mutex* self) {
   *self = (struct mutex) {};
   self->locked = false;
   self->inited = false;
-  if (pthread_mutex_init(&self->mutex, NULL) != 0)
-    return -ENOMEM;
+  int res = 0;
+  if ((res = pthread_mutex_init(&self->mutex, NULL)) != 0)
+    return res == ENOMEM ? -ENOMEM : -EAGAIN;
   self->inited = true;
   return rwlock_init(&self->ownerLock);
 }

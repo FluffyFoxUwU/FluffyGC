@@ -29,6 +29,7 @@ The definition is
      size_t alignment;
      
      // For arrays this only 1 long
+     @Nullable // Null for ``fh_descriptor_get_param`` return value
      fh_descriptor_field fields*;
      
      // Called somewhere in the future after
@@ -172,7 +173,8 @@ fh_descriptor_get_param
 
    const fh_descriptor_param* fh_descriptor_get_param(fh_descriptor* self)
 
-Gets read only parameter for the ``self`` descriptor
+Gets read only parameter for the ``self`` descriptor. The ``fields``
+field will be NULL as it retrieved via different method
 
 Since
 =====

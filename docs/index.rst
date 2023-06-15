@@ -12,6 +12,7 @@ Tips
   specified (be it read only or writing or anything really)
 4. Functions cannot initiates blocking GC unless noted
 5. Uses Java's @Nullable and @Nonnull annotation because its nice
+6. It is not required that the arguments to be checked unless allowed to
 
 Structures
 **********

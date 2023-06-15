@@ -17,7 +17,11 @@ int main2() {
   fluffyheap* heap = fh_new(&param);
   
   fh_attach_thread(heap);
+  
+  fh_context* old = fh_get_current();
   fh_context* current = fh_new_context(heap);
+  fh_set_current(current);
+  fh_free_context(heap, old);
   
   struct test_type {
     int im;
@@ -43,7 +47,6 @@ int main2() {
     .size = sizeof(struct test_type)
   };
   
-  fh_set_current(current);
   fh_descriptor* desc = fh_define_descriptor("fox.fluffygc.Test", &descParam);
   
   fh_object* obj = fh_alloc_object(desc);

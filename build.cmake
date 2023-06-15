@@ -36,6 +36,11 @@ set(BUILD_SOURCES
   src/itc/channel.c
   
   src/api/hooks.c
+  src/api/heap_api.c
+  src/api/context.c
+  src/api/root.c
+  src/api/object.c
+  src/api/descriptor.c
   
   deps/list/list_node.c
   deps/list/list.c

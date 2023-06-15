@@ -7,17 +7,12 @@
 #include <errno.h>
 
 #include "memory/heap.h"
-#include "concurrency/completion.h"
-#include "concurrency/event.h"
-#include "concurrency/rwlock.h"
 #include "memory/soc.h"
 #include "context.h"
-#include "bug.h"
 #include "managed_heap.h"
 #include "object/object.h"
 #include "util/list_head.h"
 #include "util/refcount.h"
-#include "util/util.h"
 #include "gc/gc.h"
 
 thread_local struct context* context_current = NULL;

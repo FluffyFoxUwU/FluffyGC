@@ -18,9 +18,9 @@
 #include "memory/heap.h"
 #include "util/list_head.h"
 #include "util/util.h"
-#include "vec.h"
 
 thread_local struct gc_struct* gc_current = NULL;
+thread_local unsigned int gc_block_count = 0;
 
 #define SELECT_GC_ENTRY(name, prefix, ret, func, ...) \
   case name: \
@@ -30,6 +30,7 @@ thread_local struct gc_struct* gc_current = NULL;
 #define SELECT_GC(algo, ret, func, ...) \
   switch (algo) { \
     case GC_UNKNOWN: \
+    case GC_COUNT: \
       BUG(); \
     SELECT_GC_ENTRY(GC_NOP_GC, gc_nop_, ret, func, __VA_ARGS__) \
     SELECT_GC_ENTRY(GC_SERIAL_GC, gc_serial_, ret, func, __VA_ARGS__) \
@@ -159,6 +160,18 @@ failure:
 int gc_generation_count(enum gc_algorithm algo, gc_flags gcFlags) {
   int ret;
   SELECT_GC(algo, ret, generation_count, gcFlags);
+  return ret;
+}
+
+size_t gc_preferred_promotion_size(enum gc_algorithm algo, gc_flags gcFlags, int genID) {
+  size_t ret;
+  SELECT_GC(algo, ret, preferred_promotion_size, gcFlags, genID);
+  return ret;
+}
+
+int gc_preferred_promotion_age(enum gc_algorithm algo, gc_flags gcFlags, int genID) {
+  int ret;
+  SELECT_GC(algo, ret, preferred_promotion_age, gcFlags, genID);
   return ret;
 }
 

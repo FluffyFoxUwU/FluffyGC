@@ -5,13 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "bitops.h"
 #include "config.h"
 #include "soc.h"
 #include "bug.h"
 #include "util/list_head.h"
 #include "util/util.h"
-#include "vec.h"
 
 static void freeChunk(struct soc_chunk* self) {
   if (!self)

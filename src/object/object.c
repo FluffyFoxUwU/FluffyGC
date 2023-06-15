@@ -6,18 +6,20 @@
 #include <stdio.h>
 
 #include "address_spaces.h"
+#include "concurrency/mutex.h"
 #include "config.h"
 #include "gc/gc.h"
 #include "managed_heap.h"
 #include "memory/heap.h"
+#include "memory/soc.h"
 #include "object.h"
 #include "context.h"
 #include "util/list_head.h"
 #include "util/util.h"
 #include "descriptor.h"
 #include "bug.h"
-#include "attributes.h"
-#include "vec.h"
+
+SOC_DEFINE(syncStructureCache, SOC_DEFAULT_CHUNK_SIZE, struct object_sync_structure);
 
 static _Atomic(struct object*)* getAtomicPtrToReference(struct object* self, size_t offset) {
   return (_Atomic(struct object*)*) (self->dataPtr.ptr + offset);
@@ -79,10 +81,41 @@ void object_write_reference(struct object* self, size_t offset, struct object* o
   context_unblock_gc();
 }
 
+int object_init_synchronization_structs(struct object* self) {
+  context_block_gc();
+  struct soc_chunk* chunk = NULL;
+  struct object_sync_structure* data = soc_alloc_explicit(syncStructureCache, &chunk);
+  if (!data)
+    return -ENOMEM;
+  data->sourceChunk = chunk;
+  
+  int res = 0;
+  if ((res = mutex_init(&data->lock)) < 0)
+    goto failure;
+  if ((res = condition_init(&data->cond)) < 0)
+    goto failure;
+  
+  self->syncStructure = data;
+  return 0;
+  
+failure:
+  mutex_cleanup(&data->lock);
+  condition_cleanup(&data->cond);
+  soc_dealloc_explicit(syncStructureCache, chunk, data);
+  context_unblock_gc();
+  return res;
+}
+
 void object_cleanup(struct object* self) {
   for (int i = 0; i < GC_MAX_GENERATIONS; i++)
     if (list_is_valid(&self->rememberedSetNode[i]))
       list_del(&self->rememberedSetNode[i]);
+  
+  if (self->syncStructure) {
+    mutex_cleanup(&self->syncStructure->lock);
+    condition_cleanup(&self->syncStructure->cond);
+    soc_dealloc_explicit(syncStructureCache, self->syncStructure->sourceChunk, self->syncStructure);
+  }
 }
 
 struct userptr object_get_dma(struct root_ref* rootRef) {

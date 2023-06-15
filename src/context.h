@@ -5,8 +5,6 @@
 #include <stdatomic.h>
 #include <threads.h>
 
-#include "concurrency/completion.h"
-#include "concurrency/event.h"
 #include "util/list_head.h"
 #include "util/refcount.h"
 
@@ -18,10 +16,12 @@ struct small_object_cache;
 // Represents any context
 
 enum context_state {
-  CONTEXT_INACTIVE = 0,
-  CONTEXT_ACTIVE
+  CONTEXT_RUNNING = 0,
+  CONTEXT_INACTIVE, // No thread has this context
+  CONTEXT_SLEEPING  // A thread has this context but sleeping right now
+                    // and GC may run even there sleeping contexts
 };
-#define CONTEXT_STATE_COUNT 2
+#define CONTEXT_STATE_COUNT 3
 
 struct context {
   struct list_head list;

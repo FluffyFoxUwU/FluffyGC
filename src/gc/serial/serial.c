@@ -1,3 +1,5 @@
+#include <limits.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "gc/gc.h"
@@ -29,4 +31,20 @@ int gc_serial_generation_count(gc_flags flags) {
 
 bool gc_serial_use_fast_on_gen(gc_flags flags, int genID) {
   return true;
+}
+
+size_t gc_serial_preferred_promotion_size(gc_flags flags, int genID) {
+  switch (genID) {
+    case 0: return 2 * 1024;
+    case 1: return 8 * 1024;
+  }
+  return SIZE_MAX;
+}
+
+int gc_serial_preferred_promotion_age(gc_flags flags, int genID) {
+  switch (genID) {
+    case 0: return 4;
+    case 1: return 10;
+  }
+  return INT_MAX;
 }

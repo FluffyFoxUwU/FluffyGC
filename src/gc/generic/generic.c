@@ -33,15 +33,6 @@ static void recomputeRememberedSet(struct object* self) {
   });
 }
 
-static void objectIsAlive(struct generation* gen, struct object* oldObj, int ageDelta) {
-  struct object* newLocation;
-  clearRememberedSetFor(oldObj);
-  
-  if (!(newLocation = object_move(oldObj, gen->toHeap)))
-    BUG();
-  newLocation->age += ageDelta;
-}
-
 static thread_local struct list_head promotedList;
 static void postCollect(struct generation* gen) {
   struct list_head* current;
@@ -178,7 +169,12 @@ static size_t collectGeneration(struct generation* gen, struct generation** prom
     
 object_is_alive:
     // Alive object send to toHeap
-    objectIsAlive(gen, obj, ageDelta);
+    clearRememberedSetFor(obj);
+    
+    struct object* newLocation;
+    if (!(newLocation = object_move(obj, gen->toHeap)))
+      BUG();
+    newLocation->age = MIN(newLocation->age + ageDelta, gen->param.promotionAge);
   }
   
   if (promoteTargetFailurePtr)

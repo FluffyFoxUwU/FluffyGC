@@ -9,8 +9,9 @@ int condition_init(struct condition* self) {
   *self = (struct condition) {};
   
   self->inited = false;
-  if (pthread_cond_init(&self->cond, NULL) != 0)
-    return -ENOMEM;
+  int res = 0;
+  if ((res = pthread_cond_init(&self->cond, NULL)) != 0)
+    return res == ENOMEM ? -ENOMEM : -EAGAIN;
   self->inited = true;
   return 0;
 }

@@ -7,8 +7,13 @@
 #include "util/list_head.h"
 #include "gc/gc.h"
 #include "address_spaces.h"
+#include "concurrency/mutex.h"
+#include "concurrency/condition.h"
 
 struct heap;
+struct mutex;
+struct condition;
+
 enum object_type {
   OBJECT_NORMAL
 };
@@ -25,8 +30,16 @@ struct userptr {
 #define USERPTR(x) ((struct userptr) {x})
 #define USERPTR_NULL USERPTR(NULL)
 
+struct object_sync_structure {
+  struct soc_chunk* sourceChunk;
+  struct mutex lock;
+  struct condition cond;
+};
+
 struct object {
   struct list_head inPromotionList;
+  
+  struct object_sync_structure* syncStructure;
   
   // Used during compaction phase
   // Does not need to be _Atomic because it only modified during GC
@@ -35,6 +48,8 @@ struct object {
   size_t objectSize; // Represent size of data
   int age; // Number of collection survived
   
+  // As long GC blocked the object is not moved
+  // so this valid
   struct userptr dataPtr;
   
   struct list_head rememberedSetNode[GC_MAX_GENERATIONS];
@@ -81,6 +96,8 @@ struct object* object_move(struct object* self, struct heap* dest);
 
 // Generic iterating the object for references
 void object_for_each_field(struct object* self, void (^iterator)(struct object* obj,size_t offset));
+
+int object_init_synchronization_structs(struct object* self);
 
 #endif
 

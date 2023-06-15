@@ -7,6 +7,7 @@
 #include <stdatomic.h>
 #include <stddef.h>
 
+#include "FluffyHeap.h"
 #include "vec.h"
 #include "object.h"
 #include "util/refcount.h"
@@ -39,6 +40,10 @@ struct descriptor {
   size_t alignment;
   
   struct refcount refcount;
+  
+  struct {
+    fh_descriptor_param param;
+  } api;
   
   vec_t(struct descriptor_field) fields;
 };
