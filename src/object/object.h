@@ -74,7 +74,7 @@ struct node {
 */
 
 void object_init(struct object* self, struct descriptor* desc, void address_heap* data);
-void object_cleanup(struct object* self);
+void object_cleanup(struct object* self, bool isDead);
 
 // object_(read/write)_ptr are safe without DMA
 [[nodiscard]]

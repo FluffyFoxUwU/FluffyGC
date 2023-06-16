@@ -28,8 +28,9 @@ static int compareByOffset(const void* _a, const void* _b) {
     return 0;
 }
 
-static void descriptor_free(struct descriptor* self) {
+void descriptor_free(struct descriptor* self) {
   api_on_descriptor_free(self);
+  vec_deinit(&self->fields);
   free(self);
 }
 
@@ -40,7 +41,6 @@ struct descriptor* descriptor_new() {
   
   *self = (struct descriptor) {}; 
   vec_init(&self->fields);
-  refcount_init(&self->refcount);
   
   return self;
 }
@@ -50,13 +50,11 @@ void descriptor_init(struct descriptor* self) {
 }
 
 void descriptor_acquire(struct descriptor* self) {
-  refcount_acquire(&self->refcount);
+  refcount_acquire(&self->usages);
 }
 
 void descriptor_release(struct descriptor* self) {
-  if (refcount_release(&self->refcount))
-    return;
-  descriptor_free(self);
+  refcount_release(&self->usages);
 }
 
 void descriptor_init_object(struct descriptor* self, struct object* obj) {

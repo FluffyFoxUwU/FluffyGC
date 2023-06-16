@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <threads.h>
 
+#include "api/type_registry.h"
 #include "bug.h"
 #include "concurrency/completion.h"
 #include "concurrency/mutex.h"
@@ -55,8 +56,7 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
     return NULL;
   
   *self = (struct managed_heap) {
-    .generationCount = 0,
-    .api.descriptorLoader = NULL
+    .generationCount = 0
   };
   
   for (int i = 0; i < CONTEXT_STATE_COUNT; i++)
@@ -64,6 +64,9 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
   
   if (mutex_init(&self->contextTrackerLock) < 0 ||
       completion_init(&self->gcCompleted) < 0)
+    goto failure;
+  
+  if (!(self->api.registry = type_registry_new()))
     goto failure;
   
   managed_heap_push_states(self, NULL);
@@ -91,12 +94,18 @@ void managed_heap_free(struct managed_heap* self) {
   
   managed_heap_push_states(self, NULL);
   
+  mutex_lock(&self->contextTrackerLock);
+  // There is contexts!!
+  BUG_ON(self->contextCount > 0);
+  mutex_unlock(&self->contextTrackerLock);
+  
   for (int i = 0; i < self->generationCount; i++)
     freeGeneration(self, &self->generations[i]);
   
+  gc_free(self->gcState);
+  type_registry_free(self->api.registry);
   mutex_cleanup(&self->contextTrackerLock);
   completion_cleanup(&self->gcCompleted);
-  gc_free(self->gcState);
   free(self);
   
   managed_heap_pop_states();
@@ -191,29 +200,6 @@ failure:
   return rootRef;
 }
 
-int managed_heap_attach_context(struct managed_heap* self) {
-  BUG_ON(context_current);
-  
-  struct context* ctx = managed_heap_new_context(self);
-  if (!ctx)
-    return -ENOMEM;
-  
-  managed_heap_set_states(managed_heap_current, NULL);
-  managed_heap_switch_context_in(ctx);
-  return 0;
-}
-
-void managed_heap_detach_context(struct managed_heap* self) {
-  BUG_ON(!context_current || context_current->managedHeap != self);
-  managed_heap_free_context(self, managed_heap_switch_context_out());
-}
-
-struct context* managed_heap_swap_context(struct context* new) {
-  struct context* ctx = managed_heap_switch_context_out();
-  managed_heap_switch_context_in(new);
-  return ctx;
-}
-
 static void managed_heap_set_context_state_nolock(struct context* context, enum context_state state) {
   if (context_current)
     context_block_gc();
@@ -236,31 +222,68 @@ void managed_heap_set_context_state(struct context* context, enum context_state 
   mutex_unlock(&managed_heap_current->contextTrackerLock);
 }
 
-struct context* managed_heap_switch_context_out() {
+static struct context* switchContextOutNolock() {
   BUG_ON(!context_current);
   
   struct context* current = context_current;
-  managed_heap_set_context_state(current, CONTEXT_INACTIVE);
+  managed_heap_set_context_state_nolock(current, CONTEXT_INACTIVE);
   
-  managed_heap_set_states(managed_heap_current, NULL);
+  managed_heap_set_states(NULL, NULL);
   return current;
 }
 
-int managed_heap_switch_context_in(struct context* new) {
+static int switchContextInNolock(struct context* new) {
   BUG_ON(context_current);
   
-  mutex_lock(&managed_heap_current->contextTrackerLock);
   int res = 0;
   if (new->state != CONTEXT_INACTIVE) {
     res = -EBUSY;
     goto context_in_use;
   }
   
-  managed_heap_set_states(managed_heap_current, new);
+  managed_heap_set_states(new->managedHeap, new);
   managed_heap_set_context_state_nolock(new, CONTEXT_RUNNING);
 context_in_use:
-  mutex_unlock(&managed_heap_current->contextTrackerLock);
   return res;
+}
+
+int managed_heap_attach_thread(struct managed_heap* self) {
+  BUG_ON(context_current);
+  
+  managed_heap_set_states(self, NULL);
+  struct context* ctx = managed_heap_new_context(self);
+  if (!ctx)
+    return -ENOMEM;
+    
+  mutex_lock(&self->contextTrackerLock);
+  switchContextInNolock(ctx);
+  mutex_unlock(&self->contextTrackerLock);
+  return 0;
+}
+
+void managed_heap_detach_thread(struct managed_heap* self) {
+  BUG_ON(!context_current || context_current->managedHeap != self);
+  managed_heap_free_context(self, context_current);
+  managed_heap_set_states(NULL, NULL);
+}
+
+int managed_heap_swap_context(struct context* new) {
+  BUG_ON(new->managedHeap != context_current->managedHeap);
+  
+  struct managed_heap* heap = managed_heap_current;
+  mutex_lock(&heap->contextTrackerLock);
+  int ret = 0;
+  struct context* old = switchContextOutNolock();
+  ret = switchContextInNolock(new);
+  
+  // Restore context
+  if (ret < 0) {
+    int ret2 = switchContextInNolock(old);
+    BUG_ON(ret2 != 0);
+  }
+  
+  mutex_unlock(&heap->contextTrackerLock);
+  return ret;
 }
 
 struct context* managed_heap_new_context(struct managed_heap* self) {
@@ -275,6 +298,7 @@ struct context* managed_heap_new_context(struct managed_heap* self) {
   ctx->state = CONTEXT_INACTIVE;
   
   mutex_lock(&self->contextTrackerLock);
+  self->contextCount++;
   list_add(&ctx->list, &self->contextStates[CONTEXT_INACTIVE]);
   mutex_unlock(&self->contextTrackerLock);
   
@@ -287,6 +311,7 @@ void managed_heap_free_context(struct managed_heap* self, struct context* ctx) {
   managed_heap_push_states(self, ctx);
   
   mutex_lock(&managed_heap_current->contextTrackerLock);
+  self->contextCount--;
   list_del(&ctx->list);
   mutex_unlock(&managed_heap_current->contextTrackerLock);
   context_free(ctx);

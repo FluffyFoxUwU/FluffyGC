@@ -57,15 +57,15 @@ For convenience following macro must present
 Functions
 #########
 
-+--------------------------+------------------------------------------------------------------------+--------------------------+
-| Return value             | Function name                                                          | Link                     |
-+==========================+========================================================================+==========================+
-| @Nullable fh_descriptor* | fh_define_descriptor(const char* name, fh_descriptor_param* parameter) | `fh_define_descriptor`_  |
-+--------------------------+------------------------------------------------------------------------+--------------------------+
-| @Nullable fh_descriptor* | fh_get_descriptor(const char* name, bool dontInvokeLoader)             | `fh_get_descriptor`_     |
-+--------------------------+------------------------------------------------------------------------+--------------------------+
-| void                     | fh_release_descriptor(@Nullable fh_descriptor* desc)                             | `fh_release_descriptor`_ |
-+--------------------------+------------------------------------------------------------------------+--------------------------+
++--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+
+| Return value             | Function name                                                                                 | Link                     |
++==========================+===============================================================================================+==========================+
+| @Nullable fh_descriptor* | fh_define_descriptor(const char* name, fh_descriptor_param* parameter, bool dontInvokeLoader) | `fh_define_descriptor`_  |
++--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+
+| @Nullable fh_descriptor* | fh_get_descriptor(const char* name, bool dontInvokeLoader)                                    | `fh_get_descriptor`_     |
++--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+
+| void                     | fh_release_descriptor(@Nullable fh_descriptor* desc)                                          | `fh_release_descriptor`_ |
++--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+
 
 ``fh_define_descriptor`` and ``fh_get_descriptor`` only valid for object
 descriptor not array as array differ.
@@ -90,7 +90,7 @@ fh_define_descriptor
 .. code-block:: c
 
    @Nullable
-   fh_descriptor* fh_define_descriptor(const char* name, fh_descriptor_param* parameter)
+   fh_descriptor* fh_define_descriptor(const char* name, fh_descriptor_param* parameter, bool dontInvokeLoader)
 
 Define a descriptor named "name" and acquire it (to prevent being GC-ed). Must be
 able handle circular references
@@ -103,6 +103,7 @@ Parameters
 ==========
   ``name`` - Name for the descriptor (follows Java convention like ``lua.lang.Table`` for example)
   ``parameter`` - Other parameters describing the layout and requirements
+  ``dontInvokeLoader`` - Whether to invoke loader or not
 
 Return
 ======

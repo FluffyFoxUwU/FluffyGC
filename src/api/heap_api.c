@@ -35,20 +35,17 @@ __FLUFFYHEAP_EXPORT void fh_free(__FLUFFYHEAP_NONNULL(fluffyheap*) self) {
 }
 
 __FLUFFYHEAP_EXPORT int fh_attach_thread(__FLUFFYHEAP_NONNULL(fluffyheap*) self) {
-  int res = managed_heap_attach_context(INTERN(self));
+  int res = managed_heap_attach_thread(INTERN(self));
   if (res < 0)
     return -ENOMEM;
   return 0;
 }
 
-__FLUFFYHEAP_EXPORT int fh_detach_thread(__FLUFFYHEAP_NONNULL(fluffyheap*) self) {
-  if (context_current)
-    return -EBUSY;
-  managed_heap_detach_context(INTERN(self));
-  return 0;
+__FLUFFYHEAP_EXPORT void fh_detach_thread(__FLUFFYHEAP_NONNULL(fluffyheap*) self) {
+  managed_heap_detach_thread(INTERN(self));
 }
 
-__FLUFFYHEAP_EXPORT int fh_get_generation_count(enum fh_gc_hint hint) {
+__FLUFFYHEAP_EXPORT int fh_get_generation_count(fh_gc_hint hint) {
   return gc_generation_count(gcMapping[hint].algo, gcMapping[hint].flags);
 }
 

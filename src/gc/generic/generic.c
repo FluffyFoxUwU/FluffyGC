@@ -140,7 +140,7 @@ static size_t collectGeneration(struct generation* gen, struct generation** prom
       globallyReclaimedSize += objectSize;
       thisGenerationReclaimedSize += objectSize;
       clearRememberedSetFor(obj);
-      object_cleanup(obj);
+      object_cleanup(obj, true);
       continue;
     }
     

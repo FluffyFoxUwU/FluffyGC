@@ -2,26 +2,12 @@
 
 #include "pre_code.h"
 
-#include "concurrency/mutex.h"
 #include "managed_heap.h"
 #include "FluffyHeap.h"
 #include "context.h"
 
-__FLUFFYHEAP_EXPORT int fh_set_current(__FLUFFYHEAP_NULLABLE(fh_context*) _context) {
-  int ret = 0;
-  struct context* context = INTERN(_context);
-  struct managed_heap* managedHeap = context->managedHeap;
-  mutex_lock(&managedHeap->contextTrackerLock);
-  if (context->state == CONTEXT_RUNNING) {
-    ret = -EBUSY;
-    goto context_is_busy;
-  }
-  
-  context_current = context;
-  
-context_is_busy:
-  mutex_unlock(&managedHeap->contextTrackerLock);
-  return ret;
+__FLUFFYHEAP_EXPORT int fh_set_current(__FLUFFYHEAP_NONNULL(fh_context*) _context) {
+  return managed_heap_swap_context(INTERN(_context));
 }
 
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_context*) fh_get_current() {

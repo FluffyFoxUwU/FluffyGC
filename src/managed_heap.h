@@ -5,6 +5,7 @@
 // Tracking various things
 
 #include <stdatomic.h>
+#include <stdint.h>
 #include <threads.h>
 
 #include "FluffyHeap.h"
@@ -51,12 +52,17 @@ struct managed_heap {
   struct gc_struct* gcState;
   
   struct {
+    struct mutex descriptorLoaderSerializationLock;
+    void* udata;
     fh_descriptor_loader descriptorLoader;
+    
+    struct type_registry* registry;
   } api;
   
   struct completion gcCompleted;
   
   struct mutex contextTrackerLock;
+  int64_t contextCount;
   struct list_head contextStates[CONTEXT_STATE_COUNT];
   
   int generationCount;
@@ -70,22 +76,19 @@ void managed_heap_free(struct managed_heap* self);
 
 struct root_ref* managed_heap_alloc_object(struct descriptor* desc);
 
-int managed_heap_attach_context(struct managed_heap* self);
-void managed_heap_detach_context(struct managed_heap* self);
+int managed_heap_attach_thread(struct managed_heap* self);
+void managed_heap_detach_thread(struct managed_heap* self);
 
 struct context* managed_heap_new_context(struct managed_heap* self);
 void managed_heap_free_context(struct managed_heap* self, struct context* ctx);
 
 // Context swapping
-struct context* managed_heap_swap_context(struct context* new);
-struct context* managed_heap_switch_context_out();
-int managed_heap_switch_context_in(struct context* new);
-
+int managed_heap_swap_context(struct context* new);
 void managed_heap_set_context_state(struct context* ctx, enum context_state state);
 
 #define managed_heap_set_states(self, ctx) \
   context_current = (ctx); \
-  gc_current = (self)->gcState; \
+  gc_current = (self) ? ((struct managed_heap*) self)->gcState : NULL; \
   managed_heap_current = (self); \
 
 // These two context create new scope and MUST

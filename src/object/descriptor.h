@@ -8,6 +8,7 @@
 #include <stddef.h>
 
 #include "FluffyHeap.h"
+#include "util/list_head.h"
 #include "vec.h"
 #include "object.h"
 #include "util/refcount.h"
@@ -39,9 +40,10 @@ struct descriptor {
   size_t objectSize;
   size_t alignment;
   
-  struct refcount refcount;
+  struct refcount usages;
   
   struct {
+    struct list_head list;
     fh_descriptor_param param;
   } api;
   
@@ -55,6 +57,10 @@ void descriptor_init_object(struct descriptor* self, struct object* obj);
 
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset);
 
+void descriptor_free(struct descriptor* self);
+
+// Only track number of uses, does not automaticly
+// releases as there might living object using it
 void descriptor_acquire(struct descriptor* self);
 void descriptor_release(struct descriptor* self);
 

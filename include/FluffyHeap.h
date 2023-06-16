@@ -24,60 +24,65 @@
 # define __FLUFFYHEAP_NULLABLE(t) t
 #endif
 
-
-
-// TODO: Implement this file UwU and i will pet you and brush your tail, Fox
-
-
-
-
 // Types
 typedef struct fh_200d21fd_f92b_41e0_9ea3_32eaf2b4e455 fluffyheap;
 typedef struct fh_2530dc70_b8d3_41d5_808a_922504f90ff6 fh_context;
 typedef struct fh_e96bee3a_e673_4a27_97e3_a365dc3d9d53 fh_object;
 typedef struct fh_7f49677c_68b4_40ea_96c7_db3f6176c5dc fh_array;
 typedef struct fh_fc200f7a_174f_4882_9fa4_1205af13686e fh_descriptor;
+typedef struct fh_f39dbb2f_d8d1_4687_8486_a196de7712a3 fh_descriptor_param;
+typedef struct fh_89fe10c0_cf25_435b_b5a3_96e5e1e5ac98 fh_param;
+typedef struct fh_783de216_08ed_4ad5_ade6_8da1c47e6cb0 fh_descriptor_field;
+typedef   enum fh_02261b19_abfa_4c90_93e2_c9887232e2ae fh_gc_hint;
+typedef   enum fh_975ffc9a_3ef7_4b0c_91a7_eeb74d09a086 fh_reference_strength;
+typedef   enum fh_d466bd64_51d5_4157_8f05_5d344bbcb85c fh_object_type;
 
-typedef __FLUFFYHEAP_NULLABLE(fh_descriptor*) (*fh_descriptor_loader)(__FLUFFYHEAP_NONNULL(const char*) name, __FLUFFYHEAP_NULLABLE(void*) udata);
-typedef void (*fh_finalizer)(__FLUFFYHEAP_NONNULL(const void*) objData, __FLUFFYHEAP_NULLABLE(void*) udata);
+typedef int (*fh_descriptor_loader)(__FLUFFYHEAP_NONNULL(const char*) name, __FLUFFYHEAP_NULLABLE(void*) udata, __FLUFFYHEAP_NONNULL(struct fh_f39dbb2f_d8d1_4687_8486_a196de7712a3*) param);
+typedef void (*fh_finalizer)(__FLUFFYHEAP_NONNULL(const void*) objData);
 
-enum fh_gc_hint {
-  FH_GC_BALANCED = 0,
-  FH_GC_LOW_LATENCY = 1,
-  FH_GC_HIGH_THROUGHPUT = 2
+enum fh_02261b19_abfa_4c90_93e2_c9887232e2ae {
+  FH_GC_BALANCED,
+  FH_GC_LOW_LATENCY,
+  FH_GC_HIGH_THROUGHPUT,
+  FH_GC_COUNT
 };
 
-typedef struct {
-  enum fh_gc_hint hint;
+struct fh_89fe10c0_cf25_435b_b5a3_96e5e1e5ac98 {
+  fh_gc_hint hint;
   size_t generationCount;
   __FLUFFYHEAP_NONNULL(size_t*) generationSizes;
-} fh_param;
+};
 
-enum fh_object_type {
+enum fh_d466bd64_51d5_4157_8f05_5d344bbcb85c {
   FH_TYPE_NORMAL,
   FH_TYPE_ARRAY,
+  FH_TYPE_COUNT
 };
 
-enum fh_reference_strength {
-  FH_REF_STRONG
+enum fh_975ffc9a_3ef7_4b0c_91a7_eeb74d09a086 {
+  FH_REF_STRONG,
+  FH_REF_SOFT,
+  FH_REF_WEAK,
+  FH_REF_PHANTOM,
+  FH_REF_COUNT
 };
 
-typedef struct {
+struct fh_783de216_08ed_4ad5_ade6_8da1c47e6cb0 {
   __FLUFFYHEAP_NONNULL(const char*) name;
   size_t offset;
   __FLUFFYHEAP_NONNULL(const char*) dataType;
-  enum fh_reference_strength strength;
-} fh_descriptor_field;
+  fh_reference_strength strength;
+};
 
-typedef struct {
-  enum fh_object_type type;
+struct fh_f39dbb2f_d8d1_4687_8486_a196de7712a3 {
+  fh_object_type type;
   size_t size;
   size_t alignment;
 
   // For arrays this only 1 long
   __FLUFFYHEAP_NULLABLE(fh_descriptor_field*) fields;
   __FLUFFYHEAP_NULLABLE(fh_finalizer) finalizer;
-} fh_descriptor_param;
+};
 
 #define FH_FIELD(type, member, _dataType, refStrength) \
   { \
@@ -93,9 +98,9 @@ __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fluffyheap*) fh_new(__FLUFFYHEAP_NONNU
 __FLUFFYHEAP_EXPORT void fh_free(__FLUFFYHEAP_NONNULL(fluffyheap*) self);
 
 __FLUFFYHEAP_EXPORT int fh_attach_thread(__FLUFFYHEAP_NONNULL(fluffyheap*) self);
-__FLUFFYHEAP_EXPORT int fh_detach_thread(__FLUFFYHEAP_NONNULL(fluffyheap*) self);
+__FLUFFYHEAP_EXPORT void fh_detach_thread(__FLUFFYHEAP_NONNULL(fluffyheap*) self);
 
-__FLUFFYHEAP_EXPORT int fh_get_generation_count(enum fh_gc_hint hint);
+__FLUFFYHEAP_EXPORT int fh_get_generation_count(fh_gc_hint hint);
 
 __FLUFFYHEAP_EXPORT void fh_set_descriptor_loader(__FLUFFYHEAP_NONNULL(fluffyheap*) self, __FLUFFYHEAP_NULLABLE(fh_descriptor_loader) loader);
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor_loader) fh_get_descriptor_loader(__FLUFFYHEAP_NONNULL(fluffyheap*) self);
@@ -112,7 +117,7 @@ __FLUFFYHEAP_EXPORT void fh_disable_mod(enum fh_mod mod);
 __FLUFFYHEAP_EXPORT bool fh_check_mod(enum fh_mod mod, int flags);
 
 // Context stuff
-__FLUFFYHEAP_EXPORT int fh_set_current(__FLUFFYHEAP_NULLABLE(fh_context*) context);
+__FLUFFYHEAP_EXPORT int fh_set_current(__FLUFFYHEAP_NONNULL(fh_context*) context);
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_context*) fh_get_current();
 
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_context*) fh_new_context(__FLUFFYHEAP_NONNULL(fluffyheap*) heap);
@@ -151,7 +156,7 @@ __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_object*) fh_array_get_element(__FLU
 __FLUFFYHEAP_EXPORT void fh_array_set_element(__FLUFFYHEAP_NONNULL(fh_array*) self, size_t index, __FLUFFYHEAP_NULLABLE(fh_object*) object);
 
 // Descriptors stuff
-__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_define_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, __FLUFFYHEAP_NONNULL(fh_descriptor_param*) parameter);
+__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_define_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, __FLUFFYHEAP_NONNULL(fh_descriptor_param*) parameter, bool dontInvokeLoader);
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_get_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, bool dontInvokeLoader);
 __FLUFFYHEAP_EXPORT void fh_release_descriptor(__FLUFFYHEAP_NULLABLE(fh_descriptor*) desc);
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NONNULL(const fh_descriptor_param*) fh_descriptor_get_param(__FLUFFYHEAP_NONNULL(fh_descriptor*) self);

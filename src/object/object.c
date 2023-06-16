@@ -106,10 +106,15 @@ failure:
   return res;
 }
 
-void object_cleanup(struct object* self) {
+void object_cleanup(struct object* self, bool isDead) {
   for (int i = 0; i < GC_MAX_GENERATIONS; i++)
     if (list_is_valid(&self->rememberedSetNode[i]))
       list_del(&self->rememberedSetNode[i]);
+  
+  // The object going to die anyway so give 
+  // the direct pointer
+  if (isDead)
+    self->descriptor->api.param.finalizer((const void*) self->dataPtr.ptr);
   
   if (self->syncStructure) {
     mutex_cleanup(&self->syncStructure->lock);

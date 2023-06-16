@@ -16,7 +16,7 @@ Functions
 +-----------------------+-----------------------------------------------+-------------------+
 | Return value          | Function                                      | Link              |
 +=======================+===============================================+===================+
-| int                   | fh_set_current(@Nullable fh_context* context) | `fh_set_current`_ |
+| int                   | fh_set_current(fh_context* context) | `fh_set_current`_ |
 +-----------------------+-----------------------------------------------+-------------------+
 | @Nullable fh_context* | fh_get_current()                              | `fh_get_current`_ |
 +-----------------------+-----------------------------------------------+-------------------+
@@ -74,7 +74,12 @@ fh_context_set
    int fh_set_current(@Nullable fh_context* context)
 
 This changes current thread's context to ``context`` and
-mark ``context`` as active and mark old ``context`` inactive
+mark ``context`` as active and mark old ``context`` inactive.
+Cross heap context swap is disallowed.
+.. tip::
+   program may create dummy context swap to that then detach
+   and reattach on different heap and swap to the desired cross
+   heap context
 
 .. note::
    It is not OS's context but logical context where GC roots
@@ -91,7 +96,7 @@ Parameters
 Return Value
 ============
 0 on sucess
- * -EBUSY: The ``context`` is active and in use
+ * -EBUSY: The ``context`` was active and in use
 
 
 fh_context_get

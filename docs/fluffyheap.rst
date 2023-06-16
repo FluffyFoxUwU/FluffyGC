@@ -13,12 +13,21 @@ Types
 .. code-block:: c
 
    @Nullable
-   fh_descriptor* (*fh_descriptor_loader)(const char* name, @Nullable void* udata)
-   void (*fh_finalizer)(const void* objData, @Nullable void* udata)
+   int (*fh_descriptor_loader)(const char* name, @Nullable void* udata, @WriteOnly fh_descriptor_param* param)
+   void (*fh_finalizer)(const void* objData)
 
-A type for application descriptor loader. Returned descriptor must
-be already acquired. Context at entrance and exit must not change
-although changing context inside loader and switch back is valid
+A type for application descriptor loader. Must write to ``param``
+so that the descriptor can be created. Context at entrance and 
+exit must not change though changing context inside loader and
+switch back is valid. Loader may be called again but must return
+same data for a single ``name`` but may give different parameter
+on different heap instance. Descriptor loader must not trigger
+loader recursively! (it may define another descriptor but it must
+not trigger another loader)
+
+Finalizer called at somewhere after losing reference and before
+reclaiming memory or may never be called for long time. But must
+be called on heap destruction
 
 .. code-block:: c
 
@@ -55,7 +64,7 @@ Methods
 +================================+=========================================================================+=============================+
 | int                            | fh_attach_thread(fluffyheap* self)                                      | `fh_attach_thread`_         |
 +--------------------------------+-------------------------------------------------------------------------+-----------------------------+
-| int                            | fh_detach_thread(fluffyheap* self)                                      | `fh_detach_thread`_         |
+| void                           | fh_detach_thread(fluffyheap* self)                                      | `fh_detach_thread`_         |
 +--------------------------------+-------------------------------------------------------------------------+-----------------------------+
 | void                           | fh_set_descriptor_loader(fluffyheap* self, fh_descriptor_loader loader) | `fh_set_descriptor_loader`_ |
 +--------------------------------+-------------------------------------------------------------------------+-----------------------------+
@@ -162,7 +171,7 @@ fh_detach_thread
 ****************
 .. code-block:: c
 
-   int fh_detach_thread(fluffyheap* self)
+   void fh_detach_thread(fluffyheap* self)
 
 Detaches current thread from heap. After this call
 all API calls is invalid unless noted by each function
@@ -175,11 +184,6 @@ Parameters
 ==========
   ``self`` - Heap state to detach from (Passed to ensure the thread
   detach from correct heap)
-
-Return value
-============
-  0 on success
-  * -EBUSY: There is active context within current thread (See :doc:`fh_context_set_current <context#fh_context_set>`)
 
 fh_set_descriptor_loader
 ************************

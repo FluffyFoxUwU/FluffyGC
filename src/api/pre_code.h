@@ -15,7 +15,7 @@
 #define EXTERN(c) _Generic ((c), \
   struct managed_heap*: (fluffyheap*) (c), \
   struct root_ref*: (fh_object*) (c), \
-  struct context*: (fh_context*) (c) \
+  struct context*: (fh_context*) (c), \
   struct descriptor*: (fh_descriptor*) (c) \
 )
 

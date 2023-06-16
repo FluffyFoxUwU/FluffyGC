@@ -41,6 +41,7 @@ set(BUILD_SOURCES
   src/api/root.c
   src/api/object.c
   src/api/descriptor.c
+  src/api/type_registry.c
   
   deps/list/list_node.c
   deps/list/list.c
