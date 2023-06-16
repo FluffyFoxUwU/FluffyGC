@@ -127,7 +127,7 @@ failure:
   return ret;
 }
 
-__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_define_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, __FLUFFYHEAP_NONNULL(fh_descriptor_param*) parameter, bool dontInvokeLoader) {
+__FLUFFYHEAP_EXPORT int fh_define_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, __FLUFFYHEAP_NONNULL(fh_descriptor_param*) parameter, bool dontInvokeLoader) {
   enterClassLoaderExclusive();
   
   descriptor_stack stack = {};
@@ -140,7 +140,7 @@ __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_define_descriptor(_
   int ret = 0;
   struct descriptor* newDescriptor = descriptor_new();
   if (!newDescriptor)
-    return NULL;
+    return -ENOMEM;
   
   context_block_gc();
   rwlock_wrlock(&managed_heap_current->api.registry->lock);
@@ -187,11 +187,9 @@ failure:;
   
   exitClassLoaderExclusive();
   
-  if (ret < 0) {
+  if (ret < 0)
     printf("[DescriptorLoader] Failed loading '%s'\n", name);
-    newDescriptor = NULL;
-  }
-  return EXTERN(newDescriptor);
+  return ret;
 }
 
 static struct descriptor* getDescriptor(const char* name) {
@@ -223,8 +221,11 @@ __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_get_descriptor(__FL
     
     fh_descriptor_param param;
     int ret = managed_heap_current->api.descriptorLoader(name, managed_heap_current->api.udata, &param);
-    if (ret >= 0)
-      desc = INTERN(fh_define_descriptor(name, &param, dontInvokeLoader));
+    if (ret >= 0) {
+      ret = fh_define_descriptor(name, &param, dontInvokeLoader);
+      if (ret >= 0)
+        desc = getDescriptor(name);
+    }
     exitClassLoaderExclusive();
     
     if (ret < 0)

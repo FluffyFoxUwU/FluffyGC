@@ -60,7 +60,7 @@ Functions
 +--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+
 | Return value             | Function name                                                                                 | Link                     |
 +==========================+===============================================================================================+==========================+
-| @Nullable fh_descriptor* | fh_define_descriptor(const char* name, fh_descriptor_param* parameter, bool dontInvokeLoader) | `fh_define_descriptor`_  |
+| int                      | fh_define_descriptor(const char* name, fh_descriptor_param* parameter, bool dontInvokeLoader) | `fh_define_descriptor`_  |
 +--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+
 | @Nullable fh_descriptor* | fh_get_descriptor(const char* name, bool dontInvokeLoader)                                    | `fh_get_descriptor`_     |
 +--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+
@@ -89,8 +89,7 @@ fh_define_descriptor
 ********************
 .. code-block:: c
 
-   @Nullable
-   fh_descriptor* fh_define_descriptor(const char* name, fh_descriptor_param* parameter, bool dontInvokeLoader)
+   int fh_define_descriptor(const char* name, fh_descriptor_param* parameter, bool dontInvokeLoader)
 
 Define a descriptor named "name" and acquire it (to prevent being GC-ed). Must be
 able handle circular references
@@ -107,7 +106,10 @@ Parameters
 
 Return
 ======
-The descriptor or NULL if failed or duplicate one exist
+0 on success 
+Error:
+  -ENOMEM: Not enough memory
+  -EEXIST: Already defined
 
 Tags
 =====

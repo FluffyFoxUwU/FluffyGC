@@ -82,8 +82,9 @@ int main2() {
     .size = sizeof(struct test_type)
   };
   
-  fh_descriptor* desc = fh_define_descriptor("fox.fluffygc.Test", &descParam, false);
+  fh_define_descriptor("fox.fluffygc.Test", &descParam, false);
   //fh_define_descriptor("fox.fluffygc.Test2", &descParam2, false);
+  fh_descriptor* desc = fh_get_descriptor("fox.fluffygc.Test", false);
   
   fh_object* obj = fh_alloc_object(desc);
   struct test_type data;
