@@ -25,7 +25,6 @@ fh_descriptor_field fields2[] = {
 
 fh_descriptor_param descParam2 = {
   .alignment = alignof(struct test_type2),
-  .type = FH_TYPE_NORMAL,
   .fields = fields2,
   .size = sizeof(struct test_type2)
 };
@@ -77,7 +76,6 @@ int main2() {
   
   fh_descriptor_param descParam = {
     .alignment = alignof(struct test_type),
-    .type = FH_TYPE_NORMAL,
     .fields = fields,
     .size = sizeof(struct test_type)
   };

@@ -58,15 +58,10 @@ void descriptor_release(struct descriptor* self) {
 }
 
 void descriptor_init_object(struct descriptor* self, struct object* obj) {
-  switch (self->objectType) {
-    case OBJECT_NORMAL: {
-      int i;
-      struct descriptor_field* field;
-      vec_foreach_ptr(&self->fields, field, i)
-        atomic_init((_Atomic(struct object*)*) (obj->dataPtr.ptr + field->offset), NULL);
-      break;
-    }
-  }
+  int i;
+  struct descriptor_field* field;
+  vec_foreach_ptr(&self->fields, field, i)
+    atomic_init((_Atomic(struct object*)*) (obj->dataPtr.ptr + field->offset), NULL);
 }
 
 int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
@@ -81,27 +76,28 @@ int descriptor_get_index_from_offset(struct descriptor* self, size_t offset) {
 }
 
 void descriptor_for_each_field(struct object* self, void (^iterator)(struct object* obj,size_t offset)) {
-  switch (self->descriptor->objectType) {
+  switch (self->movePreserve.type) {
     case OBJECT_NORMAL: {
       int i;
       struct descriptor_field* field;
-      vec_foreach_ptr(&self->descriptor->fields, field, i)
+      vec_foreach_ptr(&self->movePreserve.descriptor->fields, field, i)
         iterator(atomic_load((_Atomic(struct object*)*) (self->dataPtr.ptr + field->offset)), field->offset);
       break;
     }
   }
 }
 
-int descriptor_is_assignable_to(struct descriptor* self, size_t offset, struct descriptor* b) {
+int descriptor_is_assignable_to(struct object* self, size_t offset, struct descriptor* b) {
   struct descriptor* a = NULL;
-  int index;
-  switch (self->objectType) {
+  switch (self->movePreserve.type) {
     case OBJECT_NORMAL: {
-      index = descriptor_get_index_from_offset(self, offset);
+      int index;
+      struct descriptor* desc = self->movePreserve.descriptor;
+      index = descriptor_get_index_from_offset(desc, offset);
       BUG_ON(index < 0);
+      a = desc->fields.data[index].dataType;
       break;
     }
   }
-  a = self->fields.data[index].dataType;
   return a == b;
 }

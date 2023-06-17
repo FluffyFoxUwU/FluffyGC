@@ -81,15 +81,8 @@ static int process(struct descriptor_loader_context* loader, struct descriptor* 
   if ((ret = type_registry_add_nolock(managed_heap_current->api.registry, current)) < 0)
     return ret;
   
-  static enum object_type typeMapping[FH_TYPE_COUNT] = {
-    [FH_TYPE_NORMAL] = OBJECT_NORMAL,
-    [FH_TYPE_ARRAY] = -1 // -1 as marker value that its invalid
-  };
-  
   current->alignment = param->alignment;
   current->objectSize = param->size;
-  current->objectType = typeMapping[param->type];
-  BUG_ON(current->objectType < 0);
   
   static enum reference_strength strengthMapping[FH_REF_COUNT] = {
     [FH_REF_STRONG] = REFERENCE_STRONG,

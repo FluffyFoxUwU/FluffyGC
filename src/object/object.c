@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "address_spaces.h"
 #include "concurrency/mutex.h"
@@ -63,7 +64,7 @@ obj_is_null:
 
 void object_write_reference(struct object* self, size_t offset, struct object* obj) {
   context_block_gc();
-  if (!descriptor_is_assignable_to(self->descriptor, offset, obj->descriptor))
+  if (!descriptor_is_assignable_to(self, offset, obj->movePreserve.descriptor))
     BUG();
   
   struct object* old = atomic_exchange(getAtomicPtrToReference(self, offset), obj);
@@ -72,10 +73,10 @@ void object_write_reference(struct object* self, size_t offset, struct object* o
   gc_current->ops->postWriteBarrier(old);
   
   // Add current object to `obj`'s generation remembered set
-  if (obj && self->generationID != obj->generationID && !list_is_valid(&self->rememberedSetNode[obj->generationID])) {
-    struct generation* target = &managed_heap_current->generations[obj->generationID];
+  if (obj && self->movePreserve.generationID != obj->movePreserve.generationID && !list_is_valid(&self->rememberedSetNode[obj->movePreserve.generationID])) {
+    struct generation* target = &managed_heap_current->generations[obj->movePreserve.generationID];
     mutex_lock(&target->rememberedSetLock);
-    list_add(&self->rememberedSetNode[obj->generationID], &target->rememberedSet);
+    list_add(&self->rememberedSetNode[obj->movePreserve.generationID], &target->rememberedSet);
     mutex_unlock(&target->rememberedSetLock);
   }
   context_unblock_gc();
@@ -113,8 +114,8 @@ void object_cleanup(struct object* self, bool isDead) {
   
   // The object going to die anyway so give 
   // the direct pointer
-  if (isDead)
-    self->descriptor->api.param.finalizer((const void*) self->dataPtr.ptr);
+  if (isDead && self->movePreserve.type == OBJECT_NORMAL)
+    self->movePreserve.descriptor->api.param.finalizer((const void*) self->dataPtr.ptr);
   
   if (self->syncStructure) {
     mutex_cleanup(&self->syncStructure->lock);
@@ -137,7 +138,7 @@ int object_put_dma(struct root_ref* rootRef, struct userptr dma) {
 
 void object_init(struct object* self, struct descriptor* desc, void address_heap* data) {
   *self = (struct object) {
-    .descriptor = desc,
+    .movePreserve = {.descriptor = desc},
     .objectSize = desc->objectSize,
     .dataPtr = {data}
   };
@@ -149,7 +150,7 @@ void object_init(struct object* self, struct descriptor* desc, void address_heap
 }
 
 void object_fix_pointers(struct object* self) {
-  BUG_ON(self->generationID < 0);
+  BUG_ON(self->movePreserve.generationID < 0);
   
   object_for_each_field(self, ^(struct object*, size_t offset) {
     readPointerAt(self, offset);
@@ -157,23 +158,19 @@ void object_fix_pointers(struct object* self) {
 }
 
 struct object* object_move(struct object* self, struct heap* dest) {
-  struct heap_block* newBlock = heap_alloc(dest, self->descriptor->alignment, self->objectSize);
+  struct heap_block* newBlock = heap_alloc(dest, self->movePreserve.descriptor->alignment, self->objectSize);
   if (!newBlock)
     return NULL;
   
   struct object* newBlockObj = &newBlock->objMetadata;
   self->forwardingPointer = newBlockObj;
-  object_init(newBlockObj, self->descriptor, newBlock->dataPtr.ptr);
+  object_init(newBlockObj, self->movePreserve.descriptor, newBlock->dataPtr.ptr);
   memcpy(newBlockObj->dataPtr.ptr, self->dataPtr.ptr, self->objectSize);
   
-  newBlockObj->generationID = self->generationID;
-  newBlockObj->descriptor = self->descriptor;
-  newBlockObj->age = self->age;
+  newBlockObj->movePreserve = self->movePreserve;
   
   // Poison self
-  self->generationID = INT_MIN;
-  //self->dataPtr = USERPTR_NULL;
-  self->descriptor = NULL;
+  memset(&self->movePreserve, 0xF0, sizeof(self->movePreserve));
   
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
     struct heap_block* block = container_of(self, struct heap_block, objMetadata);

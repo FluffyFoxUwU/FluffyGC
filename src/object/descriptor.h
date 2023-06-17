@@ -13,6 +13,9 @@
 #include "object.h"
 #include "util/refcount.h"
 
+// This specifically only handles OBJECT_NORMAL type
+// not arrays
+
 struct descriptor;
 struct object;
 
@@ -34,7 +37,6 @@ struct descriptor_field {
 
 struct descriptor {
   const char* name;
-  enum object_type objectType;
   bool isDefined;
 
   size_t objectSize;
@@ -75,7 +77,7 @@ void descriptor_for_each_field(struct object* self, void (^iterator)(struct obje
 // TypeA    ->  TypeA       is compatible
 // TypeA[]  ->  TypeA[]     is compatible
 // Return bool on sucess and -errno on error
-int descriptor_is_assignable_to(struct descriptor* self, size_t offset, struct descriptor* desc);
+int descriptor_is_assignable_to(struct object* self, size_t offset, struct descriptor* b);
 
 #endif
 

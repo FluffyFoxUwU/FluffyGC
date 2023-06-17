@@ -24,11 +24,9 @@ The definition is
    } fh_descriptor_field;
    
    typedef struct {
-     enum fh_object_type type;
      size_t size;
      size_t alignment;
      
-     // For arrays this only 1 long
      @Nullable // Null for ``fh_descriptor_get_param`` return value
      fh_descriptor_field fields*;
      

@@ -37,6 +37,8 @@ Methods
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
 | bool                 | fh_object_is_alias(@Nullable fh_object* a, @Nullable fh_object* b)                    | `fh_object_equals`_                      |
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
+| enum fh_object_type  | fh_object_get_type(fh_object* self)                                                   | `fh_object_get_type`_                    |
++----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
 
 Constructor detail
 #####################
@@ -306,6 +308,30 @@ Return value
 Errors:
   -ENOMEM: Not enough memory to initialize the synchronization structure
   -EAGAIN: System limit for the synchronization structure reached
+
+Tags
+====
+GC-Safepoint
+
+fh_object_get_type
+******************
+.. code-block:: c
+
+   enum fh_object_type fh_object_get_type(fh_object* self)
+
+Gets object type of ``self``
+
+Since
+=====
+Version 0.1
+
+Parameters
+==========
+  ``self`` - Object to retrieve from
+
+Return value
+============
+The retrieved result
 
 Tags
 ====

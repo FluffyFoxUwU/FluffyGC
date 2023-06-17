@@ -194,7 +194,7 @@ struct root_ref* managed_heap_alloc_object(struct descriptor* desc) {
   }
   object_init(&newBlock->objMetadata, desc, newBlock->dataPtr.ptr);
   BUG_ON(!attemptedOn);
-  newBlock->objMetadata.generationID = attemptedOn->genID;
+  newBlock->objMetadata.movePreserve.generationID = attemptedOn->genID;
 failure:
   context_unblock_gc();
   return rootRef;

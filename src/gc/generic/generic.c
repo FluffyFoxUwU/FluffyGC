@@ -26,9 +26,9 @@ static void recomputeRememberedSet(struct object* self) {
     if (!child)
       return;
     
-    if (child && self->generationID != child->generationID && !list_is_valid(&self->rememberedSetNode[child->generationID])) {
-      struct generation* target = &managed_heap_current->generations[child->generationID];
-      list_add(&self->rememberedSetNode[child->generationID], &target->rememberedSet);
+    if (child && self->movePreserve.generationID != child->movePreserve.generationID && !list_is_valid(&self->rememberedSetNode[child->movePreserve.generationID])) {
+      struct generation* target = &managed_heap_current->generations[child->movePreserve.generationID];
+      list_add(&self->rememberedSetNode[child->movePreserve.generationID], &target->rememberedSet);
     }
   });
 }
@@ -156,7 +156,7 @@ static size_t collectGeneration(struct generation* gen, struct generation** prom
       
       clearRememberedSetFor(obj);
       
-      newLocation->generationID = nextGenID;
+      newLocation->movePreserve.generationID = nextGenID;
       newLocation->age = 0;
       
       thisGenerationReclaimedSize += objectSize;
@@ -191,7 +191,7 @@ static bool isEligibleForScanning(struct object* obj, int targetGenID) {
     return false;
   if (targetGenID == -1)
     return true;
-  return obj->generationID == targetGenID;
+  return obj->movePreserve.generationID == targetGenID;
 }
 
 // Basicly iterative DFS search
