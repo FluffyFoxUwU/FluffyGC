@@ -6,6 +6,7 @@
 #include "object/object.h"
 #include "pre_code.h"
 
+#include "object/object_descriptor.h"
 #include "concurrency/rwlock.h"
 #include "context.h"
 #include "api/type_registry.h"
@@ -15,7 +16,7 @@
 #include "util/list_head.h"
 #include "vec.h"
 
-typedef vec_t(struct descriptor*) descriptor_stack;
+typedef vec_t(struct object_descriptor*) descriptor_stack;
 
 struct descriptor_loader_context {
   struct list_head stack;
@@ -36,11 +37,11 @@ static void exitClassLoaderExclusive() {
   exclusiveCount--;
 }
 
-static int loadDescriptor(struct descriptor_loader_context* loader, const char* name, struct descriptor** result) {
+static int loadDescriptor(struct descriptor_loader_context* loader, const char* name, struct object_descriptor** result) {
   int ret = 0;
-  struct descriptor* new = NULL;
+  struct object_descriptor* new = NULL;
   // Descriptor for the field haven't created invoke loader
-  if (!(new = descriptor_new())) { 
+  if (!(new = object_descriptor_new())) { 
     ret = -ENOMEM;
     goto failure;
   }
@@ -68,13 +69,13 @@ static int loadDescriptor(struct descriptor_loader_context* loader, const char* 
   list_add(&new->api.list, &loader->stack);
 failure:
   if (ret < 0)
-    descriptor_free(new);
+    object_descriptor_free(new);
   
   *result = ret >= 0 ? new : NULL;
   return ret;
 }
 
-static int process(struct descriptor_loader_context* loader, struct descriptor* current) {
+static int process(struct descriptor_loader_context* loader, struct object_descriptor* current) {
   fh_descriptor_param* param = &current->api.param;
   int ret = 0;
   
@@ -93,12 +94,12 @@ static int process(struct descriptor_loader_context* loader, struct descriptor* 
   
   for (int i = 0; param->fields[i].name; i++) {
     fh_descriptor_field* field = &param->fields[i];
-    struct descriptor_field convertedField = (struct descriptor_field) {
+    struct object_descriptor_field convertedField = (struct object_descriptor_field) {
       .offset = field->offset,
       .strength = strengthMapping[field->strength]
     };
     
-    struct descriptor* dataType = type_registry_get_nolock(managed_heap_current->api.registry, field->dataType);
+    struct object_descriptor* dataType = type_registry_get_nolock(managed_heap_current->api.registry, field->dataType);
     if (dataType)
       goto descriptor_found;
     
@@ -108,7 +109,7 @@ static int process(struct descriptor_loader_context* loader, struct descriptor* 
     BUG_ON(dataType == NULL);
 descriptor_found:
     convertedField.name = dataType->name;
-    convertedField.dataType = dataType;
+    convertedField.dataType = dataType->parent;
     
     if (vec_push(&current->fields, convertedField) < 0) {
       ret = -ENOMEM;
@@ -131,7 +132,7 @@ __FLUFFYHEAP_EXPORT int fh_define_descriptor(__FLUFFYHEAP_NONNULL(const char*) n
   list_head_init(&loader.stack);
   
   int ret = 0;
-  struct descriptor* newDescriptor = descriptor_new();
+  struct object_descriptor* newDescriptor = object_descriptor_new();
   if (!newDescriptor)
     return -ENOMEM;
   
@@ -147,7 +148,7 @@ __FLUFFYHEAP_EXPORT int fh_define_descriptor(__FLUFFYHEAP_NONNULL(const char*) n
   
   list_add(&newDescriptor->api.list, &loader.stack);
   while (!list_is_empty(&loader.stack)) {
-    struct descriptor* current = list_first_entry(&loader.stack, struct descriptor, api.list);
+    struct object_descriptor* current = list_first_entry(&loader.stack, struct object_descriptor, api.list);
     
     // Add so later can find it
     list_del(&current->api.list);
@@ -161,14 +162,15 @@ failure:;
   struct list_head* currentEntry;
   struct list_head* next;
   list_for_each_safe(currentEntry, next, &loader.newlyAddedDescriptor) {
-    struct descriptor* current = list_entry(currentEntry, struct descriptor, api.list);
+    struct object_descriptor* current = list_entry(currentEntry, struct object_descriptor, api.list);
     list_del(currentEntry);
     
     if (ret < 0) {
       type_registry_remove_nolock(managed_heap_current->api.registry, current);
-      descriptor_free(current);
+      object_descriptor_free(current);
     } else {
-      descriptor_init(current);
+      object_descriptor_init(current);
+      list_add(&current->parent->list, &managed_heap_current->descriptorList);
       printf("[DescriptorLoader] Descriptor '%s' was loaded\n", current->name);
     }
   }
@@ -185,13 +187,13 @@ failure:;
   return ret;
 }
 
-static struct descriptor* getDescriptor(const char* name) {
+static struct object_descriptor* getDescriptor(const char* name) {
   context_block_gc();
   rwlock_rdlock(&managed_heap_current->api.registry->lock);
   
-  struct descriptor* desc = type_registry_get_nolock(managed_heap_current->api.registry, name);
-  if (!desc)
-    descriptor_acquire(desc);
+  struct object_descriptor* desc = type_registry_get_nolock(managed_heap_current->api.registry, name);
+  if (desc)
+    descriptor_acquire(desc->parent);
   
   rwlock_unlock(&managed_heap_current->api.registry->lock);
   context_unblock_gc();
@@ -200,7 +202,7 @@ static struct descriptor* getDescriptor(const char* name) {
 }
 
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_get_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, bool dontInvokeLoader) {
-  struct descriptor* desc = getDescriptor(name);
+  struct object_descriptor* desc = getDescriptor(name);
   
   if (!desc && !dontInvokeLoader) {
     enterClassLoaderExclusive();
@@ -224,9 +226,10 @@ __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_get_descriptor(__FL
     if (ret < 0)
       goto failure;
   }
+  
 false_negative:
 failure:
-  return EXTERN(desc);
+  return EXTERN(desc->parent);
 }
 
 __FLUFFYHEAP_EXPORT void fh_release_descriptor(__FLUFFYHEAP_NULLABLE(fh_descriptor*) desc) {

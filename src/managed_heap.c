@@ -61,6 +61,7 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
   
   for (int i = 0; i < CONTEXT_STATE_COUNT; i++)
     list_head_init(&self->contextStates[i]);
+  list_head_init(&self->descriptorList);
   
   if (mutex_init(&self->contextTrackerLock) < 0 ||
       completion_init(&self->gcCompleted) < 0)
@@ -103,6 +104,12 @@ void managed_heap_free(struct managed_heap* self) {
     freeGeneration(self, &self->generations[i]);
   
   gc_free(self->gcState);
+  
+  struct list_head* current;
+  struct list_head* next;
+  list_for_each_safe(current, next, &self->descriptorList)
+    descriptor_free(list_entry(current, struct descriptor, list));
+  
   type_registry_free(self->api.registry);
   mutex_cleanup(&self->contextTrackerLock);
   completion_cleanup(&self->gcCompleted);
@@ -116,7 +123,7 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
   struct generation* gen = NULL;
   for (int i = 0; i < self->generationCount; i++) {
     struct generation* tmp = &self->generations[i];
-    if (i + 1 >= self->generationCount || desc->objectSize < tmp->param.earlyPromoteSize) {
+    if (i + 1 >= self->generationCount || descriptor_get_object_size(desc) < tmp->param.earlyPromoteSize) {
       gen = tmp;
       break;
     }
@@ -130,7 +137,7 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
   struct heap_block* (*allocFunc)(struct heap*,size_t,size_t);
   allocFunc = gen->useFastOnly ? heap_alloc_fast : heap_alloc;
   
-  if ((block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize)))
+  if ((block = allocFunc(gen->fromHeap, descriptor_get_alignment(desc), descriptor_get_object_size(desc))))
     goto allocSuccess;
   
   while (!block) {
@@ -143,7 +150,7 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
       // and this thread got first attempt to allocate
       
       gc_start(self->gcState, gen);
-      block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);
+      block = allocFunc(gen->fromHeap, descriptor_get_alignment(desc), descriptor_get_object_size(desc));
       complete_all(&self->gcCompleted);
       if (block)
         break;
@@ -153,7 +160,7 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
       mutex_unlock(&self->gcCompleted.onComplete.lock);
       
       gc_start(self->gcState, NULL);
-      block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize);
+      block = allocFunc(gen->fromHeap, descriptor_get_alignment(desc), descriptor_get_object_size(desc));
       complete_all(&self->gcCompleted);
       if (!block)
         break;
@@ -168,7 +175,7 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
       wait_for_completion(&self->gcCompleted);
       gc_block(gc_current);
       
-      if ((block = allocFunc(gen->fromHeap, desc->alignment, desc->objectSize)))
+      if ((block = allocFunc(gen->fromHeap, descriptor_get_alignment(desc), descriptor_get_object_size(desc))))
         break;
     }
   }

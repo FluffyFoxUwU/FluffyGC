@@ -5,9 +5,10 @@
 
 #include "concurrency/rwlock.h"
 #include "hashmap_base.h"
+#include "object/descriptor.h"
 #include "type_registry.h"
 #include "hashmap.h"
-#include "object/descriptor.h"
+#include "object/object_descriptor.h"
 
 static void* dupString(const void* a) {
   return strdup(a);
@@ -44,39 +45,43 @@ void type_registry_free(struct type_registry* self) {
   if (!self)
     return;
   
+  struct object_descriptor* desc = NULL;
+  hashmap_foreach_data(desc, &self->map)
+    descriptor_free(desc->parent);
+  
   hashmap_cleanup(&self->map);
   free(self);
 }
 
-struct descriptor* type_registry_get_nolock(struct type_registry* self, const char* path) {
+struct object_descriptor* type_registry_get_nolock(struct type_registry* self, const char* path) {
   return hashmap_get(&self->map, path);
 }
 
-int type_registry_add_nolock(struct type_registry* self, struct descriptor* new) {
+int type_registry_add_nolock(struct type_registry* self, struct object_descriptor* new) {
   return hashmap_put(&self->map, new->name, new);
 }
 
-int type_registry_remove_nolock(struct type_registry* self, struct descriptor* desc) {
+int type_registry_remove_nolock(struct type_registry* self, struct object_descriptor* desc) {
   return hashmap_remove(&self->map, desc->name) == NULL ? -ENOENT : 0;
 }
 
-int type_registry_add(struct type_registry* self, struct descriptor* new) {
+int type_registry_add(struct type_registry* self, struct object_descriptor* new) {
   rwlock_wrlock(&self->lock);
   int ret = type_registry_add_nolock(self, new);
   rwlock_unlock(&self->lock);
   return ret;
 }
 
-int type_registry_remove(struct type_registry* self, struct descriptor* desc) {
+int type_registry_remove(struct type_registry* self, struct object_descriptor* desc) {
   rwlock_wrlock(&self->lock);
   int ret = type_registry_remove_nolock(self, desc);
   rwlock_unlock(&self->lock);
   return ret;
 }
 
-struct descriptor* type_registry_get(struct type_registry* self, const char* path) {
+struct object_descriptor* type_registry_get(struct type_registry* self, const char* path) {
   rwlock_rdlock(&self->lock);
-  struct descriptor* desc = type_registry_get_nolock(self, path);
+  struct object_descriptor* desc = type_registry_get_nolock(self, path);
   rwlock_unlock(&self->lock);
   return desc;
 }

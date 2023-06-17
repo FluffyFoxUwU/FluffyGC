@@ -56,9 +56,6 @@ struct object {
   atomic_bool isMarked;
   
   struct {
-    // Must preserved when moved
-    enum object_type type;
-    
     // This NULL if the type is OBJECT_DATA_ARRAY
     // If type is OBJECT_NORMAL this refer to curent object data
     // otherwise element type of OBJECT_ARRAY

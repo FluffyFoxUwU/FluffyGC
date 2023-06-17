@@ -10,6 +10,7 @@
 #include "concurrency/mutex.h"
 #include "config.h"
 #include "gc/gc.h"
+#include "object_descriptor.h"
 #include "managed_heap.h"
 #include "memory/heap.h"
 #include "memory/soc.h"
@@ -114,8 +115,8 @@ void object_cleanup(struct object* self, bool isDead) {
   
   // The object going to die anyway so give 
   // the direct pointer
-  if (isDead && self->movePreserve.type == OBJECT_NORMAL)
-    self->movePreserve.descriptor->api.param.finalizer((const void*) self->dataPtr.ptr);
+  if (isDead && self->movePreserve.descriptor->type == OBJECT_NORMAL)
+    self->movePreserve.descriptor->info.normal->api.param.finalizer((const void*) self->dataPtr.ptr);
   
   if (self->syncStructure) {
     mutex_cleanup(&self->syncStructure->lock);
@@ -139,7 +140,7 @@ int object_put_dma(struct root_ref* rootRef, struct userptr dma) {
 void object_init(struct object* self, struct descriptor* desc, void address_heap* data) {
   *self = (struct object) {
     .movePreserve = {.descriptor = desc},
-    .objectSize = desc->objectSize,
+    .objectSize = descriptor_get_object_size(desc),
     .dataPtr = {data}
   };
   
@@ -158,7 +159,7 @@ void object_fix_pointers(struct object* self) {
 }
 
 struct object* object_move(struct object* self, struct heap* dest) {
-  struct heap_block* newBlock = heap_alloc(dest, self->movePreserve.descriptor->alignment, self->objectSize);
+  struct heap_block* newBlock = heap_alloc(dest, descriptor_get_alignment(self->movePreserve.descriptor), self->objectSize);
   if (!newBlock)
     return NULL;
   
@@ -181,5 +182,7 @@ struct object* object_move(struct object* self, struct heap* dest) {
 }
 
 void object_for_each_field(struct object* self, void (^iterator)(struct object* obj,size_t offset)) {
-  descriptor_for_each_field(self, iterator);
+  descriptor_for_each_offset(self, ^void (size_t offset) {
+    iterator(atomic_load(getAtomicPtrToReference(self, offset)), offset);
+  });
 }

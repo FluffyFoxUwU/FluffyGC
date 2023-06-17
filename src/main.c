@@ -70,7 +70,7 @@ int main2() {
   
   fh_descriptor_field fields[] = {
     FH_FIELD(struct test_type, fox, "fox.fluffygc.Test", FH_REF_STRONG),
-    FH_FIELD(struct test_type, fuwa, "fox.fluffygc.Test2", FH_REF_STRONG),
+    FH_FIELD(struct test_type, fuwa, "fox.fluffygc.Test", FH_REF_STRONG),
     FH_FIELD_END()
   };
   
@@ -85,6 +85,8 @@ int main2() {
   fh_descriptor* desc = fh_get_descriptor("fox.fluffygc.Test", false);
   
   fh_object* obj = fh_alloc_object(desc);
+  fh_release_descriptor(desc);
+  
   struct test_type data;
   fh_object_read_data(obj, &data, 0, sizeof(data));
   data.a = "C string test UwU";
@@ -99,8 +101,6 @@ int main2() {
   fh_del_ref(readVal);
   
   fh_del_ref(obj);
-  
-  fh_release_descriptor(desc);
   fh_detach_thread(heap);
   
   fh_free(heap);

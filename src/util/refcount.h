@@ -12,7 +12,7 @@ struct refcount {
 
 ATTRIBUTE_USED()
 static inline void refcount_init(struct refcount* self) {
-  atomic_init(&self->usage, 0);
+  atomic_init(&self->usage, 1);
 }
 
 ATTRIBUTE_USED()

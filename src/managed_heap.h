@@ -59,6 +59,8 @@ struct managed_heap {
     struct type_registry* registry;
   } api;
   
+  struct list_head descriptorList;
+  
   struct completion gcCompleted;
   
   struct mutex contextTrackerLock;
