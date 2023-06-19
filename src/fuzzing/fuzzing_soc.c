@@ -4,9 +4,7 @@
 #include <string.h>
 
 #include "memory/soc.h"
-#include "bug.h"
 #include "config.h"
-#include "util/util.h"
 
 int fuzzing_soc(const void* data, size_t size) {
   if (size < sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint8_t) + sizeof(uint8_t))

@@ -23,6 +23,10 @@ struct descriptor {
   struct refcount usages;
 };
 
+extern struct descriptor* _____descriptor_specialDescriptors[];
+
+#define DESCRIPTOR_SPECIAL_ANY (_____descriptor_specialDescriptors[0])
+
 struct descriptor* descriptor_new_for_object_type(struct object_descriptor* desc);
 void descriptor_free(struct descriptor* self);
 

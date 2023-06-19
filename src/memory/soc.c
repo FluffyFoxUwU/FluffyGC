@@ -69,7 +69,7 @@ static struct soc_chunk* newChunk(struct small_object_cache* owner) {
   
   *self = (struct soc_chunk) {
     .owner = owner,
-    .pool = aligned_alloc(owner->alignment, owner->chunkSize)
+    .pool = util_aligned_alloc(owner->alignment, owner->chunkSize)
   };
   
   if (!self->pool)
@@ -198,7 +198,7 @@ void soc_free(struct small_object_cache* self) {
 void* soc_alloc_explicit(struct small_object_cache* self, struct soc_chunk** chunkPtr) {
   if (IS_ENABLED(CONFIG_SOC_USE_MALLOC)) {
     *chunkPtr = NULL;
-    return aligned_alloc(self->alignment, self->objectSize);
+    return util_aligned_alloc(self->alignment, self->objectSize);
   }
   
   struct soc_chunk* chunk = getChunk(self);

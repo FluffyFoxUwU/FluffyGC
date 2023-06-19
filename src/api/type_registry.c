@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
@@ -9,6 +10,7 @@
 #include "type_registry.h"
 #include "hashmap.h"
 #include "object/object_descriptor.h"
+#include "util/util.h"
 
 static void* dupString(const void* a) {
   return strdup(a);
@@ -34,6 +36,19 @@ struct type_registry* type_registry_new() {
   
   if (rwlock_init(&self->lock) < 0)
     goto failure;
+  
+  // Add special descriptors
+  struct {
+    const char* name;
+    struct descriptor* desc;
+  } specialTypes[] = {
+    {"fox.fluffyheap.marker.Any", DESCRIPTOR_SPECIAL_ANY}
+  };
+  
+  for (int i = 0; i < ARRAY_SIZE(specialTypes); i++)
+    if (type_registry_add(self, specialTypes[i].desc->info.normal) < 0)
+      goto failure;
+  
   return self;
 
 failure:
@@ -46,8 +61,12 @@ void type_registry_free(struct type_registry* self) {
     return;
   
   struct object_descriptor* desc = NULL;
+  
+  // fox.fluffyheap.marker.* are always specially treated
+  // (i.e. they are staticly defined by hand and most content of it invalid)
   hashmap_foreach_data(desc, &self->map)
-    descriptor_free(desc->parent);
+    if (!util_prefixed_by("fox.fluffyheap.marker.", desc->name))
+      descriptor_free(desc->parent);
   
   hashmap_cleanup(&self->map);
   free(self);

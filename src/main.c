@@ -19,7 +19,7 @@ struct test_type2 {
 };
 
 fh_descriptor_field fields2[] = {
-  FH_FIELD(struct test_type2, fox, "fox.fluffygc.Test", FH_REF_STRONG),
+  FH_FIELD(struct test_type2, fox, "fox.fluffygc.Fluff", FH_REF_STRONG),
   FH_FIELD_END()
 };
 
@@ -55,48 +55,52 @@ int main2() {
   fh_attach_thread(heap);
   fh_set_descriptor_loader(heap, loader);
   
-  struct test_type {
+  struct fluff {
     int im;
     const char* a;
     long very;
     long long cute;
-    _Atomic(struct test_type*) fox;
+    _Atomic(struct fluff*) fox;
     char like;
     int me;
     long has;
     long fluffyTail;
     _Atomic(struct test_type2*) fuwa;
+    // _Atomic(struct fluff**) arrayOfFluffs;
+    _Atomic(struct fluff**) any;
   };
   
   fh_descriptor_field fields[] = {
-    FH_FIELD(struct test_type, fox, "fox.fluffygc.Test", FH_REF_STRONG),
-    FH_FIELD(struct test_type, fuwa, "fox.fluffygc.Test", FH_REF_STRONG),
+    FH_FIELD(struct fluff, fox, "fox.fluffygc.Fluff", FH_REF_STRONG),
+    FH_FIELD(struct fluff, fuwa, "fox.fluffygc.Fluff", FH_REF_STRONG),
+    FH_FIELD(struct fluff, any, "fox.fluffyheap.marker.Any", FH_REF_STRONG),
     FH_FIELD_END()
   };
   
   fh_descriptor_param descParam = {
-    .alignment = alignof(struct test_type),
+    .alignment = alignof(struct fluff),
     .fields = fields,
-    .size = sizeof(struct test_type)
+    .size = sizeof(struct fluff)
   };
   
-  fh_define_descriptor("fox.fluffygc.Test", &descParam, false);
+  fh_define_descriptor("fox.fluffygc.Fluff", &descParam, false);
   //fh_define_descriptor("fox.fluffygc.Test2", &descParam2, false);
-  fh_descriptor* desc = fh_get_descriptor("fox.fluffygc.Test", false);
+  fh_descriptor* desc = fh_get_descriptor("fox.fluffygc.Fluff", false);
   
   fh_object* obj = fh_alloc_object(desc);
   fh_release_descriptor(desc);
   
-  struct test_type data;
+  struct fluff data;
   fh_object_read_data(obj, &data, 0, sizeof(data));
   data.a = "C string test UwU";
   fh_object_write_data(obj, &data, 0, sizeof(data));
   fh_object_read_data(obj, &data, 0, sizeof(data));
   printf("[Main] Got: %s\n", data.a);
   
-  fh_object_write_ref(obj, offsetof(struct test_type, fox), obj);
+  fh_object_write_ref(obj, offsetof(struct fluff, fox), obj);
+  fh_object_write_ref(obj, offsetof(struct fluff, any), obj);
   
-  fh_object* readVal = fh_object_read_ref(obj, offsetof(struct test_type, fox));
+  fh_object* readVal = fh_object_read_ref(obj, offsetof(struct fluff, fox));
   printf("[Main] Object is %ssame object\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
   fh_del_ref(readVal);
   

@@ -14,6 +14,7 @@
 #include "managed_heap.h"
 #include "FluffyHeap.h"
 #include "util/list_head.h"
+#include "util/util.h"
 #include "vec.h"
 
 typedef vec_t(struct object_descriptor*) descriptor_stack;
@@ -202,6 +203,10 @@ static struct object_descriptor* getDescriptor(const char* name) {
 }
 
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_get_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, bool dontInvokeLoader) {
+  // Those are special and must not be accessed
+  if (util_prefixed_by("fox.fluffyheap.marker.", name))
+    return NULL;
+  
   struct object_descriptor* desc = getDescriptor(name);
   
   if (!desc && !dontInvokeLoader) {

@@ -5,8 +5,6 @@
 
 #include "context.h"
 #include "memory/heap.h"
-#include "memory/soc.h"
-#include "bug.h"
 #include "gc/gc.h"
 
 #define MB(n) ((n) * 1024 * 1024)

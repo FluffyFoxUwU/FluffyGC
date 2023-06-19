@@ -194,6 +194,8 @@ struct root_ref* managed_heap_alloc_object(struct descriptor* desc) {
   if (!newBlock)
     goto failure;
   
+  gc_current->ops->postObjectAlloc(&newBlock->objMetadata);
+  
   rootRef = context_add_root_object(&newBlock->objMetadata);
   if (!rootRef && newBlock) {
     heap_dealloc(attemptedOn->fromHeap, newBlock);

@@ -52,6 +52,27 @@ For convenience following macro must present
     }
    #define FH_FIELD_END() {.name = NULL}
 
+Descriptor Names
+****************
+Descriptor names (e.g. ``net.hostname.app.Test``) follows Java constructs
+Names under ``fox.fluffyheap.*`` are reserved
+
+Ungettable names are ``fox.fluffyheap.marker.*`` these merely serves as marker
+for certain usages and cannot be get via `fh_get_descriptor`_ 
+
+Packages seperated by dot
+Regex of valid descriptor name parts ``[a-zA-Z_$][a-zA-Z0-9_$.]*``
+Examples
+  ``test.test.Class`` is valid
+  ``09test`` is not
+  ``hello.hi.UwU`` is valid
+  ``Hello`` is valid
+
+Markers
+*******
+``fox.fluffyheap.marker.Any`` - Essentially like ``void*`` program can assign any 
+                                object in field with this type
+
 Functions
 #########
 
@@ -113,7 +134,7 @@ Tags
 =====
 GC-Safepoint GC-May-Invoke Need-Valid-Context
 
-fh_define_descriptor
+fh_get_descriptor
 ********************
 .. code-block:: c
 
@@ -125,6 +146,14 @@ defined hook to load if not present and acquire it
 (to prevent being GC-ed). Calling application hook
 can recurse forever and its valid so application
 must ensure there no recursing
+
+There few requirements:
+1. Must return non NULL descriptor for markers which must be unusable (serve as checking 
+   whether marker exist or not but cannot be used to create new objects)
+2. Must not call app loader for ``fox.fluffyheap.*`` regardless ``dontInvokeLoader``
+   as these reserved by specification and may get added or removed, and may be treated
+   differently than normal descriptors thus it don't make any sense for app loader to
+   load them
 
 Since
 =====

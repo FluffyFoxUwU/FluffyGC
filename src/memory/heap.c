@@ -112,7 +112,6 @@ static void initFreeBlock(struct heap* self, struct heap_block* block, size_t bl
 }
 
 static void postFreeHook(struct heap* self, struct heap_block* block) {
-  gc_current->ops->preObjectDealloc(&block->objMetadata);
   atomic_fetch_sub(&self->usage, block->blockSize);
   // printf("[Heap %p] Usage %10zu bytes / %10zu bytes (dealloc)\n", self, self->usage, self->size);
   
@@ -222,7 +221,7 @@ static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* 
   mutex_unlock(&self->lock);
   
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    block->dataPtr = USERPTR((void address_heap*) aligned_alloc(block->alignment, block->dataSize));
+    block->dataPtr = USERPTR((void address_heap*) util_aligned_alloc(block->alignment, block->dataSize));
     if (!block->dataPtr.ptr)
       goto failure;
   } else {
@@ -231,10 +230,6 @@ static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* 
   
   // printf("[Heap %p] Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
   
-  // Fast alloc dont lock the heap
-  // and GC hooks need to be called with no lock held on heap
-  if (gc_current->ops->postObjectAlloc(&block->objMetadata) < 0)
-    goto failure;
   return block;
 
 failure:

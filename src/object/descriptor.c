@@ -1,4 +1,6 @@
 #include "descriptor.h"
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "object/object.h"
@@ -6,6 +8,23 @@
 #include "bug.h"
 #include "descriptor.h"
 #include "util/refcount.h"
+
+#define DEFINE_SPECIAL(uniqSym, __name)
+
+static struct descriptor desc;
+static struct object_descriptor obj = {
+  .name = "fox.fluffyheap.marker.Any",
+  .parent = &desc
+};
+
+static struct descriptor desc = {
+  .type = OBJECT_NORMAL,
+  .info.normal = &obj
+};
+
+struct descriptor* _____descriptor_specialDescriptors[1] = {
+  &desc
+};
 
 static struct descriptor* newCommon() {
   struct descriptor* self = malloc(sizeof(*self));
@@ -46,9 +65,16 @@ void descriptor_for_each_offset(struct object* object, void (^iterator)(size_t o
   BUG();
 }
 
+static bool isCompatible(struct descriptor* a, struct descriptor* b) {
+  if (a == DESCRIPTOR_SPECIAL_ANY)
+    return true;
+  
+  return a == b;
+}
+
 int descriptor_is_assignable_to(struct object* self, size_t offset, struct descriptor* b) {
   switch (self->movePreserve.descriptor->type) {
-    case OBJECT_NORMAL: return object_descriptor_get_at(self->movePreserve.descriptor->info.normal, offset) == b;
+    case OBJECT_NORMAL: return isCompatible(object_descriptor_get_at(self->movePreserve.descriptor->info.normal, offset), b);
   }
   BUG();
 }

@@ -30,8 +30,7 @@ struct gc_ops {
   // addresses adjusted
   void (*postReadBarrier)(struct object*);
   
-  int (*postObjectAlloc)(struct object*);
-  void (*preObjectDealloc)(struct object*);
+  void (*postObjectAlloc)(struct object*);
   
   int (*postContextInit)(struct context*);
   void (*preContextCleanup)(struct context*);
@@ -45,12 +44,7 @@ struct gc_ops {
 };
 
 ATTRIBUTE_USED()
-static int ___gc_callback_nop_object(struct object*) {
-  return 0;
-}
-
-ATTRIBUTE_USED()
-static void ___gc_callback_nop_object2(struct object*) {
+static void ___gc_callback_nop_object(struct object*) {
   return;
 }
 
@@ -75,11 +69,10 @@ static void ___gc_callback_nop_void2() {
 }
 
 #define GC_HOOKS_DEFAULT \
-  .postWriteBarrier = ___gc_callback_nop_object2, \
-  .postReadBarrier = ___gc_callback_nop_object2, \
+  .postWriteBarrier = ___gc_callback_nop_object, \
+  .postReadBarrier = ___gc_callback_nop_object, \
    \
   .postObjectAlloc = ___gc_callback_nop_object, \
-  .preObjectDealloc = ___gc_callback_nop_object2, \
    \
   .postContextInit = ___gc_callback_nop_context2, \
   .preContextCleanup = ___gc_callback_nop_context, \

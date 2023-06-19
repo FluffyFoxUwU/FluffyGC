@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "bits.h"
 
@@ -70,6 +71,13 @@ void* util_malloc(size_t newSize, unsigned long flags);
 
 const uintptr_t* util_find_smallest_but_larger_or_equal_than(const uintptr_t* array, size_t count, uintptr_t search);
 void util_shift_array(void* start, size_t offset, size_t size);
+
+// Relaxed aligned_alloc
+void* util_aligned_alloc(size_t alignment, size_t size);
+
+static inline bool util_prefixed_by(const char* prefix, const char* str) {
+  return strncmp(str, prefix, strlen(prefix)) == 0;
+}
 
 #endif
 

@@ -205,3 +205,12 @@ const uintptr_t* util_find_smallest_but_larger_or_equal_than(const uintptr_t* ar
 void util_shift_array(void* start, size_t offset, size_t size) {
   memmove(start + (offset * size), start, size);
 }
+
+void* util_aligned_alloc(size_t alignment, size_t size) {
+  void* res = NULL;
+  int ret = 0;
+  if ((ret = posix_memalign(&res, alignment, size)) < 0)
+    res = NULL;
+  BUG_ON(ret == -EINVAL);
+  return res;
+}
