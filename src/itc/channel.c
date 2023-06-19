@@ -1,4 +1,5 @@
 #include "config.h"
+#include "panic.h"
 #include <sys/types.h>
 
 #if !IS_ENABLED(CONFIG_STRICTLY_POSIX)
@@ -10,7 +11,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "bug.h"
 #include "channel.h"
 
 static int createPipe(int* read, int* write) {
@@ -19,7 +19,7 @@ static int createPipe(int* read, int* write) {
 # if IS_ENABLED(CONFIG_STRICTLY_POSIX)
   ret = pipe(fds);
 # else
-    ret = pipe2(fds, O_CLOEXEC | O_DIRECT);
+  ret = pipe2(fds, O_CLOEXEC | O_DIRECT);
   if (ret == -1 && errno = -EINVAL)
     ret = pipe2(fds, O_CLOEXEC);
 # endif
@@ -59,7 +59,7 @@ void channel_send(struct channel* self, struct channel_message* msg) {
       continue;
     
     if(res < 0)
-      BUG();
+      panic();
     
     size -= res;
     buf += res;
@@ -78,7 +78,7 @@ void channel_recv(struct channel* self, struct channel_message* msg) {
       continue;
     
     if(res < 0)
-      BUG();
+      panic();
     
     size -= res;
     buf += res;

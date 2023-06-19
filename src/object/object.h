@@ -14,10 +14,6 @@ struct heap;
 struct mutex;
 struct condition;
 
-enum object_type {
-  OBJECT_NORMAL
-};
-
 enum reference_strength {
   REFERENCE_STRONG
 };

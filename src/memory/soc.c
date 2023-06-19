@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "panic.h"
 #include "soc.h"
 #include "bug.h"
 #include "util/list_head.h"
@@ -35,18 +36,18 @@ static void* chunkAllocObject(struct soc_chunk* self) {
 
 // TODO: Better way than this
 static struct soc_chunk* getOwningChunk(void* ptr) {
-  BUG();
+  panic();
   return *(void**) (ptr - ((uintptr_t) ptr % 1));
 }
 
 void* soc_alloc(struct small_object_cache* self) {
-  BUG(); /* TODO: Make BTree working so dealloc can find where the allocated came from */
+  panic(); /* TODO: Make BTree working so dealloc can find where the allocated came from */
   return soc_alloc_explicit(self, NULL);
 }
 
 void soc_dealloc(struct small_object_cache* self, void* ptr) {
   /* TODO: Make BTree working so dealloc can find where the allocated came from */
-  BUG();
+  panic();
   soc_dealloc_explicit(self, getOwningChunk(ptr), ptr);
 }
 
@@ -173,7 +174,7 @@ void soc_free(struct small_object_cache* self) {
   // The static one (defined using SOC_DEFINE)
   // dont need to be cleaned
   if (self->isStatic) {
-    BUG();
+    panic();
     return;
   }
   

@@ -4,11 +4,11 @@
 #include <threads.h>
 
 #include "generic.h"
-#include "bug.h"
 #include "context.h"
 #include "gc/gc.h"
 #include "managed_heap.h"
 #include "object/object.h"
+#include "panic.h"
 #include "util/list_head.h"
 #include "memory/heap.h"
 #include "util/util.h"
@@ -173,7 +173,7 @@ object_is_alive:
     
     struct object* newLocation;
     if (!(newLocation = object_move(obj, gen->toHeap)))
-      BUG();
+      panic();
     newLocation->age = MIN(newLocation->age + ageDelta, gen->param.promotionAge);
   }
   

@@ -10,7 +10,18 @@
 #include "type_registry.h"
 #include "hashmap.h"
 #include "object/object_descriptor.h"
-#include "util/util.h"
+
+#define SPECIAL_MARKERS_LIST \
+  X("fox.fluffyheap.marker.Any", DESCRIPTOR_UNMAKEABLE_ANY_MARKER)
+
+#define X(_name, enumVal) \
+  static struct descriptor_unmakeable_info ___________marker___________info____ ## enumVal = {.name = _name, .type = enumVal}; \
+  static struct descriptor ___________marker___________ ## enumVal = { \
+    .type = OBJECT_UNMAKEABLE_STATIC, \
+    .info.unmakeable = &___________marker___________info____ ## enumVal \
+  };
+  SPECIAL_MARKERS_LIST
+#undef X
 
 static void* dupString(const void* a) {
   return strdup(a);
@@ -37,18 +48,12 @@ struct type_registry* type_registry_new() {
   if (rwlock_init(&self->lock) < 0)
     goto failure;
   
-  // Add special descriptors
-  struct {
-    const char* name;
-    struct descriptor* desc;
-  } specialTypes[] = {
-    {"fox.fluffyheap.marker.Any", DESCRIPTOR_SPECIAL_ANY}
-  };
+  #define X(name, enumVal) \
+  if (type_registry_add(self, &___________marker___________ ## enumVal) < 0) \
+    goto failure; \
   
-  for (int i = 0; i < ARRAY_SIZE(specialTypes); i++)
-    if (type_registry_add(self, specialTypes[i].desc->info.normal) < 0)
-      goto failure;
-  
+  SPECIAL_MARKERS_LIST
+  #undef X
   return self;
 
 failure:
@@ -60,47 +65,49 @@ void type_registry_free(struct type_registry* self) {
   if (!self)
     return;
   
-  struct object_descriptor* desc = NULL;
+  struct descriptor* desc = NULL;
   
   // fox.fluffyheap.marker.* are always specially treated
   // (i.e. they are staticly defined by hand and most content of it invalid)
   hashmap_foreach_data(desc, &self->map)
-    if (!util_prefixed_by("fox.fluffyheap.marker.", desc->name))
-      descriptor_free(desc->parent);
+    if (desc->type != OBJECT_UNMAKEABLE_STATIC)
+      descriptor_free(desc);
   
   hashmap_cleanup(&self->map);
   free(self);
 }
 
-struct object_descriptor* type_registry_get_nolock(struct type_registry* self, const char* path) {
+struct descriptor* type_registry_get_nolock(struct type_registry* self, const char* path) {
   return hashmap_get(&self->map, path);
 }
 
-int type_registry_add_nolock(struct type_registry* self, struct object_descriptor* new) {
-  return hashmap_put(&self->map, new->name, new);
+int type_registry_add_nolock(struct type_registry* self, struct descriptor* new) {
+  BUG_ON(!descriptor_get_name(new));
+  return hashmap_put(&self->map, descriptor_get_name(new), new);
 }
 
-int type_registry_remove_nolock(struct type_registry* self, struct object_descriptor* desc) {
-  return hashmap_remove(&self->map, desc->name) == NULL ? -ENOENT : 0;
+int type_registry_remove_nolock(struct type_registry* self, struct descriptor* desc) {
+  BUG_ON(!descriptor_get_name(desc));
+  return hashmap_remove(&self->map, descriptor_get_name(desc)) == NULL ? -ENOENT : 0;
 }
 
-int type_registry_add(struct type_registry* self, struct object_descriptor* new) {
+int type_registry_add(struct type_registry* self, struct descriptor* new) {
   rwlock_wrlock(&self->lock);
   int ret = type_registry_add_nolock(self, new);
   rwlock_unlock(&self->lock);
   return ret;
 }
 
-int type_registry_remove(struct type_registry* self, struct object_descriptor* desc) {
+int type_registry_remove(struct type_registry* self, struct descriptor* desc) {
   rwlock_wrlock(&self->lock);
   int ret = type_registry_remove_nolock(self, desc);
   rwlock_unlock(&self->lock);
   return ret;
 }
 
-struct object_descriptor* type_registry_get(struct type_registry* self, const char* path) {
+struct descriptor* type_registry_get(struct type_registry* self, const char* path) {
   rwlock_rdlock(&self->lock);
-  struct object_descriptor* desc = type_registry_get_nolock(self, path);
+  struct descriptor* desc = type_registry_get_nolock(self, path);
   rwlock_unlock(&self->lock);
   return desc;
 }

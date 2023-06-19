@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <threads.h>
 
+#include "api/api.h"
 #include "api/type_registry.h"
 #include "bug.h"
 #include "concurrency/completion.h"
@@ -83,6 +84,14 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
     self->generations[i].genID = i;
     self->generationCount++;
   }
+  
+  int ret = 0;
+  managed_heap_push_states(self, NULL);
+  ret = api_init();
+  managed_heap_pop_states();
+  
+  if (ret < 0)
+    goto failure;
   return self;
 failure:
   managed_heap_free(self);
@@ -93,7 +102,10 @@ void managed_heap_free(struct managed_heap* self) {
   if (!self)
     return;
   
+  BUG_ON(managed_heap_current || context_current || gc_current);
+  
   managed_heap_push_states(self, NULL);
+  api_cleanup();
   
   mutex_lock(&self->contextTrackerLock);
   // There is contexts!!

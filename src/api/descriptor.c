@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#include "bug.h"
 #include "concurrency/mutex.h"
 #include "object/object.h"
 #include "pre_code.h"
@@ -80,7 +81,7 @@ static int process(struct descriptor_loader_context* loader, struct object_descr
   fh_descriptor_param* param = &current->api.param;
   int ret = 0;
   
-  if ((ret = type_registry_add_nolock(managed_heap_current->api.registry, current)) < 0)
+  if ((ret = type_registry_add_nolock(managed_heap_current->api.registry, current->parent)) < 0)
     return ret;
   
   current->alignment = param->alignment;
@@ -100,17 +101,18 @@ static int process(struct descriptor_loader_context* loader, struct object_descr
       .strength = strengthMapping[field->strength]
     };
     
-    struct object_descriptor* dataType = type_registry_get_nolock(managed_heap_current->api.registry, field->dataType);
+    struct descriptor* dataType = type_registry_get_nolock(managed_heap_current->api.registry, field->dataType);
     if (dataType)
       goto descriptor_found;
     
-    if ((ret = loadDescriptor(loader, field->dataType, &dataType)) < 0)
+    struct object_descriptor* newlyLoadedDesriptor;
+    if ((ret = loadDescriptor(loader, field->dataType, &newlyLoadedDesriptor)) < 0)
       goto failure;
     
-    BUG_ON(dataType == NULL);
+    dataType = newlyLoadedDesriptor->parent;
 descriptor_found:
-    convertedField.name = dataType->name;
-    convertedField.dataType = dataType->parent;
+    convertedField.name = descriptor_get_name(dataType);
+    convertedField.dataType = dataType;
     
     if (vec_push(&current->fields, convertedField) < 0) {
       ret = -ENOMEM;
@@ -167,7 +169,7 @@ failure:;
     list_del(currentEntry);
     
     if (ret < 0) {
-      type_registry_remove_nolock(managed_heap_current->api.registry, current);
+      type_registry_remove_nolock(managed_heap_current->api.registry, current->parent);
       object_descriptor_free(current);
     } else {
       object_descriptor_init(current);
@@ -192,14 +194,15 @@ static struct object_descriptor* getDescriptor(const char* name) {
   context_block_gc();
   rwlock_rdlock(&managed_heap_current->api.registry->lock);
   
-  struct object_descriptor* desc = type_registry_get_nolock(managed_heap_current->api.registry, name);
+  struct descriptor* desc = type_registry_get_nolock(managed_heap_current->api.registry, name);
   if (desc)
-    descriptor_acquire(desc->parent);
+    descriptor_acquire(desc);
   
   rwlock_unlock(&managed_heap_current->api.registry->lock);
   context_unblock_gc();
   
-  return desc;
+  BUG_ON(desc->type != OBJECT_NORMAL);
+  return desc->info.normal;
 }
 
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_get_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, bool dontInvokeLoader) {

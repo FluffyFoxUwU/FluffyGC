@@ -3,7 +3,7 @@
 
 #include "mutex.h"
 #include "condition.h"
-#include "bug.h"
+#include "panic.h"
 
 int condition_init(struct condition* self) {
   *self = (struct condition) {};
@@ -20,7 +20,7 @@ void condition_cleanup(struct condition* self) {
   if (!self)
     return;
   if (self->inited && pthread_cond_destroy(&self->cond) != 0)
-    BUG();
+    panic();
 }
 
 void condition__wake(struct condition* self) {

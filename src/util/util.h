@@ -66,8 +66,16 @@ void* util_malloc(size_t newSize, unsigned long flags);
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-#define container_of(ptr, type, member) ((type*) ((void*)ptr - offsetof(type,member)))
-#define ARRAY_SIZE(arr) (sizeof((arr)) /  sizeof(*(arr)))
+#ifdef __GNUC__
+# define container_of(ptr, type, member) ({                      \
+        const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
+        (type *)( (char *)__mptr - offsetof(type,member) );})
+#else
+# define container_of(ptr, type, member) ((type *)( (char *)__mptr - offsetof(type,member) )) 
+#endif
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#define FIELD_SIZEOF(t, f) (sizeof(((t*) NULL)->f))
 
 const uintptr_t* util_find_smallest_but_larger_or_equal_than(const uintptr_t* array, size_t count, uintptr_t search);
 void util_shift_array(void* start, size_t offset, size_t size);
@@ -78,6 +86,9 @@ void* util_aligned_alloc(size_t alignment, size_t size);
 static inline bool util_prefixed_by(const char* prefix, const char* str) {
   return strncmp(str, prefix, strlen(prefix)) == 0;
 }
+
+#define __stringify_1(x...)	#x
+#define stringify(x...)	__stringify_1(x)
 
 #endif
 

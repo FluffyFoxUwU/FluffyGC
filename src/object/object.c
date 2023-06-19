@@ -16,6 +16,7 @@
 #include "memory/soc.h"
 #include "object.h"
 #include "context.h"
+#include "panic.h"
 #include "util/list_head.h"
 #include "util/util.h"
 #include "descriptor.h"
@@ -66,7 +67,7 @@ obj_is_null:
 void object_write_reference(struct object* self, size_t offset, struct object* obj) {
   context_block_gc();
   if (!descriptor_is_assignable_to(self, offset, obj->movePreserve.descriptor))
-    BUG();
+    panic();
   
   struct object* old = atomic_exchange(getAtomicPtrToReference(self, offset), obj);
   

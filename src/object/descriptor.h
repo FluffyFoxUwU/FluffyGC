@@ -3,11 +3,30 @@
 
 #include <stddef.h>
 
-#include "object.h"
 #include "util/refcount.h"
+#include "util/list_head.h"
+
+enum object_type {
+  OBJECT_NORMAL,
+  
+  // Descriptor with this type
+  // cannot be used to make new object
+  // and descriptor with this type is
+  // statically allocated
+  OBJECT_UNMAKEABLE_STATIC
+};
+
+enum descriptor_unmakeable_type {
+  DESCRIPTOR_UNMAKEABLE_ANY_MARKER
+};
 
 struct object_descriptor;
 struct object;
+
+struct descriptor_unmakeable_info {
+  enum descriptor_unmakeable_type type;
+  const char* name;
+};
 
 struct descriptor {
   enum object_type type;
@@ -15,6 +34,7 @@ struct descriptor {
   
   union {
     struct object_descriptor* normal;
+    struct descriptor_unmakeable_info* unmakeable;
   } info;
   
   // Normally always 1 because its always 
@@ -22,10 +42,6 @@ struct descriptor {
   // the descriptor may be GC-ed
   struct refcount usages;
 };
-
-extern struct descriptor* _____descriptor_specialDescriptors[];
-
-#define DESCRIPTOR_SPECIAL_ANY (_____descriptor_specialDescriptors[0])
 
 struct descriptor* descriptor_new_for_object_type(struct object_descriptor* desc);
 void descriptor_free(struct descriptor* self);

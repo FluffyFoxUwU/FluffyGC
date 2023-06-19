@@ -1,7 +1,7 @@
 #include "heap_free_block_searchers.h"
 #include "heap.h"
 #include "config.h"
-#include "bug.h"
+#include "panic.h"
 #include "util/list_head.h"
 
 static struct heap_block* bestFit(struct heap* self,  size_t size) {
@@ -43,5 +43,5 @@ struct heap_block* heap_find_free_block(struct heap* self, size_t size) {
     return firstFit(self, size);
   
   // Just incase
-  BUG();
+  panic();
 }

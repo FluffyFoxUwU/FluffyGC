@@ -8,6 +8,7 @@ set(BUILD_SOURCES
   src/profiler.c
   src/bitops.c
   src/managed_heap.c
+  src/panic.c
   
   src/util/util.c
   # turn off btree for now
@@ -43,6 +44,7 @@ set(BUILD_SOURCES
   src/api/object.c
   src/api/descriptor.c
   src/api/type_registry.c
+  src/api/api.c
   
   deps/list/list_node.c
   deps/list/list.c

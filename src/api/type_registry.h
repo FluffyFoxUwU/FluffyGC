@@ -8,19 +8,19 @@
 
 struct type_registry {
   struct rwlock lock;
-  HASHMAP(char, struct object_descriptor) map;
+  HASHMAP(char, struct descriptor) map;
 };
 
 struct type_registry* type_registry_new();
 void type_registry_free(struct type_registry* self);
 
-struct object_descriptor* type_registry_get(struct type_registry* self, const char* path);
-struct object_descriptor* type_registry_get_nolock(struct type_registry* self, const char* path);
+struct descriptor* type_registry_get(struct type_registry* self, const char* path);
+struct descriptor* type_registry_get_nolock(struct type_registry* self, const char* path);
 
-int type_registry_add(struct type_registry* self, struct object_descriptor* new);
-int type_registry_add_nolock(struct type_registry* self, struct object_descriptor* new);
-int type_registry_remove(struct type_registry* self, struct object_descriptor* desc);
-int type_registry_remove_nolock(struct type_registry* self, struct object_descriptor* desc);
+int type_registry_add(struct type_registry* self, struct descriptor* new);
+int type_registry_add_nolock(struct type_registry* self, struct descriptor* new);
+int type_registry_remove(struct type_registry* self, struct descriptor* desc);
+int type_registry_remove_nolock(struct type_registry* self, struct descriptor* desc);
 
 #endif
 

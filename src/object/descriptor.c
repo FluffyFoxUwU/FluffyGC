@@ -1,30 +1,12 @@
-#include "descriptor.h"
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "descriptor.h"
 #include "object/object.h"
 #include "object_descriptor.h"
-#include "bug.h"
+#include "panic.h"
 #include "descriptor.h"
 #include "util/refcount.h"
-
-#define DEFINE_SPECIAL(uniqSym, __name)
-
-static struct descriptor desc;
-static struct object_descriptor obj = {
-  .name = "fox.fluffyheap.marker.Any",
-  .parent = &desc
-};
-
-static struct descriptor desc = {
-  .type = OBJECT_NORMAL,
-  .info.normal = &obj
-};
-
-struct descriptor* _____descriptor_specialDescriptors[1] = {
-  &desc
-};
 
 static struct descriptor* newCommon() {
   struct descriptor* self = malloc(sizeof(*self));
@@ -54,6 +36,7 @@ void descriptor_free(struct descriptor* self) {
     case OBJECT_NORMAL: 
       object_descriptor_free(self->info.normal);
       break;
+    case OBJECT_UNMAKEABLE_STATIC: panic();
   }
   free(self);
 }
@@ -61,13 +44,17 @@ void descriptor_free(struct descriptor* self) {
 void descriptor_for_each_offset(struct object* object, void (^iterator)(size_t offset)) {
   switch (object->movePreserve.descriptor->type) {
     case OBJECT_NORMAL: return object_descriptor_for_each_offset(object->movePreserve.descriptor->info.normal, object, iterator);
+    case OBJECT_UNMAKEABLE_STATIC: panic();
   }
-  BUG();
+  panic();
 }
 
 static bool isCompatible(struct descriptor* a, struct descriptor* b) {
-  if (a == DESCRIPTOR_SPECIAL_ANY)
-    return true;
+  if (a->type == OBJECT_UNMAKEABLE_STATIC) {
+    switch (a->info.unmakeable->type) {
+      case DESCRIPTOR_UNMAKEABLE_ANY_MARKER: return true;
+    }
+  }
   
   return a == b;
 }
@@ -75,8 +62,9 @@ static bool isCompatible(struct descriptor* a, struct descriptor* b) {
 int descriptor_is_assignable_to(struct object* self, size_t offset, struct descriptor* b) {
   switch (self->movePreserve.descriptor->type) {
     case OBJECT_NORMAL: return isCompatible(object_descriptor_get_at(self->movePreserve.descriptor->info.normal, offset), b);
+    case OBJECT_UNMAKEABLE_STATIC: panic();
   }
-  BUG();
+  panic();
 }
 
 void descriptor_acquire(struct descriptor* self) {
@@ -86,33 +74,37 @@ void descriptor_acquire(struct descriptor* self) {
 void descriptor_release(struct descriptor* self) {
   if (refcount_release(&self->usages))
     return;
-  BUG();
+  panic();
 }
 
 void descriptor_init_object(struct descriptor* self, struct object* obj) {
   switch (self->type) {
     case OBJECT_NORMAL: return object_descriptor_init_object(self->info.normal, obj);
+    case OBJECT_UNMAKEABLE_STATIC: panic();
   }
-  BUG();
+  panic();
 }
 
 size_t descriptor_get_object_size(struct descriptor* self) {
   switch (self->type) {
     case OBJECT_NORMAL: return object_descriptor_get_object_size(self->info.normal);
+    case OBJECT_UNMAKEABLE_STATIC: panic();
   }
-  BUG();
+  panic();
 }
 
 size_t descriptor_get_alignment(struct descriptor* self) {
   switch (self->type) {
     case OBJECT_NORMAL: return object_descriptor_get_alignment(self->info.normal);
+    case OBJECT_UNMAKEABLE_STATIC: panic();
   }
-  BUG();
+  panic();
 }
 
 const char* descriptor_get_name(struct descriptor* self) {
   switch (self->type) {
     case OBJECT_NORMAL: return object_descriptor_get_name(self->info.normal);
+    case OBJECT_UNMAKEABLE_STATIC: return self->info.unmakeable->name;
   }
-  BUG();
+  panic();
 }

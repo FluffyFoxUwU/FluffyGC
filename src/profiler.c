@@ -4,13 +4,13 @@
 #include <time.h>
 
 #include "profiler.h"
-#include "bug.h"
+#include "panic.h"
 
 static void freeSection(struct profiler_section* section) {
   if (!section)
     return;
   if (section->isRunning)
-    BUG();
+    panic();
 
   if (section->insertionOrder) {
     list_node_t* node = section->insertionOrder->head;
@@ -60,7 +60,7 @@ static double getCurrentTime() {
 
 static void startSection(struct profiler_section* section) {
   if (section->isRunning)
-    BUG();
+    panic();
 
   section->begin = getCurrentTime();
   section->enterCount++;
@@ -69,7 +69,7 @@ static void startSection(struct profiler_section* section) {
 
 static void endSection(struct profiler_section* section) {
   if (!section->isRunning)
-    BUG();
+    panic();
 
   section->isRunning = false;
   double duration = getCurrentTime() - section->begin;
@@ -78,7 +78,7 @@ static void endSection(struct profiler_section* section) {
 
 static void dumpSection(struct profiler_section* section, int indent, FILE* output) {
   if (section->isRunning)
-    BUG();
+    panic();
 
   if (section == section->owner->root) {
     indent--;
@@ -122,28 +122,28 @@ void profiler_start(struct profiler* self) {
   startSection(self->root);
   list_node_t* node = list_node_new(self->root);
   if (!node)
-    BUG();
+    panic();
   list_rpush(self->stack, node);
   self->currentlyProfiling = true;
 }
 
 void profiler_stop(struct profiler* self) {
   if (!self->currentlyProfiling)
-    BUG();
+    panic();
   
   self->currentlyProfiling = false;
   if (self->stack->len > 1)
-    BUG();
+    panic();
   endSection(self->root);
   list_remove(self->stack, self->stack->tail);
 }
 
 void profiler_dump(struct profiler* self, FILE* output) {
   if (self->currentlyProfiling)
-    BUG();
+    panic();
   
   if (self->root->isRunning)
-    BUG();
+    panic();
 
   fprintf(output, "Time span: %.2lf ms\n", self->root->totalDuration);
   dumpSection(self->root, 0, output);
@@ -151,10 +151,10 @@ void profiler_dump(struct profiler* self, FILE* output) {
 
 void profiler_begin(struct profiler* self, const char* sectionName) {
   if (!self->currentlyProfiling)
-    BUG();
+    panic();
   
   if (!self->currentlyProfiling)
-    BUG();
+    panic();
 
   struct profiler_section* current = self->stack->tail->val; 
   struct profiler_section* existing = hashmap_get(&current->subsections, sectionName);
@@ -165,7 +165,7 @@ void profiler_begin(struct profiler* self, const char* sectionName) {
     
     list_node_t* node = list_node_new(existing);
     if (!node)
-      BUG();
+      panic();
     list_rpush(current->insertionOrder, node);
   }
   
@@ -173,17 +173,17 @@ void profiler_begin(struct profiler* self, const char* sectionName) {
 
   list_node_t* node = list_node_new(existing);
   if (!node)
-    BUG();
+    panic();
   list_rpush(self->stack, node);
 }
 
 void profiler_end(struct profiler* self) {
   if (!self->currentlyProfiling)
-    BUG();
+    panic();
   
   struct profiler_section* current = self->stack->tail->val;
   if (current == self->root)
-    BUG();
+    panic();
 
   list_remove(self->stack, self->stack->tail);
   endSection(current);
@@ -191,7 +191,7 @@ void profiler_end(struct profiler* self) {
 
 void profiler_free(struct profiler* self) {
   if (self->currentlyProfiling)
-    BUG();
+    panic();
   
   if (!self)
     return;
@@ -199,7 +199,7 @@ void profiler_free(struct profiler* self) {
   // There always one left which is
   // the root
   if (self->stack->len > 1)
-    BUG();
+    panic();
   
   freeSection(self->root);
   list_destroy(self->stack);
@@ -208,12 +208,12 @@ void profiler_free(struct profiler* self) {
 
 void profiler_reset(struct profiler* self) {
   if (self->currentlyProfiling)
-    BUG();
+    panic();
   freeSection(self->root);
   
   self->root = newSection(self, "root");
   if (!self->root)
-    BUG();
+    panic();
   self->root->parent = self->root;
 }
 

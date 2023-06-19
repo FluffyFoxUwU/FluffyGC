@@ -3,7 +3,7 @@
 
 #include "concurrency/rwlock.h"
 #include "mutex.h"
-#include "bug.h"
+#include "panic.h"
 
 int mutex_init(struct mutex* self) {
   *self = (struct mutex) {};
@@ -20,6 +20,6 @@ void mutex_cleanup(struct mutex* self) {
   if (!self)
     return;
   if (self->inited && pthread_mutex_destroy(&self->mutex) != 0)
-    BUG();
+    panic();
   rwlock_cleanup(&self->ownerLock);
 }
