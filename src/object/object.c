@@ -63,6 +63,10 @@ obj_is_null:
   return res;
 }
 
+static bool isEligibleForRememberedSet(struct object* parent, struct object* child) {
+  return child &&  parent->movePreserve.generationID != child->movePreserve.generationID && !list_is_valid(&parent->rememberedSetNode[child->movePreserve.generationID]);
+}
+
 void object_write_reference(struct object* self, size_t offset, struct object* obj) {
   context_block_gc();
   if (!descriptor_is_assignable_to(self, offset, obj->movePreserve.descriptor))
@@ -74,7 +78,7 @@ void object_write_reference(struct object* self, size_t offset, struct object* o
   gc_current->ops->postWriteBarrier(old);
   
   // Add current object to `obj`'s generation remembered set
-  if (obj && self->movePreserve.generationID != obj->movePreserve.generationID && !list_is_valid(&self->rememberedSetNode[obj->movePreserve.generationID])) {
+  if (isEligibleForRememberedSet(self, obj)) {
     struct generation* target = &managed_heap_current->generations[obj->movePreserve.generationID];
     mutex_lock(&target->rememberedSetLock);
     list_add(&self->rememberedSetNode[obj->movePreserve.generationID], &target->rememberedSet);
@@ -84,7 +88,6 @@ void object_write_reference(struct object* self, size_t offset, struct object* o
 }
 
 int object_init_synchronization_structs(struct object* self) {
-  context_block_gc();
   struct soc_chunk* chunk = NULL;
   struct object_sync_structure* data = soc_alloc_explicit(syncStructureCache, &chunk);
   if (!data)
@@ -94,17 +97,19 @@ int object_init_synchronization_structs(struct object* self) {
   int res = 0;
   if ((res = mutex_init(&data->lock)) < 0)
     goto failure;
-  if ((res = condition_init(&data->cond)) < 0)
+  if ((res = condition_init(&data->cond)) < 0) 
     goto failure;
   
+  context_block_gc();
   self->syncStructure = data;
-  return 0;
+  context_unblock_gc();
   
 failure:
-  mutex_cleanup(&data->lock);
-  condition_cleanup(&data->cond);
-  soc_dealloc_explicit(syncStructureCache, chunk, data);
-  context_unblock_gc();
+  if (res < 0) {
+    mutex_cleanup(&data->lock);
+    condition_cleanup(&data->cond);
+    soc_dealloc_explicit(syncStructureCache, chunk, data);
+  }
   return res;
 }
 
