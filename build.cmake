@@ -17,7 +17,8 @@ set(BUILD_SOURCES
   
   src/object/descriptor.c
   src/object/object.c
-  src/object/object_descriptor.c
+  src/object/descriptor/object.c
+  src/object/descriptor/unmakeable.c
   
   src/gc/gc.c
   src/gc/nop/nop.c

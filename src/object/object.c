@@ -10,7 +10,6 @@
 #include "concurrency/mutex.h"
 #include "config.h"
 #include "gc/gc.h"
-#include "object_descriptor.h"
 #include "managed_heap.h"
 #include "memory/heap.h"
 #include "memory/soc.h"
@@ -117,7 +116,8 @@ void object_cleanup(struct object* self, bool isDead) {
   // The object going to die anyway so give 
   // the direct pointer
   if (isDead && self->movePreserve.descriptor->type == OBJECT_NORMAL)
-    self->movePreserve.descriptor->info.normal->api.param.finalizer((const void*) self->dataPtr.ptr);
+    descriptor_run_finalizer_on(self->movePreserve.descriptor, self);
+    // self->movePreserve.descriptor->info.normal->api.param.finalizer((const void*) self->dataPtr.ptr);
   
   if (self->syncStructure) {
     mutex_cleanup(&self->syncStructure->lock);

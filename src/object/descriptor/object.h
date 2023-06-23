@@ -10,7 +10,8 @@
 #include "FluffyHeap.h"
 #include "util/list_head.h"
 #include "vec.h"
-#include "object.h"
+#include "object/object.h"
+#include "object/descriptor.h"
 
 // This specifically only handles OBJECT_NORMAL type
 // not arrays
@@ -36,7 +37,7 @@ struct object_descriptor_field {
 #define DESCRIPTOR_FIELD_END() {.name = NULL}
 
 struct object_descriptor {
-  struct descriptor* parent;
+  struct descriptor super;
   
   const char* name;
   bool isDefined;
@@ -53,17 +54,10 @@ struct object_descriptor {
 };
 
 struct object_descriptor* object_descriptor_new();
-
-void object_descriptor_init(struct object_descriptor* self);
-void object_descriptor_init_object(struct object_descriptor* self, struct object* obj);
-int object_descriptor_get_index_from_offset(struct object_descriptor* self, size_t offset);
 void object_descriptor_free(struct object_descriptor* self);
-void object_descriptor_for_each_offset(struct object_descriptor* self, struct object* obj, void (^iterator)(size_t offset));
-struct descriptor* object_descriptor_get_at(struct object_descriptor* self, size_t offset);
 
-size_t object_descriptor_get_object_size(struct object_descriptor* self);
-size_t object_descriptor_get_alignment(struct object_descriptor* self);
-const char* object_descriptor_get_name(struct object_descriptor* self);
+// Late init few other stuff
+void object_descriptor_init(struct object_descriptor* self);
 
 #endif
 

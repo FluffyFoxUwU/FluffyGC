@@ -7,7 +7,7 @@
 #include "object/object.h"
 #include "pre_code.h"
 
-#include "object/object_descriptor.h"
+#include "object/descriptor/object.h"
 #include "concurrency/rwlock.h"
 #include "context.h"
 #include "api/type_registry.h"
@@ -81,7 +81,7 @@ static int process(struct descriptor_loader_context* loader, struct object_descr
   fh_descriptor_param* param = &current->api.param;
   int ret = 0;
   
-  if ((ret = type_registry_add_nolock(managed_heap_current->api.registry, current->parent)) < 0)
+  if ((ret = type_registry_add_nolock(managed_heap_current->api.registry, &current->super)) < 0)
     return ret;
   
   current->alignment = param->alignment;
@@ -109,7 +109,7 @@ static int process(struct descriptor_loader_context* loader, struct object_descr
     if ((ret = loadDescriptor(loader, field->dataType, &newlyLoadedDesriptor)) < 0)
       goto failure;
     
-    dataType = newlyLoadedDesriptor->parent;
+    dataType = &newlyLoadedDesriptor->super;
 descriptor_found:
     convertedField.name = descriptor_get_name(dataType);
     convertedField.dataType = dataType;
@@ -169,11 +169,11 @@ failure:;
     list_del(currentEntry);
     
     if (ret < 0) {
-      type_registry_remove_nolock(managed_heap_current->api.registry, current->parent);
+      type_registry_remove_nolock(managed_heap_current->api.registry, &current->super);
       object_descriptor_free(current);
     } else {
       object_descriptor_init(current);
-      list_add(&current->parent->list, &managed_heap_current->descriptorList);
+      list_add(&current->super.list, &managed_heap_current->descriptorList);
       printf("[DescriptorLoader] Descriptor '%s' was loaded\n", current->name);
     }
   }
@@ -202,7 +202,7 @@ static struct object_descriptor* getDescriptor(const char* name) {
   context_unblock_gc();
   
   BUG_ON(desc->type != OBJECT_NORMAL);
-  return desc->info.normal;
+  return container_of(desc, struct object_descriptor, super);
 }
 
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_get_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, bool dontInvokeLoader) {
@@ -237,7 +237,7 @@ __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_get_descriptor(__FL
   
 false_negative:
 failure:
-  return EXTERN(desc->parent);
+  return EXTERN(&desc->super);
 }
 
 __FLUFFYHEAP_EXPORT void fh_release_descriptor(__FLUFFYHEAP_NULLABLE(fh_descriptor*) desc) {

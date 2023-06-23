@@ -9,17 +9,14 @@
 #include "object/descriptor.h"
 #include "type_registry.h"
 #include "hashmap.h"
-#include "object/object_descriptor.h"
+#include "object/descriptor/object.h"
+#include "object/descriptor/unmakeable.h"
 
 #define SPECIAL_MARKERS_LIST \
   X("fox.fluffyheap.marker.Any", DESCRIPTOR_UNMAKEABLE_ANY_MARKER)
 
 #define X(_name, enumVal) \
-  static struct descriptor_unmakeable_info ___________marker___________info____ ## enumVal = {.name = _name, .type = enumVal}; \
-  static struct descriptor ___________marker___________ ## enumVal = { \
-    .type = OBJECT_UNMAKEABLE_STATIC, \
-    .info.unmakeable = &___________marker___________info____ ## enumVal \
-  };
+  UNMAKEABLE_DESCRIPTOR_DEFINE(___________marker___________info____ ## enumVal, _name, enumVal)
   SPECIAL_MARKERS_LIST
 #undef X
 
@@ -49,7 +46,7 @@ struct type_registry* type_registry_new() {
     goto failure;
   
   #define X(name, enumVal) \
-  if (type_registry_add(self, &___________marker___________ ## enumVal) < 0) \
+  if (type_registry_add(self, &___________marker___________info____ ## enumVal.super) < 0) \
     goto failure; \
   
   SPECIAL_MARKERS_LIST
@@ -67,11 +64,8 @@ void type_registry_free(struct type_registry* self) {
   
   struct descriptor* desc = NULL;
   
-  // fox.fluffyheap.marker.* are always specially treated
-  // (i.e. they are staticly defined by hand and most content of it invalid)
   hashmap_foreach_data(desc, &self->map)
-    if (desc->type != OBJECT_UNMAKEABLE_STATIC)
-      descriptor_free(desc);
+    descriptor_free(desc);
   
   hashmap_cleanup(&self->map);
   free(self);
@@ -82,12 +76,10 @@ struct descriptor* type_registry_get_nolock(struct type_registry* self, const ch
 }
 
 int type_registry_add_nolock(struct type_registry* self, struct descriptor* new) {
-  BUG_ON(!descriptor_get_name(new));
   return hashmap_put(&self->map, descriptor_get_name(new), new);
 }
 
 int type_registry_remove_nolock(struct type_registry* self, struct descriptor* desc) {
-  BUG_ON(!descriptor_get_name(desc));
   return hashmap_remove(&self->map, descriptor_get_name(desc)) == NULL ? -ENOENT : 0;
 }
 

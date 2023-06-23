@@ -1,69 +1,43 @@
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "descriptor.h"
+#include "bug.h"
+#include "object/descriptor/unmakeable.h"
 #include "object/object.h"
-#include "object_descriptor.h"
 #include "panic.h"
 #include "descriptor.h"
 #include "util/refcount.h"
+#include "util/util.h"
 
-static struct descriptor* newCommon() {
-  struct descriptor* self = malloc(sizeof(*self));
-  if (!self)
-    return NULL;
-  
-  *self = (struct descriptor) {};
+int descriptor_init(struct descriptor* self, enum object_type type, struct descriptor_ops* ops) {
+  *self = (struct descriptor) {
+    .ops = ops
+  };
   refcount_init(&self->usages);
-  return self;
-}
-
-struct descriptor* descriptor_new_for_object_type(struct object_descriptor* desc) {
-  struct descriptor* self = newCommon();
-  if (!self)
-    return NULL;
-  
-  self->type = OBJECT_NORMAL;
-  self->info.normal = desc;
-  return self;
+  self->type = type;
+  return 0;
 }
 
 void descriptor_free(struct descriptor* self) {
   if (!self)
     return;
   
-  switch (self->type) {
-    case OBJECT_NORMAL: 
-      object_descriptor_free(self->info.normal);
-      break;
-    case OBJECT_UNMAKEABLE_STATIC: panic();
-  }
-  free(self);
+  self->ops->free(self);
 }
 
 void descriptor_for_each_offset(struct object* object, void (^iterator)(size_t offset)) {
-  switch (object->movePreserve.descriptor->type) {
-    case OBJECT_NORMAL: return object_descriptor_for_each_offset(object->movePreserve.descriptor->info.normal, object, iterator);
-    case OBJECT_UNMAKEABLE_STATIC: panic();
-  }
-  panic();
-}
-
-static bool isCompatible(struct descriptor* a, struct descriptor* b) {
-  if (a->type == OBJECT_UNMAKEABLE_STATIC) {
-    switch (a->info.unmakeable->type) {
-      case DESCRIPTOR_UNMAKEABLE_ANY_MARKER: return true;
-    }
-  }
-  
-  return a == b;
+  return object->movePreserve.descriptor->ops->forEachOffset(object->movePreserve.descriptor, object, iterator);
 }
 
 int descriptor_is_assignable_to(struct object* self, size_t offset, struct descriptor* b) {
-  switch (self->movePreserve.descriptor->type) {
-    case OBJECT_NORMAL: return isCompatible(object_descriptor_get_at(self->movePreserve.descriptor->info.normal, offset), b);
-    case OBJECT_UNMAKEABLE_STATIC: panic();
+  struct descriptor* a = self->movePreserve.descriptor->ops->getDescriptorAt(self->movePreserve.descriptor, offset);
+  if (a->type != OBJECT_UNMAKEABLE_STATIC)
+    return a == b;
+  
+  struct unmakeable_descriptor* unmakeable = container_of(a, struct unmakeable_descriptor, super);
+  switch (unmakeable->type) {
+    case DESCRIPTOR_UNMAKEABLE_ANY_MARKER:
+      return true;
   }
+  
   panic();
 }
 
@@ -78,33 +52,21 @@ void descriptor_release(struct descriptor* self) {
 }
 
 void descriptor_init_object(struct descriptor* self, struct object* obj) {
-  switch (self->type) {
-    case OBJECT_NORMAL: return object_descriptor_init_object(self->info.normal, obj);
-    case OBJECT_UNMAKEABLE_STATIC: panic();
-  }
-  panic();
+  self->ops->initObject(self, obj);
 }
 
 size_t descriptor_get_object_size(struct descriptor* self) {
-  switch (self->type) {
-    case OBJECT_NORMAL: return object_descriptor_get_object_size(self->info.normal);
-    case OBJECT_UNMAKEABLE_STATIC: panic();
-  }
-  panic();
+  return self->ops->getObjectSize(self);
 }
 
 size_t descriptor_get_alignment(struct descriptor* self) {
-  switch (self->type) {
-    case OBJECT_NORMAL: return object_descriptor_get_alignment(self->info.normal);
-    case OBJECT_UNMAKEABLE_STATIC: panic();
-  }
-  panic();
+  return self->ops->getAlignment(self);
 }
 
 const char* descriptor_get_name(struct descriptor* self) {
-  switch (self->type) {
-    case OBJECT_NORMAL: return object_descriptor_get_name(self->info.normal);
-    case OBJECT_UNMAKEABLE_STATIC: return self->info.unmakeable->name;
-  }
-  panic();
+  return self->ops->getName(self);
+}
+
+void descriptor_run_finalizer_on(struct descriptor* self, struct object* obj) {
+  return self->ops->runFinalizer(self, obj);
 }

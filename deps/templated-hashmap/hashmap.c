@@ -183,6 +183,10 @@ static int hashmap_rehash(struct hashmap_base *hb, size_t table_size)
     hb->table_size = table_size;
     hb->table = new_table;
 
+    // Changed by Fox not in actual source UwU
+    if (!old_table)
+      goto skip_rehash;
+    
     /* Rehash */
     for (entry = old_table; entry < &old_table[old_size]; ++entry) {
         if (!entry->key) {
@@ -195,6 +199,8 @@ static int hashmap_rehash(struct hashmap_base *hb, size_t table_size)
         /* Shallow copy */
         *new_entry = *entry;
     }
+
+skip_rehash:
     free(old_table);
     return 0;
 }
