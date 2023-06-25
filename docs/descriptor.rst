@@ -111,7 +111,8 @@ fh_define_descriptor
    int fh_define_descriptor(const char* name, fh_descriptor_param* parameter, bool dontInvokeLoader)
 
 Define a descriptor named "name" and acquire it (to prevent being GC-ed). Must be
-able handle circular references
+able handle circular references. The descriptor will stay alive until next get
+descriptor call (which makes it now releaseable)
 
 Since
 =====

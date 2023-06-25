@@ -1,17 +1,20 @@
+#include <stdatomic.h>
+#include <stdio.h>
+
 #include "descriptor.h"
-#include "bug.h"
 #include "object/descriptor/unmakeable.h"
 #include "object/object.h"
 #include "panic.h"
 #include "descriptor.h"
-#include "util/refcount.h"
+#include "util/counter.h"
 #include "util/util.h"
 
 int descriptor_init(struct descriptor* self, enum object_type type, struct descriptor_ops* ops) {
   *self = (struct descriptor) {
     .ops = ops
   };
-  refcount_init(&self->usages);
+  counter_init(&self->directUsageCounter);
+  atomic_init(&self->api.skipAcquire, false);
   self->type = type;
   return 0;
 }
@@ -42,13 +45,12 @@ int descriptor_is_assignable_to(struct object* self, size_t offset, struct descr
 }
 
 void descriptor_acquire(struct descriptor* self) {
-  refcount_acquire(&self->usages);
+  counter_increment(&self->directUsageCounter);
 }
 
 void descriptor_release(struct descriptor* self) {
-  if (refcount_release(&self->usages))
+  if (counter_decrement(&self->directUsageCounter) > 1)
     return;
-  panic();
 }
 
 void descriptor_init_object(struct descriptor* self, struct object* obj) {

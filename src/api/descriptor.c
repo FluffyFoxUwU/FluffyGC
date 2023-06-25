@@ -1,3 +1,4 @@
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -101,18 +102,18 @@ static int process(struct descriptor_loader_context* loader, struct object_descr
       .strength = strengthMapping[field->strength]
     };
     
-    struct descriptor* dataType = type_registry_get_nolock(managed_heap_current->api.registry, field->dataType);
-    if (dataType)
+    struct descriptor* dataDescriptor = type_registry_get_nolock(managed_heap_current->api.registry, field->dataType);
+    if (dataDescriptor)
       goto descriptor_found;
     
     struct object_descriptor* newlyLoadedDesriptor;
     if ((ret = loadDescriptor(loader, field->dataType, &newlyLoadedDesriptor)) < 0)
       goto failure;
     
-    dataType = &newlyLoadedDesriptor->super;
+    dataDescriptor = &newlyLoadedDesriptor->super;
 descriptor_found:
-    convertedField.name = descriptor_get_name(dataType);
-    convertedField.dataType = dataType;
+    convertedField.name = descriptor_get_name(dataDescriptor);
+    convertedField.dataType = dataDescriptor;
     
     if (vec_push(&current->fields, convertedField) < 0) {
       ret = -ENOMEM;
@@ -138,6 +139,8 @@ __FLUFFYHEAP_EXPORT int fh_define_descriptor(__FLUFFYHEAP_NONNULL(const char*) n
   struct object_descriptor* newDescriptor = object_descriptor_new();
   if (!newDescriptor)
     return -ENOMEM;
+  atomic_store(&newDescriptor->super.api.skipAcquire, true);
+  descriptor_acquire(&newDescriptor->super);
   
   context_block_gc();
   rwlock_wrlock(&managed_heap_current->api.registry->lock);
@@ -195,7 +198,9 @@ static struct object_descriptor* getDescriptor(const char* name) {
   rwlock_rdlock(&managed_heap_current->api.registry->lock);
   
   struct descriptor* desc = type_registry_get_nolock(managed_heap_current->api.registry, name);
-  if (desc)
+  
+  // Skip acquire if its first get to the descriptor
+  if (desc && atomic_exchange(&desc->api.skipAcquire, false) == false)
     descriptor_acquire(desc);
   
   rwlock_unlock(&managed_heap_current->api.registry->lock);

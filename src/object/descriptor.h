@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "util/refcount.h"
+#include "util/counter.h"
 #include "util/list_head.h"
 
 enum object_type {
@@ -36,10 +36,13 @@ struct descriptor {
   struct list_head list;
   struct descriptor_ops* ops;
   
-  // Normally always 1 because its always 
-  // owner by type registry which mean
-  // the descriptor may be GC-ed
-  struct refcount usages;
+  // Direct usage by descriptor_acquire and descriptor_release
+  // to tell GC that it still used
+  struct counter directUsageCounter;
+  
+  struct {
+    atomic_bool skipAcquire;
+  } api;
 };
 
 int descriptor_init(struct descriptor* self, enum object_type type, struct descriptor_ops* ops);
@@ -54,7 +57,7 @@ size_t descriptor_get_object_size(struct descriptor* self);
 size_t descriptor_get_alignment(struct descriptor* self);
 const char* descriptor_get_name(struct descriptor* self);
 
-// Only track number of uses, does not automaticly
+// Only track number of keepalive uses, does not automaticly
 // releases as there might living object using it
 void descriptor_acquire(struct descriptor* self);
 void descriptor_release(struct descriptor* self);
