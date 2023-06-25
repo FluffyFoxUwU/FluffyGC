@@ -1,17 +1,21 @@
-#ifndef _headers_1687241246_FluffyGC_unmakeable
-#define _headers_1687241246_FluffyGC_unmakeable
+#ifndef _headers_1687668619_FluffyGC_array
+#define _headers_1687668619_FluffyGC_array
 
 #include "object/descriptor.h"
 
 struct array_descriptor {
   struct descriptor super;
-  struct descriptor* elementInfo;
+  
+  // Don't forget to change corresponding impl_isCompatibles
+  struct {
+    struct descriptor* elementDescriptor;
+    size_t length;
+  } arrayInfo;
 };
 
-// Array internally caches same descriptor to reuse
-// to avoid creating new descriptor for each array
-
-struct array_descriptor* array_descriptor_new();
+// Array descriptors are rather embedded
+// as value
+int array_descriptor_new(struct array_descriptor* self, struct descriptor* desc, size_t length);
 
 #endif
 

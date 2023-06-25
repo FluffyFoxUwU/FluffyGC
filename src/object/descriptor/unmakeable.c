@@ -2,11 +2,7 @@
 #include "object/descriptor.h"
 #include "panic.h"
 
-static void impl_initObject(struct descriptor* super, struct object* obj) {
-  panic("Operation inappropriate for unmakeable!");
-}
-
-static void impl_forEachOffset(struct descriptor* super, struct object* object, void (^iterator)(size_t offset)) {
+static int impl_forEachOffset(struct descriptor* super, struct object* object, int (^iterator)(size_t offset)) {
   panic("Operation inappropriate for unmakeable!");
 }
 
@@ -24,10 +20,18 @@ static const char* impl_getName(struct descriptor* super) {
 }
 
 static void impl_runFinalizer(struct descriptor* super, struct object* obj) {
-  panic("Operation inappropriate for unmakeable!");
 }
 
 static void impl_free(struct descriptor* super) {
+}
+
+static bool impl_isCompatible(struct descriptor* a, struct descriptor* b) {
+  struct unmakeable_descriptor* self = container_of(a, struct unmakeable_descriptor, super);
+  switch (self->type) {
+    case DESCRIPTOR_UNMAKEABLE_ANY_MARKER:
+      return true;
+  }
+  panic();
 }
 
 static struct descriptor* impl_getDescriptorAt(struct descriptor* super, size_t offset) {
@@ -40,7 +44,7 @@ struct descriptor_ops unmakeable_ops = {
   .getAlignment = impl_getAlignment,
   .getObjectSize = impl_getObjectSize,
   .getName = impl_getName,
+  .isCompatible = impl_isCompatible,
   .getDescriptorAt = impl_getDescriptorAt,
-  .initObject = impl_initObject,
   .runFinalizer = impl_runFinalizer
 };

@@ -18,7 +18,7 @@ extern struct descriptor_ops unmakeable_ops;
 #define UNMAKEABLE_DESCRIPTOR_DEFINE(varName, _name, _type) \
   static struct unmakeable_descriptor varName = { \
     .super = { \
-      .type = OBJECT_UNMAKEABLE_STATIC, \
+      .type = OBJECT_UNMAKEABLE, \
       .ops = &unmakeable_ops \
     }, \
     .name = _name, \

@@ -88,25 +88,38 @@ int main2() {
   fh_descriptor* desc = fh_get_descriptor("fox.fluffygc.Fluff", false);
   
   fh_object* obj = fh_alloc_object(desc);
-  fh_release_descriptor(desc);
   
-  struct fluff data;
-  fh_object_read_data(obj, &data, 0, sizeof(data));
-  data.a = "C string test UwU";
-  fh_object_write_data(obj, &data, 0, sizeof(data));
-  fh_object_read_data(obj, &data, 0, sizeof(data));
-  printf("[Main] Got: %s\n", data.a);
+  // Object test
+  {
+    struct fluff data;
+    fh_object_read_data(obj, &data, 0, sizeof(data));
+    data.a = "C string test UwU";
+    fh_object_write_data(obj, &data, 0, sizeof(data));
+    fh_object_read_data(obj, &data, 0, sizeof(data));
+    printf("[Main] Got: %s\n", data.a);
+    
+    fh_object_write_ref(obj, offsetof(struct fluff, fox), obj);
+    fh_object_write_ref(obj, offsetof(struct fluff, any), obj);
+    
+    fh_object* readVal = fh_object_read_ref(obj, offsetof(struct fluff, fox));
+    printf("[Main] Object is %ssame object\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
+    fh_del_ref(readVal);
+  }
   
-  fh_object_write_ref(obj, offsetof(struct fluff, fox), obj);
-  fh_object_write_ref(obj, offsetof(struct fluff, any), obj);
-  
-  fh_object* readVal = fh_object_read_ref(obj, offsetof(struct fluff, fox));
-  printf("[Main] Object is %ssame object\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
-  fh_del_ref(readVal);
+  // Array test
+  {
+    fh_array* array = fh_alloc_array(desc, 5);
+    fh_array_set_element(array, 0, obj);
+    fh_object* readVal = fh_array_get_element(array, 0);
+    printf("[Main] Array[0] is %ssame what just read\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
+    fh_del_ref((fh_object*) array);
+  }
   
   fh_del_ref(obj);
-  fh_detach_thread(heap);
+  fh_release_descriptor(desc);
   
+  // Cleaning up
+  fh_detach_thread(heap);
   fh_free(heap);
   return EXIT_SUCCESS;
 }

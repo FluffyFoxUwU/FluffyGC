@@ -8,6 +8,7 @@
 #include <stddef.h>
 
 #include "FluffyHeap.h"
+#include "object/descriptor/embedded.h"
 #include "util/list_head.h"
 #include "vec.h"
 #include "object/object.h"
@@ -26,6 +27,8 @@ struct object_descriptor_field {
   
   struct descriptor* dataType;
   enum reference_strength strength;
+  
+  struct embedded_descriptor embedded;
 };
 
 #define DESCRIPTOR_FIELD(type, member, _dataType, refStrength) { \

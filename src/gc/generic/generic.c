@@ -22,14 +22,15 @@ static void clearRememberedSetFor(struct object* obj) {
 
 static void recomputeRememberedSet(struct object* self) {
   clearRememberedSetFor(self);
-  object_for_each_field(self, ^(struct object* child, size_t) {
+  object_for_each_field(self, ^int (struct object* child, size_t) {
     if (!child)
-      return;
+      return 0;
     
     if (child && self->movePreserve.generationID != child->movePreserve.generationID && !list_is_valid(&self->rememberedSetNode[child->movePreserve.generationID])) {
       struct generation* target = &managed_heap_current->generations[child->movePreserve.generationID];
       list_add(&self->rememberedSetNode[child->movePreserve.generationID], &target->rememberedSet);
     }
+    return 0;
   });
 }
 
@@ -203,10 +204,11 @@ static int doDFSMark(int targetGenID, mark_state_stack* stack) {
       continue;
     
     current->isMarked = true;
-    object_for_each_field(current, ^(struct object* obj, size_t) {
+    object_for_each_field(current, ^int (struct object* obj, size_t) {
       if (!isEligibleForScanning(obj, targetGenID))
-        return;
+        return 0;
       vec_push(stack, obj);
+      return 0;
     });
   }
   return res;
@@ -236,9 +238,10 @@ int gc_generic_mark(struct generation* gen) {
     struct list_head* current;
     list_for_each(current, &gen->rememberedSet) {
       struct object* obj = list_entry(current, struct object, rememberedSetNode[targetGenID]);
-      object_for_each_field(obj, ^(struct object* child, size_t) {
+      object_for_each_field(obj, ^int (struct object* child, size_t) {
         if (child)
           vec_push(&currentPath, child);
+        return 0;
       });
       doDFSMark(targetGenID, &currentPath);
     }

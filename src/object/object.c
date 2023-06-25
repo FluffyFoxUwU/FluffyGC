@@ -159,8 +159,9 @@ void object_init(struct object* self, struct descriptor* desc, void address_heap
 void object_fix_pointers(struct object* self) {
   BUG_ON(self->movePreserve.generationID < 0);
   
-  object_for_each_field(self, ^(struct object*, size_t offset) {
+  object_for_each_field(self, ^int (struct object*, size_t offset) {
     readPointerAt(self, offset);
+    return 0;
   });
 }
 
@@ -187,8 +188,8 @@ struct object* object_move(struct object* self, struct heap* dest) {
   return newBlockObj;
 }
 
-void object_for_each_field(struct object* self, void (^iterator)(struct object* obj,size_t offset)) {
-  descriptor_for_each_offset(self, ^void (size_t offset) {
-    iterator(atomic_load(getAtomicPtrToReference(self, offset)), offset);
+int object_for_each_field(struct object* self, int (^iterator)(struct object* obj, size_t offset)) {
+  return descriptor_for_each_offset(self, ^int (size_t offset) {
+    return iterator(atomic_load(getAtomicPtrToReference(self, offset)), offset);
   });
 }

@@ -8,12 +8,13 @@
 
 enum object_type {
   OBJECT_NORMAL,
+  OBJECT_ARRAY,
   
   // Descriptor with this type
   // cannot be used to make new object
   // and descriptor with this type is
   // statically allocated
-  OBJECT_UNMAKEABLE_STATIC
+  OBJECT_UNMAKEABLE
 };
 
 struct object_descriptor;
@@ -25,10 +26,14 @@ struct descriptor_ops {
   const char* (*getName)(struct descriptor* self);
   size_t (*getAlignment)(struct descriptor* self);
   size_t (*getObjectSize)(struct descriptor* self);
-  void (*initObject)(struct descriptor* self, struct object* obj);
   struct descriptor* (*getDescriptorAt)(struct descriptor* self, size_t offset);
-  void (*forEachOffset)(struct descriptor* self, struct object* object, void (^iterator)(size_t offset));
+  
+  // Iterator return 0 if want to continue else nonzero to stop the iterating
+  // and return that value
+  int (*forEachOffset)(struct descriptor* self, struct object* object, int (^iterator)(size_t offset));
   void (*free)(struct descriptor* self);
+  
+  bool (*isCompatible)(struct descriptor* a, struct descriptor* b);
 };
 
 struct descriptor {
@@ -48,7 +53,7 @@ struct descriptor {
 int descriptor_init(struct descriptor* self, enum object_type type, struct descriptor_ops* ops);
 void descriptor_free(struct descriptor* self);
 
-void descriptor_for_each_offset(struct object* self, void (^iterator)(size_t offset));
+int descriptor_for_each_offset(struct object* self, int (^iterator)(size_t offset));
 int descriptor_is_assignable_to(struct object* self, size_t offset, struct descriptor* b);
 
 void descriptor_init_object(struct descriptor* self, struct object* obj);

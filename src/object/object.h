@@ -4,6 +4,7 @@
 #include <stdatomic.h>
 #include <stddef.h>
 
+#include "object/descriptor/embedded.h"
 #include "util/list_head.h"
 #include "gc/gc.h"
 #include "address_spaces.h"
@@ -52,11 +53,11 @@ struct object {
   atomic_bool isMarked;
   
   struct {
-    // This NULL if the type is OBJECT_DATA_ARRAY
-    // If type is OBJECT_NORMAL this refer to curent object data
-    // otherwise element type of OBJECT_ARRAY
     struct descriptor* descriptor;
     int generationID;
+    
+    // Some special descriptors which embedded inside object
+    struct embedded_descriptor embedded;
   } movePreserve;
 };
 
@@ -95,7 +96,7 @@ struct object* object_resolve_forwarding(struct object* self);
 struct object* object_move(struct object* self, struct heap* dest);
 
 // Generic iterating the object for references
-void object_for_each_field(struct object* self, void (^iterator)(struct object* obj,size_t offset));
+int object_for_each_field(struct object* self, int (^iterator)(struct object* obj, size_t offset));
 
 int object_init_synchronization_structs(struct object* self);
 

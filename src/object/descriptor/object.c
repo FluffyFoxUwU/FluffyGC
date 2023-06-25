@@ -38,14 +38,6 @@ void object_descriptor_free(struct object_descriptor* self) {
   free(self);
 }
 
-static void impl_initObject(struct descriptor* super, struct object* obj) {
-  struct object_descriptor* self = container_of(super, struct object_descriptor, super);
-  int i;
-  struct object_descriptor_field* field;
-  vec_foreach_ptr(&self->fields, field, i)
-    atomic_init((_Atomic(struct object*)*) (obj->dataPtr.ptr + field->offset), NULL);
-}
-
 static int getIndexFromOffset(struct object_descriptor* self, size_t offset) {
   struct object_descriptor_field toSearch = {
     .offset = offset,
@@ -57,12 +49,16 @@ static int getIndexFromOffset(struct object_descriptor* self, size_t offset) {
   return indexof(self->fields.data, result);
 }
 
-static void impl_forEachOffset(struct descriptor* super, struct object* object, void (^iterator)(size_t offset)) {
+static int impl_forEachOffset(struct descriptor* super, struct object* object, int (^iterator)(size_t offset)) {
   struct object_descriptor* self = container_of(super, struct object_descriptor, super);
   int i;
   struct object_descriptor_field* field;
+  
+  int ret = 0;
   vec_foreach_ptr(&self->fields, field, i)
-    iterator(field->offset);
+    if ((ret = iterator(field->offset)) != 0)
+      break;
+  return ret;
 }
 
 static size_t impl_getObjectSize(struct descriptor* super) {
@@ -93,6 +89,11 @@ static struct descriptor* impl_getDescriptorAt(struct descriptor* super, size_t 
   return self->fields.data[index].dataType;
 }
 
+// Ehh, just simple a == b UwU
+static bool impl_isCompatible(struct descriptor* a, struct descriptor* b) {
+  return a == b;
+}
+
 static struct descriptor_ops ops = {
   .forEachOffset = impl_forEachOffset,
   .free = freeSelf,
@@ -100,7 +101,7 @@ static struct descriptor_ops ops = {
   .getObjectSize = impl_getObjectSize,
   .getName = impl_getName,
   .getDescriptorAt = impl_getDescriptorAt,
-  .initObject = impl_initObject,
+  .isCompatible = impl_isCompatible,
   .runFinalizer = impl_runFinalizer
 };
 

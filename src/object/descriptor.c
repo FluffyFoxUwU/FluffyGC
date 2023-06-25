@@ -1,13 +1,11 @@
 #include <stdatomic.h>
 #include <stdio.h>
 
+#include "bug.h"
 #include "descriptor.h"
-#include "object/descriptor/unmakeable.h"
 #include "object/object.h"
-#include "panic.h"
 #include "descriptor.h"
 #include "util/counter.h"
-#include "util/util.h"
 
 int descriptor_init(struct descriptor* self, enum object_type type, struct descriptor_ops* ops) {
   *self = (struct descriptor) {
@@ -26,22 +24,24 @@ void descriptor_free(struct descriptor* self) {
   self->ops->free(self);
 }
 
-void descriptor_for_each_offset(struct object* object, void (^iterator)(size_t offset)) {
+int descriptor_for_each_offset(struct object* object, int (^iterator)(size_t offset)) {
   return object->movePreserve.descriptor->ops->forEachOffset(object->movePreserve.descriptor, object, iterator);
 }
 
 int descriptor_is_assignable_to(struct object* self, size_t offset, struct descriptor* b) {
   struct descriptor* a = self->movePreserve.descriptor->ops->getDescriptorAt(self->movePreserve.descriptor, offset);
-  if (a->type != OBJECT_UNMAKEABLE_STATIC)
-    return a == b;
+  BUG_ON(b->type == OBJECT_UNMAKEABLE);
   
-  struct unmakeable_descriptor* unmakeable = container_of(a, struct unmakeable_descriptor, super);
-  switch (unmakeable->type) {
-    case DESCRIPTOR_UNMAKEABLE_ANY_MARKER:
-      return true;
-  }
+  // OBJECT_UNMAKEABLE is special in that it
+  // may determine special behaviour like
+  // DESCRIPTOR_UNMAKEABLE_ANY_MARKER where
+  // it unconditionally return true
+  if (a->type == OBJECT_UNMAKEABLE)
+    return a->ops->isCompatible(a, b);
   
-  panic();
+  if (a->type != b->type)
+    return false;
+  return a->ops->isCompatible(a, b);
 }
 
 void descriptor_acquire(struct descriptor* self) {
@@ -54,7 +54,10 @@ void descriptor_release(struct descriptor* self) {
 }
 
 void descriptor_init_object(struct descriptor* self, struct object* obj) {
-  self->ops->initObject(self, obj);
+  self->ops->forEachOffset(self, obj, ^int (size_t offset) {
+    atomic_init((_Atomic(struct object*)*) (obj->dataPtr.ptr + offset), NULL);
+    return 0;
+  });
 }
 
 size_t descriptor_get_object_size(struct descriptor* self) {
