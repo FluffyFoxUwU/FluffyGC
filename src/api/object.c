@@ -10,7 +10,7 @@
 #include "object/object.h"
 
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_object*) fh_alloc_object(__FLUFFYHEAP_NONNULL(fh_descriptor*) desc) {
-  return (fh_object*) managed_heap_alloc_object((struct descriptor*) desc);
+  return EXTERN(managed_heap_alloc_object(INTERN(desc)));
 }
 
 __FLUFFYHEAP_EXPORT void fh_object_read_data(__FLUFFYHEAP_NONNULL(fh_object*) self, __FLUFFYHEAP_NONNULL(void*) buffer, size_t offset, size_t size) {

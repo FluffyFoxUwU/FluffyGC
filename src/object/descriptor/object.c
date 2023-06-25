@@ -94,6 +94,17 @@ static bool impl_isCompatible(struct descriptor* a, struct descriptor* b) {
   return a == b;
 }
 
+static void impl_postInitObject(struct descriptor* super, struct object* obj) {
+  obj->movePreserve.descriptor = super;
+}
+
+static ssize_t impl_calcOffset(struct descriptor* super, size_t index) {
+  struct object_descriptor* self = container_of(super, struct object_descriptor, super);
+  if (index >= self->fields.length)
+    return -1;
+  return self->fields.data[index].offset;
+}
+
 static struct descriptor_ops ops = {
   .forEachOffset = impl_forEachOffset,
   .free = freeSelf,
@@ -102,7 +113,9 @@ static struct descriptor_ops ops = {
   .getName = impl_getName,
   .getDescriptorAt = impl_getDescriptorAt,
   .isCompatible = impl_isCompatible,
-  .runFinalizer = impl_runFinalizer
+  .runFinalizer = impl_runFinalizer,
+  .postInitObject = impl_postInitObject,
+  .calcOffset = impl_calcOffset
 };
 
 void object_descriptor_init(struct object_descriptor* self) {

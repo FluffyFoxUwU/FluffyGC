@@ -22,6 +22,7 @@ struct object;
 struct descriptor;
 
 struct descriptor_ops {
+  void (*postInitObject)(struct descriptor* self, struct object* obj);
   void (*runFinalizer)(struct descriptor* self, struct object* obj);
   const char* (*getName)(struct descriptor* self);
   size_t (*getAlignment)(struct descriptor* self);
@@ -34,6 +35,8 @@ struct descriptor_ops {
   void (*free)(struct descriptor* self);
   
   bool (*isCompatible)(struct descriptor* a, struct descriptor* b);
+  
+  ssize_t (*calcOffset)(struct descriptor* self, size_t index);
 };
 
 struct descriptor {
@@ -68,6 +71,10 @@ void descriptor_acquire(struct descriptor* self);
 void descriptor_release(struct descriptor* self);
 
 void descriptor_run_finalizer_on(struct descriptor* self, struct object* obj);
+
+// For object type `index` is index to which field not offset being
+// passthrough as it is
+ssize_t descriptor_calc_offset(struct descriptor* self, size_t index);
 
 #endif
 

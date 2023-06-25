@@ -1,5 +1,6 @@
 #include "unmakeable.h"
 #include "object/descriptor.h"
+#include "object/object.h"
 #include "panic.h"
 
 static int impl_forEachOffset(struct descriptor* super, struct object* object, int (^iterator)(size_t offset)) {
@@ -38,6 +39,14 @@ static struct descriptor* impl_getDescriptorAt(struct descriptor* super, size_t 
   panic("Operation inappropriate for unmakeable!");
 }
 
+static void impl_postInitObject(struct descriptor* super, struct object* obj) {
+  panic("Operation inappropriate for unmakeable!");
+}
+
+static ssize_t impl_calcOffset(struct descriptor* super, size_t index) {
+  panic("Operation inappropriate for unmakeable!");
+}
+
 struct descriptor_ops unmakeable_ops = {
   .forEachOffset = impl_forEachOffset,
   .free = impl_free,
@@ -46,5 +55,7 @@ struct descriptor_ops unmakeable_ops = {
   .getName = impl_getName,
   .isCompatible = impl_isCompatible,
   .getDescriptorAt = impl_getDescriptorAt,
-  .runFinalizer = impl_runFinalizer
+  .runFinalizer = impl_runFinalizer,
+  .postInitObject = impl_postInitObject,
+  .calcOffset = impl_calcOffset
 };

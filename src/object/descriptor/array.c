@@ -1,7 +1,12 @@
+#include <assert.h>
+
 #include "array.h"
 #include "object/descriptor.h"
+#include "object/object.h"
+#include "panic.h"
 #include "util/util.h"
-#include <string.h>
+
+static_assert(sizeof(struct object*) == alignof(struct object*), "This destroys the offset calculation if this fails");
 
 static int impl_forEachOffset(struct descriptor* super, struct object* object, int (^iterator)(size_t offset)) {
   int ret = 0;
@@ -30,6 +35,7 @@ static void impl_runFinalizer(struct descriptor* super, struct object* obj) {
 }
 
 static void impl_free(struct descriptor* super) {
+  panic("Array descriptors are by value, free call is invalid");
 }
 
 static bool impl_isCompatible(struct descriptor* _a, struct descriptor* _b) {
@@ -47,6 +53,21 @@ static struct descriptor* impl_getDescriptorAt(struct descriptor* super, size_t 
   return self->arrayInfo.elementDescriptor;
 }
 
+static void impl_postObjectInit(struct descriptor* super, struct object* obj) {
+  struct array_descriptor* self = container_of(super, struct array_descriptor, super);
+  
+  // Array descriptor is by value therefore copy
+  obj->movePreserve.embedded.array = *self;
+  obj->movePreserve.descriptor = &obj->movePreserve.embedded.array.super;
+}
+
+static ssize_t impl_calcOffset(struct descriptor* super, size_t index) {
+  struct array_descriptor* self = container_of(super, struct array_descriptor, super);
+  if (index >= self->arrayInfo.length)
+    return -1;
+  return index * sizeof(struct object*);
+}
+
 static struct descriptor_ops ops = {
   .forEachOffset = impl_forEachOffset,
   .free = impl_free,
@@ -55,10 +76,12 @@ static struct descriptor_ops ops = {
   .getName = impl_getName,
   .getDescriptorAt = impl_getDescriptorAt,
   .runFinalizer = impl_runFinalizer,
-  .isCompatible = impl_isCompatible
+  .isCompatible = impl_isCompatible,
+  .postInitObject = impl_postObjectInit,
+  .calcOffset = impl_calcOffset
 };
 
-int array_descriptor_new(struct array_descriptor* self, struct descriptor* desc, size_t length) {
+int array_descriptor_init(struct array_descriptor* self, struct descriptor* desc, size_t length) {
   self->arrayInfo.length = length;
   self->arrayInfo.elementDescriptor = desc;
   return descriptor_init(&self->super, OBJECT_ARRAY, &ops);

@@ -15,7 +15,7 @@ struct array_descriptor {
 
 // Array descriptors are rather embedded
 // as value
-int array_descriptor_new(struct array_descriptor* self, struct descriptor* desc, size_t length);
+int array_descriptor_init(struct array_descriptor* self, struct descriptor* elementType, size_t length);
 
 #endif
 

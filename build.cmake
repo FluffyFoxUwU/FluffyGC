@@ -19,6 +19,7 @@ set(BUILD_SOURCES
   src/object/object.c
   src/object/descriptor/object.c
   src/object/descriptor/unmakeable.c
+  src/object/descriptor/array.c
   
   src/gc/gc.c
   src/gc/nop/nop.c
@@ -46,6 +47,7 @@ set(BUILD_SOURCES
   src/api/descriptor.c
   src/api/type_registry.c
   src/api/api.c
+  src/api/array.c
   
   deps/list/list_node.c
   deps/list/list.c

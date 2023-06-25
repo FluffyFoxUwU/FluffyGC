@@ -58,6 +58,8 @@ void descriptor_init_object(struct descriptor* self, struct object* obj) {
     atomic_init((_Atomic(struct object*)*) (obj->dataPtr.ptr + offset), NULL);
     return 0;
   });
+  
+  self->ops->postInitObject(self, obj);
 }
 
 size_t descriptor_get_object_size(struct descriptor* self) {
@@ -74,4 +76,8 @@ const char* descriptor_get_name(struct descriptor* self) {
 
 void descriptor_run_finalizer_on(struct descriptor* self, struct object* obj) {
   return self->ops->runFinalizer(self, obj);
+}
+
+ssize_t descriptor_calc_offset(struct descriptor* self, size_t index) {
+  return self->ops->calcOffset(self, index);
 }

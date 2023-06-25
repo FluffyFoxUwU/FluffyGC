@@ -77,8 +77,6 @@ struct node {
 void object_init(struct object* self, struct descriptor* desc, void address_heap* data);
 void object_cleanup(struct object* self, bool isDead);
 
-// object_(read/write)_ptr are safe without DMA
-[[nodiscard]]
 struct root_ref* object_read_reference(struct object* self, size_t offset);
 void object_write_reference(struct object* self, size_t offset, struct object* obj);
 

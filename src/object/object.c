@@ -145,7 +145,6 @@ int object_put_dma(struct root_ref* rootRef, struct userptr dma) {
 
 void object_init(struct object* self, struct descriptor* desc, void address_heap* data) {
   *self = (struct object) {
-    .movePreserve = {.descriptor = desc},
     .objectSize = descriptor_get_object_size(desc),
     .dataPtr = {data}
   };
