@@ -111,8 +111,10 @@ int main2() {
     fh_array* array = fh_alloc_array(desc, 5);
     fh_array_set_element(array, 0, obj);
     fh_object* readVal = fh_array_get_element(array, 0);
-    printf("[Main] Array[0] is %ssame what just read\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
+    printf("[Main] Array[0] is %ssame what just written\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
+    
     fh_del_ref((fh_object*) array);
+    fh_del_ref((fh_object*) readVal);
   }
   
   fh_del_ref(obj);
