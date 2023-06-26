@@ -29,6 +29,8 @@ typedef struct fh_200d21fd_f92b_41e0_9ea3_32eaf2b4e455 fluffyheap;
 typedef struct fh_2530dc70_b8d3_41d5_808a_922504f90ff6 fh_context;
 typedef struct fh_e96bee3a_e673_4a27_97e3_a365dc3d9d53 fh_object;
 typedef struct fh_7f49677c_68b4_40ea_96c7_db3f6176c5dc fh_array;
+typedef struct fh_d5564c56_0195_411c_bb8e_6293c07ec0d3 fh_type_info;
+typedef struct fh_b737dbfb_246b_4486_ba7e_25c7f8e8d41d fh_ref_array_info;
 typedef struct fh_fc200f7a_174f_4882_9fa4_1205af13686e fh_descriptor;
 typedef struct fh_f39dbb2f_d8d1_4687_8486_a196de7712a3 fh_descriptor_param;
 typedef struct fh_89fe10c0_cf25_435b_b5a3_96e5e1e5ac98 fh_param;
@@ -94,6 +96,19 @@ struct fh_f39dbb2f_d8d1_4687_8486_a196de7712a3 {
   fh_array*: (fh_object*) (obj) \
 )
 
+struct fh_d5564c56_0195_411c_bb8e_6293c07ec0d3 {
+  fh_object_type type;
+  union {
+    __FLUFFYHEAP_NONNULL(fh_descriptor*) normal;
+    __FLUFFYHEAP_NONNULL(fh_ref_array_info*) refArray;
+  } info;
+};
+
+struct fh_b737dbfb_246b_4486_ba7e_25c7f8e8d41d {
+  size_t length;
+  __FLUFFYHEAP_NONNULL(fh_descriptor*) elementDescriptor;
+};
+
 // Heap stuff
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fluffyheap*) fh_new(__FLUFFYHEAP_NONNULL(fh_param*) param);
 __FLUFFYHEAP_EXPORT void fh_free(__FLUFFYHEAP_NONNULL(fluffyheap*) self);
@@ -145,7 +160,9 @@ __FLUFFYHEAP_EXPORT void fh_object_wake_all(__FLUFFYHEAP_NONNULL(fh_object*) sel
 __FLUFFYHEAP_EXPORT void fh_object_lock(__FLUFFYHEAP_NONNULL(fh_object*) self);
 __FLUFFYHEAP_EXPORT void fh_object_unlock(__FLUFFYHEAP_NONNULL(fh_object*) self);
 
-__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NONNULL(fh_descriptor*) fh_object_get_descriptor(__FLUFFYHEAP_NONNULL(fh_object*) self);
+__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NONNULL(const fh_type_info*) fh_object_get_type_info(__FLUFFYHEAP_NONNULL(fh_object*) self);
+__FLUFFYHEAP_EXPORT void fh_object_put_type_info(__FLUFFYHEAP_NONNULL(fh_object*) self, __FLUFFYHEAP_NONNULL(const fh_type_info*) typeInfo);
+
 __FLUFFYHEAP_EXPORT bool fh_object_is_alias(__FLUFFYHEAP_NULLABLE(fh_object*) a, __FLUFFYHEAP_NULLABLE(fh_object*) b);
 __FLUFFYHEAP_EXPORT fh_object_type fh_object_get_type(__FLUFFYHEAP_NONNULL(fh_object*) self);
 
@@ -156,14 +173,17 @@ __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_array*) fh_alloc_data_array(size_t 
 __FLUFFYHEAP_EXPORT ssize_t fh_array_calc_offset(__FLUFFYHEAP_NONNULL(fh_array*) self, size_t index);
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_object*) fh_array_get_element(__FLUFFYHEAP_NONNULL(fh_array*) self, size_t index);
 __FLUFFYHEAP_EXPORT void fh_array_set_element(__FLUFFYHEAP_NONNULL(fh_array*) self, size_t index, __FLUFFYHEAP_NULLABLE(fh_object*) object);
+__FLUFFYHEAP_EXPORT size_t fh_array_get_length(__FLUFFYHEAP_NONNULL(fh_array*) self);
 
 // Descriptors stuff
 __FLUFFYHEAP_EXPORT int fh_define_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, __FLUFFYHEAP_NONNULL(fh_descriptor_param*) parameter, bool dontInvokeLoader);
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_get_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, bool dontInvokeLoader);
 __FLUFFYHEAP_EXPORT void fh_release_descriptor(__FLUFFYHEAP_NULLABLE(fh_descriptor*) desc);
 
-// TODO: Rethink the interface to accodomate array
-// __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NONNULL(const fh_descriptor_param*) fh_descriptor_get_param(__FLUFFYHEAP_NONNULL(fh_descriptor*) self);
+// This call invalid for arrays
+// Used for reflective access the GC referecnes in it (e.g.
+// to analyze heap content for leaks)
+__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NONNULL(const fh_descriptor_param*) fh_descriptor_get_param(__FLUFFYHEAP_NONNULL(fh_descriptor*) self);
 
 #endif
 

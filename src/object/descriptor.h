@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#include "FluffyHeap.h"
 #include "util/counter.h"
 #include "util/list_head.h"
 
@@ -35,7 +36,6 @@ struct descriptor_ops {
   void (*free)(struct descriptor* self);
   
   bool (*isCompatible)(struct descriptor* a, struct descriptor* b);
-  
   ssize_t (*calcOffset)(struct descriptor* self, size_t index);
 };
 
@@ -50,10 +50,14 @@ struct descriptor {
   
   struct {
     atomic_bool skipAcquire;
+    
+    // This differ in way each descriptor assign this by themselves
+    // instead by codes at src/api/*.c
+    fh_type_info typeInfo;
   } api;
 };
 
-int descriptor_init(struct descriptor* self, enum object_type type, struct descriptor_ops* ops);
+int descriptor_init(struct descriptor* self, enum object_type type, struct descriptor_ops* ops, fh_type_info* typeInfo);
 void descriptor_free(struct descriptor* self);
 
 int descriptor_for_each_offset(struct object* self, int (^iterator)(size_t offset));

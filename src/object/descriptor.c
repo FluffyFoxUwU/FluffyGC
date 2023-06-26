@@ -1,15 +1,17 @@
 #include <stdatomic.h>
 #include <stdio.h>
 
+#include "FluffyHeap.h"
 #include "bug.h"
 #include "descriptor.h"
 #include "object/object.h"
 #include "descriptor.h"
 #include "util/counter.h"
 
-int descriptor_init(struct descriptor* self, enum object_type type, struct descriptor_ops* ops) {
+int descriptor_init(struct descriptor* self, enum object_type type, struct descriptor_ops* ops, fh_type_info* typeInfo) {
   *self = (struct descriptor) {
-    .ops = ops
+    .ops = ops,
+    .api.typeInfo = *typeInfo
   };
   counter_init(&self->directUsageCounter);
   atomic_init(&self->api.skipAcquire, false);

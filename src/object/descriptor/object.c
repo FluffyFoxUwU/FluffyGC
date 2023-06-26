@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include "FluffyHeap.h"
+#include "api/api.h"
 #include "api/hooks.h"
 #include "context.h"
 #include "object/descriptor.h"
@@ -131,9 +133,13 @@ struct object_descriptor* object_descriptor_new() {
   *self = (struct object_descriptor) {}; 
   vec_init(&self->fields);
   
-  if (descriptor_init(&self->super, OBJECT_NORMAL, &ops) < 0)
-    goto failure;
   
+  fh_type_info typeInfo = {};
+  typeInfo.type = FH_TYPE_NORMAL;
+  typeInfo.info.normal = API_EXTERN(&self->super);
+  
+  if (descriptor_init(&self->super, OBJECT_NORMAL, &ops, &typeInfo) < 0)
+    goto failure;
   return self;
 
 failure:

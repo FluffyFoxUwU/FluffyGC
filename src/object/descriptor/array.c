@@ -1,5 +1,7 @@
 #include <assert.h>
 
+#include "FluffyHeap.h"
+#include "api/api.h"
 #include "array.h"
 #include "object/descriptor.h"
 #include "object/object.h"
@@ -58,6 +60,10 @@ static void impl_postObjectInit(struct descriptor* super, struct object* obj) {
   
   // Array descriptor is by value therefore copy
   obj->movePreserve.embedded.array = *self;
+  
+  // Updates pointer to refer to new instance of itself
+  obj->movePreserve.embedded.array.super.api.typeInfo.info.refArray = &obj->movePreserve.embedded.array.api.refArrayInfo;
+  
   obj->movePreserve.descriptor = &obj->movePreserve.embedded.array.super;
 }
 
@@ -84,5 +90,12 @@ static struct descriptor_ops ops = {
 int array_descriptor_init(struct array_descriptor* self, struct descriptor* desc, size_t length) {
   self->arrayInfo.length = length;
   self->arrayInfo.elementDescriptor = desc;
-  return descriptor_init(&self->super, OBJECT_ARRAY, &ops);
+  
+  self->api.refArrayInfo.length = length;
+  self->api.refArrayInfo.elementDescriptor = API_EXTERN(desc);
+  
+  fh_type_info typeInfo = {};
+  typeInfo.type = FH_TYPE_ARRAY;
+  typeInfo.info.refArray = &self->api.refArrayInfo;
+  return descriptor_init(&self->super, OBJECT_ARRAY, &ops, &typeInfo);
 }

@@ -1,3 +1,5 @@
+#include "pre_code.h"
+
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,7 +8,6 @@
 #include "bug.h"
 #include "concurrency/mutex.h"
 #include "object/object.h"
-#include "pre_code.h"
 
 #include "object/descriptor/object.h"
 #include "concurrency/rwlock.h"
@@ -247,4 +248,10 @@ failure:
 
 __FLUFFYHEAP_EXPORT void fh_release_descriptor(__FLUFFYHEAP_NULLABLE(fh_descriptor*) desc) {
   descriptor_release(INTERN(desc));
+}
+
+__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NONNULL(const fh_descriptor_param*) fh_descriptor_get_param(__FLUFFYHEAP_NONNULL(fh_descriptor*) self) {
+  struct descriptor* desc = INTERN(self);
+  BUG_ON(desc->type != OBJECT_NORMAL);
+  return &container_of(desc, struct object_descriptor, super)->api.param;
 }

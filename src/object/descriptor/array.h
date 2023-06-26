@@ -1,6 +1,7 @@
 #ifndef _headers_1687668619_FluffyGC_array
 #define _headers_1687668619_FluffyGC_array
 
+#include "FluffyHeap.h"
 #include "object/descriptor.h"
 
 struct array_descriptor {
@@ -11,6 +12,10 @@ struct array_descriptor {
     struct descriptor* elementDescriptor;
     size_t length;
   } arrayInfo;
+  
+  struct {
+    fh_ref_array_info refArrayInfo;
+  } api;
 };
 
 // Array descriptors are rather embedded

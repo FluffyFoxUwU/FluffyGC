@@ -7,11 +7,6 @@ The definition is
 
 .. code-block:: c
 
-   enum fh_object_type {
-     FH_TYPE_NORMAL, /* Just ordinary object */
-     FH_TYPE_ARRAY,  /* Array type */
-   };
-   
    enum fh_reference_strength {
      FH_REF_STRONG
    };
@@ -27,7 +22,6 @@ The definition is
      size_t size;
      size_t alignment;
      
-     @Nullable // Null for ``fh_descriptor_get_param`` return value
      fh_descriptor_field fields*;
      
      // Called somewhere in the future after
@@ -205,7 +199,8 @@ fh_descriptor_get_param
    const fh_descriptor_param* fh_descriptor_get_param(fh_descriptor* self)
 
 Gets read only parameter for the ``self`` descriptor. The ``fields``
-field will be NULL as it retrieved via different method
+field will be non NULL. Which lives as long ``fh_descriptor*`` still
+acquired (by ``descriptor_acquire``)
 
 Since
 =====

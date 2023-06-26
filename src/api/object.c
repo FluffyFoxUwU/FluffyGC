@@ -1,7 +1,11 @@
+#include "pre_code.h"
+
 #include <stdatomic.h>
 #include <string.h>
 
-#include "pre_code.h"
+#include "object/descriptor.h"
+#include "object/descriptor/array.h"
+#include "panic.h"
 
 #include "FluffyHeap.h"
 #include "concurrency/condition.h"
@@ -93,4 +97,36 @@ __FLUFFYHEAP_EXPORT bool fh_object_is_alias(__FLUFFYHEAP_NULLABLE(fh_object*) a,
   return ret;
 }
 
-__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NONNULL(fh_descriptor*) fh_object_get_descriptor(__FLUFFYHEAP_NONNULL(fh_object*) self);
+__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NONNULL(const fh_type_info*) fh_object_get_type_info(__FLUFFYHEAP_NONNULL(fh_object*) self) {
+  context_block_gc();
+  struct object* obj = atomic_load(&INTERN(self)->obj);
+  descriptor_acquire(obj->movePreserve.descriptor);
+  struct descriptor* desc = obj->movePreserve.descriptor;
+  context_unblock_gc();
+  return &desc->api.typeInfo;
+}
+
+__FLUFFYHEAP_EXPORT void fh_object_put_type_info(__FLUFFYHEAP_NONNULL(fh_object*) self, __FLUFFYHEAP_NONNULL(const fh_type_info*) typeInfo) {
+  context_block_gc();
+  struct object* obj = atomic_load(&INTERN(self)->obj);
+  switch (typeInfo->type) {
+    case FH_TYPE_NORMAL:
+      BUG_ON(obj->movePreserve.descriptor != INTERN(typeInfo->info.normal));
+      break;
+    case FH_TYPE_ARRAY:
+      BUG_ON(obj->movePreserve.descriptor != &container_of(typeInfo->info.refArray, struct array_descriptor, api.refArrayInfo)->super);
+      break;
+    case FH_TYPE_COUNT:
+      panic();
+  }
+  descriptor_release(obj->movePreserve.descriptor);
+  context_unblock_gc();
+}
+
+__FLUFFYHEAP_EXPORT fh_object_type fh_object_get_type(__FLUFFYHEAP_NONNULL(fh_object*) self) {
+  context_block_gc();
+  struct object* obj = atomic_load(&INTERN(self)->obj);
+  fh_object_type type = obj->movePreserve.descriptor->api.typeInfo.type;
+  context_unblock_gc();
+  return type;
+}

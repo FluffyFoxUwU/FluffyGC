@@ -7,6 +7,29 @@ Since
 *****
 Version 0.1
 
+Types
+#####
+
+.. code-block:: c
+
+   typedef enum {
+     FH_TYPE_NORMAL, /* Just ordinary object */
+     FH_TYPE_ARRAY,  /* Array type */
+   } fh_object_type;
+   
+   typedef struct {
+     size_t length;
+     fh_descriptor* elementType;
+   } fh_ref_array_info;
+   
+   typedef struct {
+     fh_object_type type;
+     union {
+       fh_descriptor* normal;
+       fh_ref_array_info* refArray;
+     } info;
+   } fh_type_info;
+
 Methods
 #######
 
@@ -33,7 +56,9 @@ Methods
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
 | void                 | fh_object_unlock(fh_object* self)                                                     | `fh_object_lock-and-fh_object_unlock`_   |
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| fh_descriptor*       | fh_object_get_descriptor(fh_object* self)                                             | `fh_object_get_descriptor`_              |
+| const fh_type_info*  | fh_object_get_type_info(fh_object* self)                                              | `fh_object_get_type_info`_               |
++----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
+| void                 | fh_object_put_type_info(fh_object* self, const fh_type_info* typeInfo)                | `fh_object_put_type_info`_               |
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
 | bool                 | fh_object_is_alias(@Nullable fh_object* a, @Nullable fh_object* b)                    | `fh_object_equals`_                      |
 +----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
@@ -188,19 +213,20 @@ Tags
 GC-Safepoint
 
 
-fh_object_get_descriptor
+fh_object_get_type_info
 ************************
 .. code-block:: c
 
-   fh_descriptor* fh_object_get_descriptor(fh_object* self)
+   const fh_type_info* fh_object_get_type_info(fh_object* self)
 
-Get descriptor for current object. The address returned is same
-for exactly same object type so only need pointer comparison.
-Descriptor return can be reused to create new instance (also
-works for arrays or anything describe-able by descriptor)
+Get type info for current object. The descriptor
+contained in the type info will remain valid as long
+the type info hasnt been put. To use
+any descriptor after the ``fh_object_put_type_info`` 
+program must acquire before put call. The type info must
+not be used in another context than the caller. This last
+cant last longer than the object itself
 
-Acquires the descriptor and need ``fh_release_descriptor``
-to release the descriptor.
 
 Since
 =====
@@ -210,8 +236,34 @@ Parameters
 ==========
   ``self`` - Current object to do operation on
 
+Reurn value
+===========
+The requested type info (must be returned by ``fh_object_put_type_info``  call)
+
 Tags
 ====
+GC-Safepoint
+
+fh_object_put_type_info
+***********************
+.. code-block:: c
+
+   void fh_object_put_type_info(fh_object* self, const fh_type_info* typeInfo)
+
+Release the associated resources (descriptor and other) and invalidate the typeinfo
+for future uses and must be called on same cotext as the initial get
+
+Since
+=====
+Version 0.1
+
+Parameters
+==========
+  ``self`` - Current object to do operation on
+  ``typeInfo`` - The type info got from ``fh_object_get_type_info``
+
+Tags
+=====
 GC-Safepoint
 
 fh_object_read_ref

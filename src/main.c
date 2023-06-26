@@ -113,6 +113,10 @@ int main2() {
     fh_object* readVal = fh_array_get_element(array, 0);
     printf("[Main] Array[0] is %ssame what just written\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
     
+    const fh_type_info* info = fh_object_get_type_info(FH_CAST_TO_OBJECT(array));
+    printf("[Main] Array is %zu has entries long\n", info->info.refArray->length);
+    fh_object_put_type_info(FH_CAST_TO_OBJECT(array), info);
+    
     fh_del_ref((fh_object*) array);
     fh_del_ref((fh_object*) readVal);
   }
