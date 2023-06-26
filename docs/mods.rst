@@ -84,21 +84,29 @@ code to care about header version.
    // Create heap with enabled or disabled DMA mod
    ...
 
+Other types
+***********
+.. code-block:: c
+
+   #define FH_MOD_WAS_ENABLED (1 << 31)
+
 Since
 *****
 Version 0.1
 
 Functions
 #########
-+--------------+----------------------------------------------------+-------------------+
-| Return Value | Function                                           | Link              |
-+==============+====================================================+===================+
-| int          | fh_enable_mod(enum fh_mod mod, unsigned int flags) | `fh_enable_mod`_  |
-+--------------+----------------------------------------------------+-------------------+
-| void         | fh_disable_mod(enum fh_mod mod)                    | `fh_disable_mod`_ |
-+--------------+----------------------------------------------------+-------------------+
-| bool         | fh_check_mod(enum fh_mod mod, unsigned int flags)  | `fh_check_mod`_   |
-+--------------+----------------------------------------------------+-------------------+
++--------------+------------------------------------------------+-------------------+
+| Return Value | Function                                       | Link              |
++==============+================================================+===================+
+| int          | fh_enable_mod(enum fh_mod mod, uint32_t flags) | `fh_enable_mod`_  |
++--------------+------------------------------------------------+-------------------+
+| void         | fh_disable_mod(enum fh_mod mod)                | `fh_disable_mod`_ |
++--------------+------------------------------------------------+-------------------+
+| bool         | fh_check_mod(enum fh_mod mod, uint32_t flags)  | `fh_check_mod`_   |
++--------------+------------------------------------------------+-------------------+
+| uint32_t     | fh_get_flags(enum fh_mod mod)                  | `fh_get_flags`_   |
++--------------+------------------------------------------------+-------------------+
 
 enum fh_mod
 ###########
@@ -122,6 +130,24 @@ A corresponding macro function ``FH_HAS_MOD(mod)`` expands to 1 if available.
    linked will has the mod usable (check `fh_check_mod`_ if the linked library
    supports the mod)
 
+Flags
+*****
+Topmost bit of the flags is reserved for ``fh_get_flags`` to indicate
+the mod is loaded and other bits is valid. If top bit is unset all other
+bits must unset so program can do to check without hassle of
+remembering it somewhere. Also allow reduction of if statements
+check into one bitwise AND operation and one comparison
+
+.. code-block:: c
+
+   if (fh_get_flags(FH_MOD_WHATEVER) & (FH_MOD_WAS_ENABLED | FH_WHATEVER_INTERESTING_FLAG)) {
+     // The mod was enabled and the interesting flag was set
+     // do something
+   } else {
+     // Either mod was disabled or the interesting flag was not set
+     // do something else entirely
+   }
+
 Since
 =====
 Version 0.1
@@ -133,7 +159,7 @@ fh_enable_mod
 *************
 .. code-block:: c
 
-   int fh_enable_mod(enum fh_mod mod, int flags)
+   int fh_enable_mod(enum fh_mod mod, uint32_t flags)
 
 Enable the corresponding ``mod``
 
@@ -151,7 +177,7 @@ Return value
 ============
 Zero indicate success
  * -EINVAL: Invalid flags and mod combination
- * -ENOSYS: Mod not found
+ * -ENODEV: Mod not found
  * -EBUSY: Mod already enabled (``flags`` not checked in this scenario)
 
 fh_disable_mod
@@ -191,3 +217,23 @@ Parameters
 Return value
 ============
 True if a ``mod`` and ``flags`` combination is available and usable.
+
+fh_get_flags
+************
+.. code-block:: c
+
+   uint32_t fh_get_flags(enum fh_mod mod)
+
+Gets flag which was set during fh_enable_mod call
+
+Since
+=====
+Version 0.1
+
+Parameters
+==========
+  ``mod`` - Corresponding mod to be checked. (See `enum fh_mod`_)
+
+Return value
+============
+The requested flags (check top most bit to see the flags is valid)

@@ -5,10 +5,10 @@
 
 #include "../FluffyHeap.h"
 
-#define FH_MOD_DMA_REFERENCES 0x0001
+#define FH_MOD_DMA_SAME_POINTER 0x0001
 
-__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(void*) fh_object_get_dma(__FLUFFYHEAP_NONNULL(fh_object*) self, size_t offset, size_t size);
-__FLUFFYHEAP_EXPORT void fh_object_put_dma(__FLUFFYHEAP_NONNULL(fh_object*) self, __FLUFFYHEAP_NONNULL(void*) dma);
+__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(void*) fh_object_map_dma(__FLUFFYHEAP_NONNULL(fh_object*) self, size_t offset, size_t size);
+__FLUFFYHEAP_EXPORT void fh_object_unmap_dma(__FLUFFYHEAP_NONNULL(fh_object*) self, __FLUFFYHEAP_NONNULL(void*) dma);
 
 #endif
 

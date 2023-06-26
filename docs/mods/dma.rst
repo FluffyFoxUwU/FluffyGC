@@ -10,11 +10,11 @@ Version 0.1
 
 Flags for this mod
 ##################
-+------------------------+--------+-----------------------------------+
-| Flags                  | Value  | Description                       |
-+========================+========+===================================+
-| FH_MOD_DMA_REFERENCES  | 0x0001 | Enable DMA access to references   |
-+------------------------+--------+-----------------------------------+
++-------------------------+--------+------------------------------------------------------------------------------------------+
+| Flags                   | Value  | Description                                                                              |
++=========================+========+==========================================================================================+
+| FH_MOD_DMA_SAME_POINTER | 0x0001 | Ensure the DMA pointer is shared with other instance (e.g. to allow atomic used in them) |
++-------------------------+--------+------------------------------------------------------------------------------------------+
 
 Access
 ######
@@ -47,10 +47,16 @@ fh_object_map_dma
    void* fh_object_map_dma(fh_object* self, size_t offset, size_t size)
 
 Maps a part of the object so it can be DMA accessed for the 
-whole program's address space. Pointer returned is unique 
+whole program's address space. Pointer returned maybe unique 
 i.e. consecutive calls return different pointers. Result of
 writing into DMA region may not immediately visible. Alignment
-for the pointer must follow what the descriptor say if possible
+for the pointer must follow what the descriptor says. Concurrent
+writes to same object via DMA behaviour is undefined and that mean
+concurrent usage of DMA pointer is undefine too as with concurrent
+read and write (both reference access and data access). Atomic
+operations within the mapped region is undefined as pointer returned
+may be different region hence the atomic may not work as intended
+unless ``FH_MOD_DMA_SAME_POINTER`` flag is specified
 
 .. tip::
    Implementations may return unique pointer for debug feature

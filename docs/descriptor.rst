@@ -67,6 +67,24 @@ Markers
 ``fox.fluffyheap.marker.Any`` - Essentially like ``void*`` program can assign any 
                                 object in field with this type
 
+Notes about fields
+******************
+Field must atomic like this (this the only constraint placed 
+on the program's structure to be used with fluffy heap)
+
+.. code-block:: c
+
+   struct list_node {
+     _Atomic(struct list_node*) next; // Like this and must be pointer to 
+     _Atomic(struct list_node*) prev; // the type the program wanted
+   };
+
+This placed to have foundation for whatever implementation
+which need atomic access to fields for their purpose same for
+arrays if implementation implements DMA (each element location
+in reference array is ``_Atomic`` specified which let the program
+to use atomic operations)
+
 Functions
 #########
 

@@ -128,9 +128,11 @@ enum fh_mod {
   FH_MOD_ROBUST   = 0x0002,
 };
 
-__FLUFFYHEAP_EXPORT int fh_enable_mod(enum fh_mod mod, int flags);
+#define FH_MOD_WAS_ENABLED (1 << 31)
+__FLUFFYHEAP_EXPORT int fh_enable_mod(enum fh_mod mod, uint32_t flags);
 __FLUFFYHEAP_EXPORT void fh_disable_mod(enum fh_mod mod);
-__FLUFFYHEAP_EXPORT bool fh_check_mod(enum fh_mod mod, int flags);
+__FLUFFYHEAP_EXPORT bool fh_check_mod(enum fh_mod mod, uint32_t flags);
+__FLUFFYHEAP_EXPORT uint32_t fh_get_flags(enum fh_mod mod);
 
 // Context stuff
 __FLUFFYHEAP_EXPORT int fh_set_current(__FLUFFYHEAP_NONNULL(fh_context*) context);

@@ -3,6 +3,10 @@
 
 The type which holds reference and allow access to the object
 
+.. warning::
+   As with pretty much any concurrent write/read in this globe, concurrent 
+   access with ``fh_object_(read|write)_(ref|data)`` is undefined
+
 Since
 *****
 Version 0.1
@@ -343,7 +347,9 @@ fh_init_synchronization_structs
 
    int fh_init_synchronization_structs(fh_object* self)
 
-Init synchronization related structures for use.
+Init synchronization related structures for use. Concurrent
+init is undefined because there no synchronization primiteves
+ready for use to synchronize the initialization
 
 Since
 =====
