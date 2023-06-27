@@ -128,7 +128,9 @@ fh_object_write_data
    void fh_object_write_data(fh_object* self, const void* buffer, size_t offset, size_t size)
 
 Write ``buffer`` content into ``[offset, offset + size)`` region. This
-is meaningless or useless on reference array
+is undefined on reference array. Data written must be considered that
+the data may move (as with moving GC implementation) so don't keep fixed
+pointer to it
 
 Since
 =====

@@ -10,11 +10,23 @@ Version 0.1
 
 Flags for this mod
 ##################
-+-------------------------+--------+------------------------------------------------------------------------------------------+
-| Flags                   | Value  | Description                                                                              |
-+=========================+========+==========================================================================================+
-| FH_MOD_DMA_SAME_POINTER | 0x0001 | Ensure the DMA pointer is shared with other instance (e.g. to allow atomic used in them) |
-+-------------------------+--------+------------------------------------------------------------------------------------------+
++------------------------+--------+------------------------------------------------------------------------------------------+
+| Flags                  | Value  | Description                                                                              |
++========================+========+==========================================================================================+
+| FH_MOD_DMA_NONBLOCKING | 0x0001 | Enable nonblocking DMA                                                                    |
++------------------------+--------+------------------------------------------------------------------------------------------+
+| FH_MOD_DMA_REFERENCES  | 0x0002 | Allow direct access to references                                                        |
++------------------------+--------+------------------------------------------------------------------------------------------+
+
+Types
+#####
+.. code-block:: c
+
+   #define FH_MOD_DMA_MAP_SAME_MEM 0x0001     // The DMA memory is shared with other mapping instance (e.g. to allow atomic used in them)
+   #define FH_MOD_DMA_MAP_NO_SYNC  0x0002     // The pointer given will not be able to sync (essentially taking
+                                              // taking snapshot and dont write back)
+   #define FH_MOD_DMA_MAP_NONBLOCKING 0x0004  // Allow as long mapping exist it won't block GC (fails if FH_MOD_DMA_NONBLOCKING not
+                                              // enabled at fh_enable time)
 
 Access
 ######
@@ -35,6 +47,8 @@ Methods (Extends ``fh_object*``)
 +--------------+----------------------------------------------------------------------------------+------------------------+
 | void         | fh_object_unmap_dma(fh_object* self, void* ptr)                                  | `fh_object_unmap_dma`_ |
 +--------------+----------------------------------------------------------------------------------+------------------------+
+| void         | fh_object_sync_dma(fh_object* self, void* ptr)                                   | `fh_object_sync_dma`_  |
++--------------+----------------------------------------------------------------------------------+------------------------+
 
 Function details
 ################
@@ -44,7 +58,7 @@ fh_object_map_dma
 .. code-block:: c
 
    @Nullable
-   void* fh_object_map_dma(fh_object* self, size_t offset, size_t size)
+   void* fh_object_map_dma(fh_object* self, size_t offset, size_t size, unsigned int mapFlags)
 
 Maps a part of the object so it can be DMA accessed for the 
 whole program's address space. Pointer returned maybe unique 
@@ -53,10 +67,44 @@ writing into DMA region may not immediately visible. Alignment
 for the pointer must follow what the descriptor says. Concurrent
 writes to same object via DMA behaviour is undefined and that mean
 concurrent usage of DMA pointer is undefine too as with concurrent
-read and write (both reference access and data access). Atomic
-operations within the mapped region is undefined as pointer returned
-may be different region hence the atomic may not work as intended
-unless ``FH_MOD_DMA_SAME_POINTER`` flag is specified
+read and write (both reference access and data access).
+
+Implementation may take snapshot and copy into special location which
+maybe out of date from the backing memory ``fh_object_(write|read)_sync_dma``
+is needed on both writer and reader
+
+Atomic operations within the mapped region is undefined as pointer returned
+may be different region (or even CoW protected) hence the atomic may
+not work as intended unless
+
+If ``FH_MOD_DMA_MAP_NO_SYNC`` and ``FH_MOD_DMA_MAP_SAME_MEM`` set, the pointer
+given is points to the storage used by object and every writes and read
+immediately appear to ``fh_object_(read|write)_(ref|data)`` without possibility
+of stale reads due writes not immediately visible as with ``FH_MOD_DMA_MAP_SAME_MEM``.
+If this used, ``FH_MOD_DMA_SYNC`` is not needed to ensure write immediately visible
+
+If ``FH_MOD_DMA_MAP_SAME_MEM`` set the backing storage for every mapping
+is logically the same but may return different pointer. Allows atomic operation
+inside the DMA region to be valid and writes and read visible to other concurrent
+context without unmap first and ``fh_object_sync_dma`` still needed
+to ensure synchronization with the backing storage if DMA sync disabled
+unmap is only guarantee way making it visible to ``fh_object_(read|write)_(ref|data)``
+After last DMA pointer unmapped.
+
+If ``FH_MOD_DMA_MAP_NO_SYNC`` set, the DMA pointer is read/write but wont be
+able to synchronize (useful if the caller dont care whether its out of date or
+not like write back)
+
+If ``FH_MOD_DMA_MAP_NONBLOCKING`` set, as long the mapping exist it wont
+block GC
+
+.. tip::
+   ``FH_MOD_DMA_MAP_NO_SYNC | FH_MOD_DMA_MAP_NONBLOCKING`` useful combination
+    if program does large copy which doesnt matter whether its out of date or not
+
+And last note the pointer must not be used in another context (any OS thread
+is ok but must preserve the context) and also this atomically may create copy
+if ``FH_MOD_DMA_MAP_NO_SYNC`` unset to support synchronization
 
 .. tip::
    Implementations may return unique pointer for debug feature
@@ -64,8 +112,8 @@ unless ``FH_MOD_DMA_SAME_POINTER`` flag is specified
    due internal memory layout
 
 .. note::
-   GC maybe blocked until the pointer returned.
-   Unless ``FH_MOD_DMA_NONBLOCKING`` flag is set
+   GC maybe blocked until the pointer unmapped.
+   Unless ``FH_MOD_DMA_NONBLOCKING`` flag is set and ``FH_MOD_DMA_MAP_NONBLOCKING`` given
 
 .. warning::
    This does **NOT** allow any access to references inside
@@ -99,7 +147,11 @@ fh_object_unmap_dma
 
 Invalidate the ``dma`` pointer. ``dma`` pointer after
 this call considered to be free'd and must not be reused.
-Writes that happen before this will be stored into object
+If ``FH_MOD_DMA_SYNC`` enabled, implicit write synchronization
+occur (which synchronizes writes back before unmapping) else
+its only writes what changed
+
+If ``FH_MOD_DMA_MAP_NO_SYNC`` set no write back occurs
 
 Since
 =====
