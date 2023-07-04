@@ -51,6 +51,8 @@ enum fh_02261b19_abfa_4c90_93e2_c9887232e2ae {
 
 struct fh_89fe10c0_cf25_435b_b5a3_96e5e1e5ac98 {
   fh_gc_hint hint;
+  uint32_t flags;
+  
   size_t generationCount;
   __FLUFFYHEAP_NONNULL(size_t*) generationSizes;
 };
@@ -116,7 +118,7 @@ __FLUFFYHEAP_EXPORT void fh_free(__FLUFFYHEAP_NONNULL(fluffyheap*) self);
 __FLUFFYHEAP_EXPORT int fh_attach_thread(__FLUFFYHEAP_NONNULL(fluffyheap*) self);
 __FLUFFYHEAP_EXPORT void fh_detach_thread(__FLUFFYHEAP_NONNULL(fluffyheap*) self);
 
-__FLUFFYHEAP_EXPORT int fh_get_generation_count(fh_gc_hint hint);
+__FLUFFYHEAP_EXPORT int fh_get_generation_count(__FLUFFYHEAP_NONNULL(fh_param*) param);
 
 __FLUFFYHEAP_EXPORT void fh_set_descriptor_loader(__FLUFFYHEAP_NONNULL(fluffyheap*) self, __FLUFFYHEAP_NULLABLE(fh_descriptor_loader) loader);
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor_loader) fh_get_descriptor_loader(__FLUFFYHEAP_NONNULL(fluffyheap*) self);
@@ -125,7 +127,8 @@ __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor_loader) fh_get_descripto
 enum fh_mod {
   FH_MOD_UNKNOWN  = 0x0000,
   FH_MOD_DMA      = 0x0001,
-  FH_MOD_ROBUST   = 0x0002,
+  FH_MOD_DEBUG    = 0x0002,
+  FH_MOD_DMA_SYNC = 0x0003
 };
 
 #define FH_MOD_WAS_ENABLED (1 << 31)
@@ -155,7 +158,7 @@ __FLUFFYHEAP_EXPORT void fh_object_write_data(__FLUFFYHEAP_NONNULL(fh_object*) s
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_object*) fh_object_read_ref(__FLUFFYHEAP_NONNULL(fh_object*) self, size_t offset);
 __FLUFFYHEAP_EXPORT void fh_object_write_ref(__FLUFFYHEAP_NONNULL(fh_object*) self, size_t offset, __FLUFFYHEAP_NULLABLE(fh_object*) data);
 
-__FLUFFYHEAP_EXPORT int fh_init_synchronization_structs(__FLUFFYHEAP_NONNULL(fh_object*) self);
+__FLUFFYHEAP_EXPORT int fh_object_init_synchronization_structs(__FLUFFYHEAP_NONNULL(fh_object*) self);
 __FLUFFYHEAP_EXPORT void fh_object_wait(__FLUFFYHEAP_NONNULL(fh_object*) self, __FLUFFYHEAP_NULLABLE(const struct timespec*) timeout);
 __FLUFFYHEAP_EXPORT void fh_object_wake(__FLUFFYHEAP_NONNULL(fh_object*) self);
 __FLUFFYHEAP_EXPORT void fh_object_wake_all(__FLUFFYHEAP_NONNULL(fh_object*) self);

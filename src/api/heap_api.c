@@ -7,6 +7,7 @@
 #include "gc/gc_flags.h"
 #include "managed_heap.h"
 #include "FluffyHeap.h"
+#include "util/util.h"
 
 struct mapping {
   enum gc_algorithm algo;
@@ -20,6 +21,9 @@ static struct mapping gcMapping[GC_COUNT] = {
 };
 
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fluffyheap*) fh_new(__FLUFFYHEAP_NONNULL(fh_param*) incomingParams) {
+  if (incomingParams->hint >= ARRAY_SIZE(gcMapping))
+    return NULL;
+  
   struct mapping mapping = gcMapping[incomingParams->hint];
   struct generation_params params[incomingParams->generationCount] = {};
   for (int i = 0; i < incomingParams->generationCount; i++) {
@@ -45,8 +49,10 @@ __FLUFFYHEAP_EXPORT void fh_detach_thread(__FLUFFYHEAP_NONNULL(fluffyheap*) self
   managed_heap_detach_thread(INTERN(self));
 }
 
-__FLUFFYHEAP_EXPORT int fh_get_generation_count(fh_gc_hint hint) {
-  return gc_generation_count(gcMapping[hint].algo, gcMapping[hint].flags);
+__FLUFFYHEAP_EXPORT int fh_get_generation_count(__FLUFFYHEAP_NONNULL(fh_param*) param) {
+  if (param->hint >= ARRAY_SIZE(gcMapping))
+    return -EINVAL;
+  return gc_generation_count(gcMapping[param->hint].algo, gcMapping[param->hint].flags);
 }
 
 __FLUFFYHEAP_EXPORT void fh_set_descriptor_loader(__FLUFFYHEAP_NONNULL(fluffyheap*) self, __FLUFFYHEAP_NULLABLE(fh_descriptor_loader) loader) {

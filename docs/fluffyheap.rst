@@ -42,6 +42,7 @@ be called on heap destruction
 
    typedef struct {
      enum fh_gc_hint hint;
+     uint32_t flags;
      
      // Generation count with GC hint is not specified
      // use ``fh_get_generation_count`` to retrieve count
@@ -49,13 +50,24 @@ be called on heap destruction
      size_t generationSizes[];
    } fh_param;
 
+Heap flags
+##########
+
++-------------------+--------+--------------------------------------------------------------------------+
+| Bitfield name     | Number | Purpose                                                                  |
++===================+========+==========================================================================+
+| FH_HEAP_LOW_POWER | 0x01   | Hint that the app need low power algorithmn (in combination to GC hints) |
++-------------------+--------+--------------------------------------------------------------------------+
+| FH_HEAP_LOW_LOAD  | 0x02   | Hint that the algorithmn should be not resource intensive                |
++-------------------+--------+--------------------------------------------------------------------------+
+
 Functions
 #########
-+--------------+-----------------------------------------------+----------------------------+
-| Return value | Function name                                 | Link                       |
-+==============+===============================================+============================+
-| int          | fh_get_generation_count(enum fh_gc_hint hint) | `fh_get_generation_count`_ |
-+--------------+-----------------------------------------------+----------------------------+
++--------------+-------------------------------------------+----------------------------+
+| Return value | Function name                             | Link                       |
++==============+===========================================+============================+
+| int          | fh_get_generation_count(fh_param* param1) | `fh_get_generation_count`_ |
++--------------+-------------------------------------------+----------------------------+
 
 Methods
 #######
@@ -107,13 +119,10 @@ fh_get_generation_count
 ***********************
 .. code-block:: c
 
-   @Nonzero
-   @Positive
    @ConstantResult
-   int fh_get_generation_count(enum fh_gc_hint hint)
+   int fh_get_generation_count(fh_param* param)
 
-Get amount of generation required for specific hint
-and must not fail.
+Get amount of generation required for specific param
 
 Since
 =====
@@ -121,11 +130,13 @@ Version 0.1
 
 Parameters
 ==========
-  ``hint`` - Hint for which the generation count be retrieved from
+  ``param`` - Combination of parameter to check
 
 Return value
 ============
-Return number of generations. Constant result for same parameter
+Return number of generations. Must be same result for same parameter
+Errors:
+  ``-EINVAL`` - Invalid parameter (if this returned its 100% wont be accepted by `fh_new`_)
 
 Method Details
 ##############

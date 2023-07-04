@@ -37,37 +37,37 @@ Types
 Methods
 #######
 
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| Return value         | Method name                                                                           | Link                                     |
-+======================+=======================================================================================+==========================================+
-| void                 | fh_object_read_data(fh_object* self, void* buffer, size_t offset, size_t size)        | `fh_object_read_data`_                   |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| void                 | fh_object_write_data(fh_object* self, const void* buffer, size_t offset, size_t size) | `fh_object_write_data`_                  |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| @Nullable fh_object* | fh_object_read_ref(fh_object* self, size_t offset)                                    | `fh_object_read_ref`_                    |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| void                 | fh_object_write_ref(fh_object* self, size_t offset, @Nullable fh_object* data)        | `fh_object_write_ref`_                   |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| int                  | fh_init_synchronization_structs(fh_object* self)                                      | `fh_init_synchronization_structs`_       |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| void                 | fh_object_wait(fh_object* self, @Nullable const struct timespec* timeout)             | `fh_object_wait`_                        |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| void                 | fh_object_wake(fh_object* self)                                                       | `fh_object_wake-and-fh_object_wake_all`_ |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| void                 | fh_object_wake_all(fh_object* self)                                                   | `fh_object_wake-and-fh_object_wake_all`_ |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| void                 | fh_object_lock(fh_object* self)                                                       | `fh_object_lock-and-fh_object_unlock`_   |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| void                 | fh_object_unlock(fh_object* self)                                                     | `fh_object_lock-and-fh_object_unlock`_   |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| const fh_type_info*  | fh_object_get_type_info(fh_object* self)                                              | `fh_object_get_type_info`_               |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| void                 | fh_object_put_type_info(fh_object* self, const fh_type_info* typeInfo)                | `fh_object_put_type_info`_               |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| bool                 | fh_object_is_alias(@Nullable fh_object* a, @Nullable fh_object* b)                    | `fh_object_equals`_                      |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
-| enum fh_object_type  | fh_object_get_type(fh_object* self)                                                   | `fh_object_get_type`_                    |
-+----------------------+---------------------------------------------------------------------------------------+------------------------------------------+
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| Return value         | Method name                                                                           | Link                                      |
++======================+=======================================================================================+===========================================+
+| void                 | fh_object_read_data(fh_object* self, void* buffer, size_t offset, size_t size)        | `fh_object_read_data`_                    |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| void                 | fh_object_write_data(fh_object* self, const void* buffer, size_t offset, size_t size) | `fh_object_write_data`_                   |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| @Nullable fh_object* | fh_object_read_ref(fh_object* self, size_t offset)                                    | `fh_object_read_ref`_                     |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| void                 | fh_object_write_ref(fh_object* self, size_t offset, @Nullable fh_object* data)        | `fh_object_write_ref`_                    |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| int                  | fh_object_init_synchronization_structs(fh_object* self)                               | `fh_object_init_synchronization_structs`_ |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| void                 | fh_object_wait(fh_object* self, @Nullable const struct timespec* timeout)             | `fh_object_wait`_                         |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| void                 | fh_object_wake(fh_object* self)                                                       | `fh_object_wake-and-fh_object_wake_all`_  |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| void                 | fh_object_wake_all(fh_object* self)                                                   | `fh_object_wake-and-fh_object_wake_all`_  |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| void                 | fh_object_lock(fh_object* self)                                                       | `fh_object_lock-and-fh_object_unlock`_    |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| void                 | fh_object_unlock(fh_object* self)                                                     | `fh_object_lock-and-fh_object_unlock`_    |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| const fh_type_info*  | fh_object_get_type_info(fh_object* self)                                              | `fh_object_get_type_info`_                |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| void                 | fh_object_put_type_info(fh_object* self, const fh_type_info* typeInfo)                | `fh_object_put_type_info`_                |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| bool                 | fh_object_is_alias(@Nullable fh_object* a, @Nullable fh_object* b)                    | `fh_object_equals`_                       |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
+| enum fh_object_type  | fh_object_get_type(fh_object* self)                                                   | `fh_object_get_type`_                     |
++----------------------+---------------------------------------------------------------------------------------+-------------------------------------------+
 
 Constructor detail
 #####################
@@ -155,7 +155,7 @@ fh_object_wait
 
 Wait until object is notified. The object must be already
 locked for this to be valid call. 
-Must init with ``fh_init_synchronization_structs`` before calling this
+Must init with ``fh_object_init_synchronization_structs`` before calling this
 
 Since
 =====
@@ -181,7 +181,7 @@ fh_object_wake and fh_object_wake_all
 
 Wake thread waiting on ``self`` (incase of 
 ``fh_object_wake_all`` wake all threads)
-Must init with ``fh_init_synchronization_structs`` before calling this
+Must init with ``fh_object_init_synchronization_structs`` before calling this
 
 Tags
 ====
@@ -204,7 +204,7 @@ fh_object_lock and fh_object_unlock
    void fh_object_unlock(fh_object* self);
 
 Lock the object and unlock the object. Must init with
-``fh_init_synchronization_structs`` before calling this
+``fh_object_init_synchronization_structs`` before calling this
 
 Since
 =====
@@ -343,11 +343,11 @@ Tags
 ====
 GC-Safepoint
 
-fh_init_synchronization_structs
+fh_object_init_synchronization_structs
 *******************************
 .. code-block:: c
 
-   int fh_init_synchronization_structs(fh_object* self)
+   int fh_object_init_synchronization_structs(fh_object* self)
 
 Init synchronization related structures for use. Concurrent
 init is undefined because there no synchronization primiteves

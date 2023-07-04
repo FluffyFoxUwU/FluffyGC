@@ -44,7 +44,7 @@ __FLUFFYHEAP_EXPORT void fh_object_write_ref(__FLUFFYHEAP_NONNULL(fh_object*) se
   context_unblock_gc();
 }
 
-__FLUFFYHEAP_EXPORT int fh_init_synchronization_structs(__FLUFFYHEAP_NONNULL(fh_object*) self) {
+__FLUFFYHEAP_EXPORT int fh_object_init_synchronization_structs(__FLUFFYHEAP_NONNULL(fh_object*) self) {
   context_block_gc();
   int ret = object_init_synchronization_structs(atomic_load(&INTERN(self)->obj));
   context_unblock_gc();
