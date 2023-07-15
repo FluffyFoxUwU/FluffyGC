@@ -48,6 +48,7 @@ set(BUILD_SOURCES
   src/api/type_registry.c
   src/api/api.c
   src/api/array.c
+  src/api/mods/mods.c
   
   deps/list/list_node.c
   deps/list/list.c
@@ -84,7 +85,6 @@ set(BUILD_EXE_SOURCES
 # If this a library
 set(BUILD_PUBLIC_HEADERS
   include/FluffyHeap.h
-  include/mods/dma.h
 )
 
 set(BUILD_PROTOBUF_FILES
@@ -119,10 +119,23 @@ macro(PostConfigurationLoad)
   
   if (DEFINED CONFIG_FUZZ_SOC)
     list(APPEND BUILD_EXE_SOURCES "./src/fuzzing/fuzzing_soc.c")
-  elseif (DEFINED CONFIG_FUZZ_HEAP)
+  endif()
+  
+  if (DEFINED CONFIG_FUZZ_HEAP)
     list(APPEND BUILD_EXE_SOURCES "./src/fuzzing/fuzzing_heap.c")
-  elseif (DEFINED CONFIG_FUZZ_ROOT_REFS)
+  endif()
+  
+  if (DEFINED CONFIG_FUZZ_ROOT_REFS)
     list(APPEND BUILD_EXE_SOURCES "./src/fuzzing/fuzzing_root_refs.c")
+  endif()
+  
+  if (DEFINED CONFIG_MOD_DMA_NATIVE)
+    list(APPEND BUILD_SOURCES "./src/api/mods/dma_native.c")
+  endif()
+  
+  if (DEFINED CONFIG_MOD_DMA)
+    list(APPEND BUILD_PUBLIC_HEADERS "./include/mods/dma.h")
+    list(APPEND BUILD_SOURCES "./src/api/mods/dma_common.c")
   endif()
 endmacro()
 

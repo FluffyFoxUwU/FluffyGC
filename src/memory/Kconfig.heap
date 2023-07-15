@@ -4,8 +4,22 @@ menu "Heap allocator"
     default y if MEMORY_DEBUG
     help
       Use system malloc to allow ASAN to catch heap access error
+      or if system malloc faster than custom implementation
       
       If in doubt, answer N
+  
+  config HEAP_OPTIMIZE_DATA_MOVE
+    bool "Optimize move"
+    default y if !MEMORY_DEBUG
+    depends on HEAP_USE_MALLOC
+    select GC_UNMOVEABLE_DATA
+    help
+      Optimize move so that move consist only moving data pointer
+      instead actually do the copy.
+      
+      May hinder debugging if enabled as raw pointer to dead object
+      still points to valid data
+  
   choice
     prompt "Free block finder type"
     depends on !HEAP_USE_MALLOC

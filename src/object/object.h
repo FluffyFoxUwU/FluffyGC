@@ -20,6 +20,7 @@ enum reference_strength {
 };
 
 // Use this for pointers which points to user data
+// equivalent to fh_dma_ptr (the ptr must be the first entry)
 struct userptr {
   void address_heap* ptr;
 };

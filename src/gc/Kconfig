@@ -1,7 +1,6 @@
 menu "GC"
-  config GC_COMPACTING
-    bool "Enable heap compaction"
-    depends on !HEAP_USE_MALLOC
+  config GC_UNMOVEABLE_DATA
+    def_bool n
   
   config GC_SEPERATE_THREAD
     bool "Seperate GC thread"

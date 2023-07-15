@@ -71,11 +71,11 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
   if (!(self->api.registry = type_registry_new()))
     goto failure;
   
+  int ret = 0;
   managed_heap_push_states(self, NULL);
-  self->gcState = gc_new(algo, gcFlags);
+  ret = api_init();
   managed_heap_pop_states();
-  
-  if (!self->gcState)
+  if (ret < 0)
     goto failure;
   
   for (int i = 0; i < generationCount; i++) {
@@ -85,13 +85,14 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
     self->generationCount++;
   }
   
-  int ret = 0;
+  // GC is heavier to initialize, make sure its 
+  // placed at the last
   managed_heap_push_states(self, NULL);
-  ret = api_init();
+  self->gcState = gc_new(algo, gcFlags);
   managed_heap_pop_states();
-  
-  if (ret < 0)
+  if (!self->gcState)
     goto failure;
+  
   return self;
 failure:
   managed_heap_free(self);
@@ -105,22 +106,23 @@ void managed_heap_free(struct managed_heap* self) {
   BUG_ON(managed_heap_current || context_current || gc_current);
   
   managed_heap_push_states(self, NULL);
-  api_cleanup();
   
   mutex_lock(&self->contextTrackerLock);
   // There is contexts!!
   BUG_ON(self->contextCount > 0);
   mutex_unlock(&self->contextTrackerLock);
   
+  gc_free(self->gcState);
+  
   for (int i = 0; i < self->generationCount; i++)
     freeGeneration(self, &self->generations[i]);
-  
-  gc_free(self->gcState);
   
   struct list_head* current;
   struct list_head* next;
   list_for_each_safe(current, next, &self->descriptorList)
     descriptor_free(list_entry(current, struct descriptor, list));
+  
+  api_cleanup();
   
   type_registry_free(self->api.registry);
   mutex_cleanup(&self->contextTrackerLock);

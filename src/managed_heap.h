@@ -21,6 +21,7 @@ struct context;
 struct heap;
 struct gc_struct;
 struct object;
+struct api_state;
 enum gc_algorithm;
 
 struct generation_params {
@@ -57,6 +58,7 @@ struct managed_heap {
     fh_descriptor_loader descriptorLoader;
     
     struct type_registry* registry;
+    struct api_state* state;
   } api;
   
   struct list_head descriptorList;

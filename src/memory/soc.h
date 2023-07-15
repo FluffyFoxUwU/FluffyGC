@@ -9,9 +9,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "bitops.h"
 #include "util/list_head.h"
-#include "vec.h"
 #include "util/util.h"
 
 // 4 KiB chunk each
@@ -53,8 +51,8 @@ struct small_object_cache* soc_new(size_t alignment, size_t objectSize, int prea
 #define __SOC_CALC_ALIGNMENT(alignment) MAX(alignof(struct soc_free_node), (alignment))
 #define __SOC_CALC_CHUNK_SIZE(chunkSize, alignment) ROUND_UP((chunkSize), __SOC_CALC_ALIGNMENT((alignment)))
 #define __SOC_CALC_OBJECT_SIZE(objectSize, alignment) ROUND_UP(MAX((objectSize), SOC_MIN_OBJECT_SIZE), __SOC_CALC_ALIGNMENT((alignment)))
-#define SOC_DEFINE_ADVANCED(_name, _chunkSize, _alignment, _objectSize) \
-  struct small_object_cache ___ ## _name = (struct small_object_cache) { \
+#define __SOC_DEFINE_ADVANCED(_MEOOOW_UWU, _name, _chunkSize, _alignment, _objectSize) \
+  static struct small_object_cache ___ ## _name = (struct small_object_cache) { \
     .isStatic = true, \
     .alignment = __SOC_CALC_ALIGNMENT((_alignment)), \
     .objectSize = __SOC_CALC_OBJECT_SIZE((_objectSize), (_alignment)), \
@@ -62,8 +60,15 @@ struct small_object_cache* soc_new(size_t alignment, size_t objectSize, int prea
     .fullChunksList = LIST_HEAD_INIT(___ ## _name.fullChunksList), \
     .partialChunksList = LIST_HEAD_INIT(___ ## _name.partialChunksList), \
   }; static_assert(__SOC_CALC_CHUNK_SIZE((_chunkSize), (_alignment)) / __SOC_CALC_OBJECT_SIZE((_objectSize), (_alignment)) >= SOC_MIN_OBJECT_COUNT); \
-  struct small_object_cache* const _name = &___ ## _name;
-#define SOC_DEFINE(_name, _chunkSize, _type) SOC_DEFINE_ADVANCED(_name, _chunkSize, alignof(_type), sizeof(_type))
+  _MEOOOW_UWU small_object_cache* const _name = &___ ## _name
+#define __SOC_DEFINE(_MEOOOW_UWU, _name, _chunkSize, _type) __SOC_DEFINE_ADVANCED(_MEOOOW_UWU, _name, _chunkSize, alignof(_type), sizeof(_type))
+
+#define SOC_DEFINE(_name, _chunkSize, _type) __SOC_DEFINE(struct, _name, _chunkSize, _type)
+#define SOC_DEFINE_ADVANCED(_name, _chunkSize, _alignment, _objectSize) __SOC_DEFINE_ADVANCED(struct, _name, _chunkSize, _alignment, _objectSize)
+#define SOC_DEFINE_STATIC(_name, _chunkSize, _type) __SOC_DEFINE(static struct, _name, _chunkSize, _type)
+#define SOC_DEFINE_STATIC_ADVANCED(_name, _chunkSize, _alignment, _objectSize) __SOC_DEFINE_ADVANCED(static struct, _name, _chunkSize, _alignment, _objectSize)
+
+#define SOC_DECLARE(_name, _type) extern struct small_object_cache* const _name
 
 void* soc_alloc(struct small_object_cache* self);
 void soc_dealloc(struct small_object_cache* self, void* ptr);

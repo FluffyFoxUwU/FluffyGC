@@ -49,6 +49,9 @@ enum fh_02261b19_abfa_4c90_93e2_c9887232e2ae {
   FH_GC_COUNT
 };
 
+#define FH_HEAP_LOW_POWER 0x0001
+#define FH_HEAP_LOW_LOAD  0x0002
+
 struct fh_89fe10c0_cf25_435b_b5a3_96e5e1e5ac98 {
   fh_gc_hint hint;
   uint32_t flags;
@@ -128,10 +131,11 @@ enum fh_mod {
   FH_MOD_UNKNOWN  = 0x0000,
   FH_MOD_DMA      = 0x0001,
   FH_MOD_DEBUG    = 0x0002,
-  FH_MOD_DMA_SYNC = 0x0003
+  FH_MOD_COUNT
 };
 
 #define FH_MOD_WAS_ENABLED (1 << 31)
+
 __FLUFFYHEAP_EXPORT int fh_enable_mod(enum fh_mod mod, uint32_t flags);
 __FLUFFYHEAP_EXPORT void fh_disable_mod(enum fh_mod mod);
 __FLUFFYHEAP_EXPORT bool fh_check_mod(enum fh_mod mod, uint32_t flags);

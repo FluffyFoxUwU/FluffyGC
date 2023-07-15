@@ -5,6 +5,7 @@
 
 #include "FluffyHeap.h"
 #include "bug.h"
+#include "mods/dma.h"
 
 struct test_type2 {
   int im;
@@ -49,6 +50,13 @@ int main2() {
     .generationSizes = sizes
   };
   
+  int ret = fh_enable_mod(FH_MOD_DMA, FH_MOD_DMA_ATOMIC | FH_MOD_DMA_NONBLOCKING);
+  if (ret < 0) {
+    errno = -ret;
+    perror("fh_enable_mod");
+    return EXIT_FAILURE;
+  }
+  
   fluffyheap* heap = fh_new(&param);
   BUG_ON(!heap);
   
@@ -85,9 +93,9 @@ int main2() {
   
   fh_define_descriptor("fox.fluffygc.Fluff", &descParam, false);
   //fh_define_descriptor("fox.fluffygc.Test2", &descParam2, false);
-  fh_descriptor* desc = fh_get_descriptor("fox.fluffygc.Fluff", false);
+  fh_descriptor* fluffDesc = fh_get_descriptor("fox.fluffygc.Fluff", false);
   
-  fh_object* obj = fh_alloc_object(desc);
+  fh_object* obj = fh_alloc_object(fluffDesc);
   
   // Object test
   {
@@ -108,7 +116,7 @@ int main2() {
   
   // Array test
   {
-    fh_array* array = fh_alloc_array(desc, 5);
+    fh_array* array = fh_alloc_array(fluffDesc, 5);
     fh_array_set_element(array, 0, obj);
     fh_object* readVal = fh_array_get_element(array, 0);
     printf("[Main] Array[0] is %ssame what just written\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
@@ -122,7 +130,22 @@ int main2() {
   }
   
   fh_del_ref(obj);
-  fh_release_descriptor(desc);
+  fh_release_descriptor(fluffDesc);
+  
+  // DMA Test
+  {
+    fh_object* obj = fh_alloc_object(fluffDesc);
+    fh_dma_ptr* mapped = fh_object_map_dma(obj, 0, 0, 0, FH_MOD_DMA_ACCESS_RW);
+    
+    struct fluff* mappedPtr = mapped->ptr;
+    mappedPtr->cute = 0x8739;
+    
+    fh_object_unmap_dma(obj, mapped);
+    long long result;
+    fh_object_read_data(obj, &result, offsetof(struct fluff, cute), sizeof(result));
+    printf("UwU Result 0x%llx\n", result);
+    fh_del_ref(obj);
+  }
   
   // Cleaning up
   fh_detach_thread(heap);

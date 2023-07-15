@@ -8,7 +8,7 @@
 #include "memory/soc.h"
 #include "util/util.h"
 
-SOC_DEFINE_ADVANCED(nodesCache, SOC_DEFAULT_CHUNK_SIZE, alignof(struct btree_node), sizeof(struct btree_node))
+SOC_DEFINE_STATIC_ADVANCED(nodesCache, SOC_DEFAULT_CHUNK_SIZE, alignof(struct btree_node), sizeof(struct btree_node));
 
 static bool isOverlapping(struct btree_range* range, uintptr_t val) {
   return range->low <= val && range->high >= val;

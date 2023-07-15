@@ -122,8 +122,6 @@ reserved for standard the rest is implementation detail
 +--------------------+--------+------------------------------------------------------------------------------------------------------------------+----------------------+
 | ``FH_MOD_DEBUG``   | 0x0002 | Enables more checks on various stuffs as many as fox could think of (implementation defined for what is checked) |                      |
 +--------------------+--------+------------------------------------------------------------------------------------------------------------------+----------------------+
-| ``FH_MOD_DMA_SYNC  | 0x0003 | Synchronization for DMA                                                                                          | :doc:`mods/dma_sync` |
-+--------------------+--------+------------------------------------------------------------------------------------------------------------------+----------------------+
 
 A corresponding macro function ``FH_HAS_MOD(mod)`` expands to 1 if available.
 

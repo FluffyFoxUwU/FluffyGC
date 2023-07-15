@@ -1,0 +1,9 @@
+menu "Mods"
+  config MOD_DMA
+    bool "Enable DMA mod"
+    default n
+  
+  if MOD_DMA
+    source "src/api/mods/Kconfig.dma"
+  endif
+endmenu

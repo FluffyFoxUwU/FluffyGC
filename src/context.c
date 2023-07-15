@@ -17,7 +17,7 @@
 
 thread_local struct context* context_current = NULL;
 
-SOC_DEFINE(listNodeCache, SOC_DEFAULT_CHUNK_SIZE, struct root_ref)
+SOC_DEFINE(listNodeCache, SOC_DEFAULT_CHUNK_SIZE, struct root_ref);
 
 struct context* context_new() {
   struct context* self = malloc(sizeof(*self)); 

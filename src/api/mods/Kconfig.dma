@@ -1,0 +1,19 @@
+
+choice
+  prompt "DMA Flavour"
+  default MOD_DMA_NATIVE if GC_UNMOVEABLE_DATA
+  
+  config MOD_DMA_NATIVE
+    bool "Native"
+    depends on GC_UNMOVEABLE_DATA
+    help
+      Fastest implementation of DMA mod by actually direct access
+      this should be used in production
+  
+  # Unavailable yet
+  #config MOD_DMA_EMULATED
+  #  bool "Emulated"
+  #  help
+  #    Slower implementation of DMA mod by using intermediate
+  #    buffer. Works with any configuration
+endchoice

@@ -1,6 +1,11 @@
 #ifndef _headers_1687155697_FluffyGC_api
 #define _headers_1687155697_FluffyGC_api
 
+#include "FluffyHeap.h"
+#include "api/mods/mods.h"
+
+struct api_mod_state;
+
 int api_init();
 void api_cleanup();
 
@@ -18,6 +23,11 @@ void api_cleanup();
   struct context*: (fh_context*) (c), \
   struct descriptor*: (fh_descriptor*) (c) \
 )
+
+struct api_state {
+  struct api_mod_state modStates[FH_MOD_COUNT];
+  int initCounts;
+};
 
 #endif
 
