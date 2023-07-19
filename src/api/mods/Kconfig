@@ -6,4 +6,9 @@ menu "Mods"
   if MOD_DMA
     source "src/api/mods/Kconfig.dma"
   endif
+  
+  config MOD_DEBUG
+    bool "Enable Debug mod"
+    default n
+    select HOOK
 endmenu

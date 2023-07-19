@@ -50,6 +50,9 @@ source "src/fuzzing/Kconfig"
 source "src/gc/Kconfig"
 source "src/api/mods/Kconfig"
 
+config HOOK
+  def_bool n
+
 config DONT_START_SEPERATE_MAIN_THREAD
   bool "Don't start seperate main thread"
   default n

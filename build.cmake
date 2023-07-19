@@ -137,5 +137,13 @@ macro(PostConfigurationLoad)
     list(APPEND BUILD_PUBLIC_HEADERS "./include/mods/dma.h")
     list(APPEND BUILD_SOURCES "./src/api/mods/dma_common.c")
   endif()
+  
+  if (DEFINED CONFIG_MOD_DEBUG)
+    list(APPEND BUILD_SOURCES "./src/api/mods/debug.c")
+  endif()
+  
+  if (DEFINED CONFIG_HOOK)
+    list(APPEND BUILD_SOURCES "./src/hook/hook.c")
+  endif()
 endmacro()
 

@@ -3,6 +3,8 @@
 
 #include "attributes.h"
 
+// Address into heap which must not be accessed
+// by derefenrencing
 #define address_heap ATTRIBUTE_ADDRESS_SPACE(0x0001)
 
 #endif

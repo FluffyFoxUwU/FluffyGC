@@ -5,6 +5,7 @@
 
 #include "FluffyHeap.h"
 #include "bug.h"
+#include "hook/hook.h"
 #include "mods/dma.h"
 
 struct test_type2 {
@@ -39,7 +40,64 @@ static int loader(const char* name, void* udata, fh_descriptor_param* param) {
   return -ESRCH;
 }
 
+HOOK_TARGET(int, foo, int, arg1, int, arg2) {
+  printf("foo: Real one called returning %d\n", arg1 * arg2);
+  return arg1 * arg2;
+}
+
+HOOK_FUNCTION(static, int, foo_hook_head, int, arg1, int, arg2) {
+  printf("foo_head: I'm called before\n");
+  ci->action = HOOK_CONTINUE;
+  return 0;
+}
+
+HOOK_FUNCTION(static, int, foo_hook_tail, int, arg1, int, arg2) {
+  printf("foo_tail: I'm called after\n");
+  ci->action = HOOK_CONTINUE;
+  return 0;
+}
+
+HOOK_FUNCTION(static, int, foo_hook_invoke, int, arg1, int, arg2) {
+  printf("foo_invoke: I'm taking control!\n");
+  ci->action = HOOK_CONTINUE;
+  return 8086;
+}
+
 int main2() {
+  if (hook_init() < 0) {
+    puts("Hook_init failed");
+    goto hook_init_fail;
+  }
+  
+  if (hook_register(foo, HOOK_HEAD, foo_hook_head) < 0) {
+    puts("Head register failed");
+    goto head_registration_fail;
+    
+  }
+  
+  if (hook_register(foo, HOOK_TAIL, foo_hook_tail) < 0) {
+    puts("Tail register failed");
+    goto tail_registration_fail;
+  }
+  
+  if (hook_register(foo, HOOK_INVOKE, foo_hook_invoke) < 0) {
+    puts("Invoke register failed");
+    goto invoke_registration_fail;
+  }
+  
+  printf("Main got %d\n", foo(5, 6));
+  
+  hook_unregister(foo, HOOK_INVOKE, foo_hook_invoke);
+invoke_registration_fail:
+  hook_unregister(foo, HOOK_TAIL, foo_hook_tail);
+tail_registration_fail:
+  hook_unregister(foo, HOOK_HEAD, foo_hook_head);
+head_registration_fail:
+hook_init_fail:
+  return EXIT_SUCCESS;
+}
+
+int main23() {
   size_t sizes[] = {
     64 * 1024 * 1024
   };
