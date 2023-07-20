@@ -85,16 +85,12 @@ int hook_init() {
     goto failure; \
 } while (0)
 
-  //////////////////////////////
-  // Add new hook target here //
-  //////////////////////////////
-  int foo(int arg1, int arg2);
-  ADD_HOOK_TARGET(foo);
-  //////////////////////////////
+# include "hook_list.h" // IWYU pragma: keep
+# undef ADD_HOOK_TARGET
+  UWU_SO_THAT_UNUSED_COMPLAIN_SHUT_UP;
   
   if (list.data)
     qsort(list.data, list.length, sizeof(*list.data), compareTarget);
-# undef ADD_HOOK_TARGET
 
   hasInitialized = true;
 failure:
@@ -110,7 +106,6 @@ static struct target_entry* getTarget(void* func) {
     .target = func
   };
   struct target_entry* keyIndirect = &key;
-  
   struct target_entry** entry = NULL;
   
   if (list.data)
@@ -142,7 +137,8 @@ static bool runHandlers(enum hook_location location, void* func, void* ret, va_l
     struct hook_call_info ci = {
       .func = func,
       .action = HOOK_CONTINUE,
-      .returnValue = ret
+      .returnValue = ret,
+      .location = location
     };
     
     if (hookFunc(&ci, args) == HOOK_RETURN) {

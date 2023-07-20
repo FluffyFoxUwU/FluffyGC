@@ -41,14 +41,32 @@ static int loader(const char* name, void* udata, fh_descriptor_param* param) {
 }
 
 HOOK_TARGET(int, foo, int, arg1, int, arg2) {
-  printf("foo: Real one called returning %d\n", arg1 * arg2);
+  printf("foo: Real one called, returning %d\n", arg1 * arg2);
   return arg1 * arg2;
 }
 
 HOOK_FUNCTION(static, int, foo_hook_head, int, arg1, int, arg2) {
-  printf("foo_head: I'm called before\n");
-  ci->action = HOOK_CONTINUE;
-  return 0;
+  int ret = 0;
+  if (arg1 == arg2) {
+    printf("foo_head: Special combination detected, overriding\n");
+    ret = 8086;
+    ci->action = HOOK_RETURN;
+  } else {
+    ci->action = HOOK_CONTINUE;
+  }
+  return ret;
+}
+
+int hookExample() {
+  hook_init();
+  
+  hook_register(foo, HOOK_HEAD, foo_hook_head);
+  
+  printf("Main got %d\n", foo(5, 6));
+  printf("Main got %d\n", foo(87, 87));
+  
+  hook_unregister(foo, HOOK_HEAD, foo_hook_head);
+  return EXIT_SUCCESS;
 }
 
 HOOK_FUNCTION(static, int, foo_hook_tail, int, arg1, int, arg2) {
@@ -59,11 +77,14 @@ HOOK_FUNCTION(static, int, foo_hook_tail, int, arg1, int, arg2) {
 
 HOOK_FUNCTION(static, int, foo_hook_invoke, int, arg1, int, arg2) {
   printf("foo_invoke: I'm taking control!\n");
-  ci->action = HOOK_CONTINUE;
-  return 8086;
+  ci->action = HOOK_RETURN;
+  return arg2;
 }
 
 int main2() {
+  if (1)
+    return hookExample();
+  
   if (hook_init() < 0) {
     puts("Hook_init failed");
     goto hook_init_fail;
@@ -72,7 +93,6 @@ int main2() {
   if (hook_register(foo, HOOK_HEAD, foo_hook_head) < 0) {
     puts("Head register failed");
     goto head_registration_fail;
-    
   }
   
   if (hook_register(foo, HOOK_TAIL, foo_hook_tail) < 0) {

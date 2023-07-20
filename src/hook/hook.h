@@ -30,6 +30,7 @@ struct hook_call_info {
   void* func;
   void* returnValue;
   enum hook_action action;
+  enum hook_location location;
 };
 
 typedef enum hook_action (*hook_func)(struct hook_call_info*, va_list args);
