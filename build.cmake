@@ -139,7 +139,7 @@ macro(PostConfigurationLoad)
   endif()
   
   if (DEFINED CONFIG_MOD_DEBUG)
-    list(APPEND BUILD_SOURCES "./src/api/mods/debug.c")
+    list(APPEND BUILD_SOURCES "./src/api/mods/debug/debug.c")
   endif()
   
   if (DEFINED CONFIG_HOOK)

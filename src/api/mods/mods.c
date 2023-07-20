@@ -3,9 +3,10 @@
 
 #include "api/pre_code.h"
 
-#include "FluffyHeap.h"
-#include "mods/dma.h"
+#include "api/mods/debug/debug.h"
 #include "api/mods/dma_common.h"
+
+#include "FluffyHeap.h"
 #include "mods.h"
 #include "config.h"
 #include "util/util.h"
@@ -19,7 +20,18 @@ static struct api_mod_info mods[FH_MOD_COUNT] = {
     
     .init = api_mod_dma_init,
     .cleanup = api_mod_dma_cleanup
-  }
+  },
+# endif
+
+# if IS_ENABLED(CONFIG_MOD_DEBUG)
+  [FH_MOD_DEBUG] = {
+    .available = true,
+    .supportedFlags = 0,
+    .checkFlags = api_mod_debug_check_flags,
+    
+    .init = api_mod_debug_init,
+    .cleanup = api_mod_debug_cleanup
+  },
 # endif
 };
 

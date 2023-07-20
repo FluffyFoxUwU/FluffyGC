@@ -3,6 +3,7 @@
 
 #include "FluffyHeap.h"
 #include "api/mods/mods.h"
+#include "hook/hook.h"
 
 struct api_mod_state;
 
@@ -28,6 +29,11 @@ struct api_state {
   struct api_mod_state modStates[FH_MOD_COUNT];
   int initCounts;
 };
+
+#define API_FUNCTION_DEFINE(...) \
+  __FLUFFYHEAP_EXPORT HOOK_TARGET(__VA_ARGS__)
+#define API_FUNCTION_DEFINE_VOID(...) \
+  __FLUFFYHEAP_EXPORT HOOK_TARGET_VOID(__VA_ARGS__)
 
 #endif
 

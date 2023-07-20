@@ -61,45 +61,6 @@ insert_failure:
   return ret;
 }
 
-static void hook_cleanup_nolock() {
-  struct target_entry* current = NULL;
-  int i = 0;
-  vec_foreach(&list, current, i) {
-    for (int i = 0; i < HOOK_COUNT; i++)
-      vec_deinit(&current->hooksLocations[i]);
-    free(current);
-  }
-  vec_deinit(&list);
-  
-  hasInitialized = false;
-}
-
-int hook_init() {
-  pthread_rwlock_wrlock(&listLock);
-  int ret = 0;
-  if (hasInitialized)
-    goto already_initialized;
-  
-# define ADD_HOOK_TARGET(target) do { \
-  if ((ret = addHookTarget(target)) < 0)  \
-    goto failure; \
-} while (0)
-
-# include "hook_list.h" // IWYU pragma: keep
-# undef ADD_HOOK_TARGET
-  UWU_SO_THAT_UNUSED_COMPLAIN_SHUT_UP;
-  
-  if (list.data)
-    qsort(list.data, list.length, sizeof(*list.data), compareTarget);
-
-  hasInitialized = true;
-failure:
-  if (ret < 0)
-    hook_cleanup_nolock();
-already_initialized:
-  pthread_rwlock_unlock(&listLock);
-  return ret;
-}
 
 static struct target_entry* getTarget(void* func) {
   struct target_entry key = {
@@ -114,6 +75,73 @@ static struct target_entry* getTarget(void* func) {
   if (!entry)
     return NULL;
   return *entry;
+}
+
+static int hookRegisterNoLock(void* target, enum hook_location location, hook_func func) {
+  struct target_entry* targetEntry = getTarget(target);
+  int ret = 0;
+  
+  if (!targetEntry) {
+    ret = -ENODEV;
+    goto failure;
+  }
+  
+  if (location == HOOK_INVOKE && targetEntry->hooksLocations[location].length == 1) {
+    ret = -EINVAL;
+    goto failure;
+  }
+  
+  if (vec_push(&targetEntry->hooksLocations[location], func) < 0) {
+    ret = -ENOMEM;
+    goto failure;
+  }
+failure:
+  return ret;
+}
+
+int hook_init() {
+  pthread_rwlock_wrlock(&listLock);
+  int ret = 0;
+  if (hasInitialized)
+    goto already_initialized;
+  
+# define ADD_HOOK_TARGET(target) do { \
+  if ((ret = addHookTarget(target)) < 0)  \
+    goto failure; \
+} while (0)
+# define ADD_HOOK_FUNC(target, location, func) do { \
+  if ((ret = hook_register(target, location, func)) < 0)  \
+    goto failure; \
+} while (0)
+# define _hook_register hookRegisterNoLock
+
+// Do the thing
+# include "hook_list.h"
+
+# undef _hook_register
+# undef ADD_HOOK_FUNC
+# undef ADD_HOOK_TARGET
+  UWU_SO_THAT_UNUSED_COMPLAIN_SHUT_UP;
+  
+  if (list.data)
+    qsort(list.data, list.length, sizeof(*list.data), compareTarget);
+
+  hasInitialized = true;
+failure:
+  if (ret < 0) {
+    // Clean up
+    struct target_entry* current = NULL;
+    int i = 0;
+    vec_foreach(&list, current, i) {
+      for (int i = 0; i < HOOK_COUNT; i++)
+        vec_deinit(&current->hooksLocations[i]);
+      free(current);
+    }
+    vec_deinit(&list);
+  }
+already_initialized:
+  pthread_rwlock_unlock(&listLock);
+  return ret;
 }
 
 static hook_func** findHookFunc(struct target_entry* target, enum hook_location location, hook_func func) {
@@ -179,24 +207,7 @@ bool hook_run_invoke(void* func, void* ret, ...) {
 
 int _hook_register(void* target, enum hook_location location, hook_func func) {
   pthread_rwlock_wrlock(&listLock);
-  struct target_entry* targetEntry = getTarget(target);
-  int ret = 0;
-  
-  if (!targetEntry) {
-    ret = -ENODEV;
-    goto failure;
-  }
-  
-  if (location == HOOK_INVOKE && targetEntry->hooksLocations[location].length == 1) {
-    ret = -EINVAL;
-    goto failure;
-  }
-  
-  if (vec_push(&targetEntry->hooksLocations[location], func) < 0) {
-    ret = -ENOMEM;
-    goto failure;
-  }
-failure:
+  int ret = hookRegisterNoLock(target, location, func);
   pthread_rwlock_unlock(&listLock);
   return ret;
 }

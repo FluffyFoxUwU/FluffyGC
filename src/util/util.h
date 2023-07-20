@@ -90,5 +90,13 @@ static inline bool util_prefixed_by(const char* prefix, const char* str) {
 #define __stringify_1(x...)	#x
 #define stringify(x...)	__stringify_1(x)
 
+#if __clang__
+# define NONNULLABLE(t) t _Nonnull
+# define NULLABLE(t) t _Nullable
+#elif __GNUC__
+# define NONNULLABLE(t) t __attribute__((nonnull))
+# define NULLABLE(t) t
+#endif
+
 #endif
 

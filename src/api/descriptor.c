@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#include "api/api.h"
 #include "bug.h"
 #include "concurrency/mutex.h"
 #include "object/object.h"
@@ -126,7 +127,7 @@ failure:
   return ret;
 }
 
-__FLUFFYHEAP_EXPORT int fh_define_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, __FLUFFYHEAP_NONNULL(fh_descriptor_param*) parameter, bool dontInvokeLoader) {
+API_FUNCTION_DEFINE(int, fh_define_descriptor, __FLUFFYHEAP_NONNULL(const char*), name, __FLUFFYHEAP_NONNULL(fh_descriptor_param*), parameter, bool, dontInvokeLoader) {
   enterClassLoaderExclusive();
   
   descriptor_stack stack = {};
@@ -211,7 +212,7 @@ static struct object_descriptor* getDescriptor(const char* name) {
   return container_of(desc, struct object_descriptor, super);
 }
 
-__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor*) fh_get_descriptor(__FLUFFYHEAP_NONNULL(const char*) name, bool dontInvokeLoader) {
+API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_descriptor*), fh_get_descriptor, __FLUFFYHEAP_NONNULL(const char*), name, bool, dontInvokeLoader) {
   // Those are special and must not be accessed
   if (util_prefixed_by("fox.fluffyheap.marker.", name))
     return NULL;
@@ -246,11 +247,11 @@ failure:
   return EXTERN(&desc->super);
 }
 
-__FLUFFYHEAP_EXPORT void fh_release_descriptor(__FLUFFYHEAP_NULLABLE(fh_descriptor*) desc) {
+API_FUNCTION_DEFINE_VOID(fh_release_descriptor, __FLUFFYHEAP_NULLABLE(fh_descriptor*), desc) {
   descriptor_release(INTERN(desc));
 }
 
-__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NONNULL(const fh_descriptor_param*) fh_descriptor_get_param(__FLUFFYHEAP_NONNULL(fh_descriptor*) self) {
+API_FUNCTION_DEFINE(__FLUFFYHEAP_NONNULL(const fh_descriptor_param*), fh_descriptor_get_param, __FLUFFYHEAP_NONNULL(fh_descriptor*), self) {
   struct descriptor* desc = INTERN(self);
   BUG_ON(desc->type != OBJECT_NORMAL);
   return &container_of(desc, struct object_descriptor, super)->api.param;

@@ -11,6 +11,7 @@
 #include "bug.h"
 #include "concurrency/completion.h"
 #include "concurrency/mutex.h"
+#include "hook/hook.h"
 #include "managed_heap.h"
 #include "context.h"
 #include "gc/gc.h"
@@ -50,6 +51,9 @@ failure:
 
 struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCount, struct generation_params* genParam, gc_flags gcFlags) {
   if (generationCount > GC_MAX_GENERATIONS || gc_generation_count(algo, gcFlags) != generationCount)
+    return NULL;
+   
+  if (hook_init() < 0)
     return NULL;
   
   struct managed_heap* self = malloc(sizeof(*self) + sizeof(*self->generations) * generationCount);

@@ -2,6 +2,7 @@
 
 #include "pre_code.h"
 
+#include "api/api.h"
 #include "context.h"
 #include "gc/gc.h"
 #include "gc/gc_flags.h"
@@ -20,7 +21,7 @@ static struct mapping gcMapping[GC_COUNT] = {
   [FH_GC_HIGH_THROUGHPUT] = {GC_SERIAL_GC, 0}
 };
 
-__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fluffyheap*) fh_new(__FLUFFYHEAP_NONNULL(fh_param*) incomingParams) {
+API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fluffyheap*), fh_new, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams) {
   if (incomingParams->hint >= ARRAY_SIZE(gcMapping))
     return NULL;
   
@@ -34,31 +35,31 @@ __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fluffyheap*) fh_new(__FLUFFYHEAP_NONNU
   return EXTERN(managed_heap_new(mapping.algo, incomingParams->generationCount, params, mapping.flags));
 }
 
-__FLUFFYHEAP_EXPORT void fh_free(__FLUFFYHEAP_NONNULL(fluffyheap*) self) {
+API_FUNCTION_DEFINE_VOID(fh_free, __FLUFFYHEAP_NONNULL(fluffyheap*), self) {
   managed_heap_free(INTERN(self));
 }
 
-__FLUFFYHEAP_EXPORT int fh_attach_thread(__FLUFFYHEAP_NONNULL(fluffyheap*) self) {
+API_FUNCTION_DEFINE(int, fh_attach_thread, __FLUFFYHEAP_NONNULL(fluffyheap*), self) {
   int res = managed_heap_attach_thread(INTERN(self));
   if (res < 0)
     return -ENOMEM;
   return 0;
 }
 
-__FLUFFYHEAP_EXPORT void fh_detach_thread(__FLUFFYHEAP_NONNULL(fluffyheap*) self) {
+API_FUNCTION_DEFINE_VOID(fh_detach_thread, __FLUFFYHEAP_NONNULL(fluffyheap*), self) {
   managed_heap_detach_thread(INTERN(self));
 }
 
-__FLUFFYHEAP_EXPORT int fh_get_generation_count(__FLUFFYHEAP_NONNULL(fh_param*) param) {
+API_FUNCTION_DEFINE(int, fh_get_generation_count, __FLUFFYHEAP_NONNULL(fh_param*), param) {
   if (param->hint >= ARRAY_SIZE(gcMapping))
     return -EINVAL;
   return gc_generation_count(gcMapping[param->hint].algo, gcMapping[param->hint].flags);
 }
 
-__FLUFFYHEAP_EXPORT void fh_set_descriptor_loader(__FLUFFYHEAP_NONNULL(fluffyheap*) self, __FLUFFYHEAP_NULLABLE(fh_descriptor_loader) loader) {
+API_FUNCTION_DEFINE_VOID(fh_set_descriptor_loader, __FLUFFYHEAP_NONNULL(fluffyheap*), self, __FLUFFYHEAP_NULLABLE(fh_descriptor_loader), loader) {
   INTERN(self)->api.descriptorLoader = loader;
 }
 
-__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor_loader) fh_get_descriptor_loader(__FLUFFYHEAP_NONNULL(fluffyheap*) self) {
+API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_descriptor_loader), fh_get_descriptor_loader, __FLUFFYHEAP_NONNULL(fluffyheap*), self) {
   return INTERN(self)->api.descriptorLoader;
 }

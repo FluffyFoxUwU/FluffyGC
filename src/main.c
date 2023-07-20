@@ -40,84 +40,9 @@ static int loader(const char* name, void* udata, fh_descriptor_param* param) {
   return -ESRCH;
 }
 
-HOOK_TARGET(int, foo, int, arg1, int, arg2) {
-  printf("foo: Real one called, returning %d\n", arg1 * arg2);
-  return arg1 * arg2;
-}
-
-HOOK_FUNCTION(static, int, foo_hook_head, int, arg1, int, arg2) {
-  int ret = 0;
-  if (arg1 == arg2) {
-    printf("foo_head: Special combination detected, overriding\n");
-    ret = 8086;
-    ci->action = HOOK_RETURN;
-  } else {
-    ci->action = HOOK_CONTINUE;
-  }
-  return ret;
-}
-
-int hookExample() {
+int main2() {
   hook_init();
   
-  hook_register(foo, HOOK_HEAD, foo_hook_head);
-  
-  printf("Main got %d\n", foo(5, 6));
-  printf("Main got %d\n", foo(87, 87));
-  
-  hook_unregister(foo, HOOK_HEAD, foo_hook_head);
-  return EXIT_SUCCESS;
-}
-
-HOOK_FUNCTION(static, int, foo_hook_tail, int, arg1, int, arg2) {
-  printf("foo_tail: I'm called after\n");
-  ci->action = HOOK_CONTINUE;
-  return 0;
-}
-
-HOOK_FUNCTION(static, int, foo_hook_invoke, int, arg1, int, arg2) {
-  printf("foo_invoke: I'm taking control!\n");
-  ci->action = HOOK_RETURN;
-  return arg2;
-}
-
-int main2() {
-  if (1)
-    return hookExample();
-  
-  if (hook_init() < 0) {
-    puts("Hook_init failed");
-    goto hook_init_fail;
-  }
-  
-  if (hook_register(foo, HOOK_HEAD, foo_hook_head) < 0) {
-    puts("Head register failed");
-    goto head_registration_fail;
-  }
-  
-  if (hook_register(foo, HOOK_TAIL, foo_hook_tail) < 0) {
-    puts("Tail register failed");
-    goto tail_registration_fail;
-  }
-  
-  if (hook_register(foo, HOOK_INVOKE, foo_hook_invoke) < 0) {
-    puts("Invoke register failed");
-    goto invoke_registration_fail;
-  }
-  
-  printf("Main got %d\n", foo(5, 6));
-  
-  hook_unregister(foo, HOOK_INVOKE, foo_hook_invoke);
-invoke_registration_fail:
-  hook_unregister(foo, HOOK_TAIL, foo_hook_tail);
-tail_registration_fail:
-  hook_unregister(foo, HOOK_HEAD, foo_hook_head);
-head_registration_fail:
-hook_init_fail:
-  return EXIT_SUCCESS;
-}
-
-int main23() {
   size_t sizes[] = {
     64 * 1024 * 1024
   };
@@ -201,6 +126,7 @@ int main23() {
     
     const fh_type_info* info = fh_object_get_type_info(FH_CAST_TO_OBJECT(array));
     printf("[Main] Array is %zu has entries long\n", info->info.refArray->length);
+    printf("[Main] Array is %zu has entries according to API call\n", fh_array_get_length(array));
     fh_object_put_type_info(FH_CAST_TO_OBJECT(array), info);
     
     fh_del_ref((fh_object*) array);

@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "util/macro_magics.h"
+#include "util/util.h"
 
 // Hook into a opt-ed in functions
 
@@ -75,6 +76,12 @@ void _hook_unregister(void* target, enum hook_location location, hook_func func)
 
 #define ____HOOK_COMMA ,
 #define ____HOOK_PROCESS_ARGUMENT(a, ...) va_arg(args, a) MACRO_EXPAND_IF_NOT1(MACRO_NARG(__VA_ARGS__), ____HOOK_COMMA)
+#define HOOK_FUNCTION_DECLARE(spec, ret, name, ...) \
+  typedef ret (*____HOOK_TO_TARGET_TYPE(name))(____HOOK_MAKE_ARGS(__VA_ARGS__)); \
+  spec ____HOOK_DECLARE(ret, name, NULLABLE(struct hook_call_info*), ci __VA_OPT__(,) __VA_ARGS__); \
+  spec enum hook_action ____HOOK_TO_HANDLER(name)(NONNULLABLE(struct hook_call_info*) ci, va_list args); \
+  spec ____HOOK_DECLARE(ret, name, NULLABLE(struct hook_call_info*), ci __VA_OPT__(,) __VA_ARGS__)
+
 #define HOOK_FUNCTION(spec, ret, name, ...) \
   typedef ret (*____HOOK_TO_TARGET_TYPE(name))(____HOOK_MAKE_ARGS(__VA_ARGS__)); \
   spec ____HOOK_DECLARE(ret, name, struct hook_call_info*, ci __VA_OPT__(,) __VA_ARGS__); \
