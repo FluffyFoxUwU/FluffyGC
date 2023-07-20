@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "managed_heap.h"
+#include "debug/debug.h"
 
 struct api_mod_state;
 struct api_mod_info {
@@ -20,6 +21,10 @@ struct api_mod_state {
   bool enabled;
   struct api_mod_info* info;
   uint32_t flags;
+  
+  union {
+    struct debug_mod_state debugMod;
+  } data;
 };
 
 int api_mods_init(struct managed_heap* heap);

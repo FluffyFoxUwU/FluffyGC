@@ -35,8 +35,17 @@ static void uwu() {
 
 // Heap management
 ADD_HOOK_TARGET(fh_new);
+  ADD_HOOK_FUNC(fh_new, HOOK_HEAD, api_mod_debug_hook_fh_new_head);
+  ADD_HOOK_FUNC(fh_new, HOOK_TAIL, api_mod_debug_hook_fh_new_tail);
 ADD_HOOK_TARGET(fh_free);
 
+// Mod managements
+ADD_HOOK_TARGET(fh_enable_mod);
+ADD_HOOK_TARGET(fh_disable_mod);
+ADD_HOOK_TARGET(fh_check_mod);
+ADD_HOOK_TARGET(fh_get_flags);
+
+// The rest needs has attached to a heap
 // Thread management
 ADD_HOOK_TARGET(fh_attach_thread);
 ADD_HOOK_TARGET(fh_detach_thread);
@@ -45,12 +54,6 @@ ADD_HOOK_TARGET(fh_detach_thread);
 ADD_HOOK_TARGET(fh_get_generation_count);
 ADD_HOOK_TARGET(fh_set_descriptor_loader);
 ADD_HOOK_TARGET(fh_get_descriptor_loader);
-
-// Mod managements
-ADD_HOOK_TARGET(fh_enable_mod);
-ADD_HOOK_TARGET(fh_disable_mod);
-ADD_HOOK_TARGET(fh_check_mod);
-ADD_HOOK_TARGET(fh_get_flags);
 
 // Context managements
 ADD_HOOK_TARGET(fh_set_current);

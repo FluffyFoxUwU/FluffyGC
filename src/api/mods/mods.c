@@ -9,6 +9,7 @@
 #include "FluffyHeap.h"
 #include "mods.h"
 #include "config.h"
+#include "panic.h"
 #include "util/util.h"
 
 static struct api_mod_info mods[FH_MOD_COUNT] = {
@@ -38,6 +39,14 @@ static struct api_mod_info mods[FH_MOD_COUNT] = {
 static thread_local struct api_mod_state modStates[FH_MOD_COUNT] = {};
 int api_mods_init(struct managed_heap* heap) {
   memcpy(heap->api.state->modStates, modStates, sizeof(modStates));
+  for (int i = 0; i < FH_MOD_COUNT; i++) {
+    if (!heap->api.state->modStates[i].enabled)
+      continue;
+    
+    int ret = heap->api.state->modStates[i].info->init(&heap->api.state->modStates[i]);
+    if (ret < 0)
+      panic("Not implemented yet!");
+  }
   return 0;
 }
 

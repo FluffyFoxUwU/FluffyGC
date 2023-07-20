@@ -119,6 +119,8 @@ int main2() {
   
   // Array test
   {
+    fh_object* obj = fh_alloc_object(fluffDesc);
+    
     fh_array* array = fh_alloc_array(fluffDesc, 5);
     fh_array_set_element(array, 0, obj);
     fh_object* readVal = fh_array_get_element(array, 0);
@@ -127,10 +129,12 @@ int main2() {
     const fh_type_info* info = fh_object_get_type_info(FH_CAST_TO_OBJECT(array));
     printf("[Main] Array is %zu has entries long\n", info->info.refArray->length);
     printf("[Main] Array is %zu has entries according to API call\n", fh_array_get_length(array));
+    printf("[Main] Not real array has %zu entries according to API call\n", fh_array_get_length(FH_CAST_TO_ARRAY(obj)));
     fh_object_put_type_info(FH_CAST_TO_OBJECT(array), info);
     
     fh_del_ref((fh_object*) array);
     fh_del_ref((fh_object*) readVal);
+    fh_del_ref((fh_object*) obj);
   }
   
   fh_del_ref(obj);

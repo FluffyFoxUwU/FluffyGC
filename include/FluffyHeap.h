@@ -100,6 +100,9 @@ struct fh_f39dbb2f_d8d1_4687_8486_a196de7712a3 {
 #define FH_CAST_TO_OBJECT(obj) _Generic((obj), \
   fh_array*: (fh_object*) (obj) \
 )
+#define FH_CAST_TO_ARRAY(obj) _Generic((obj), \
+  fh_object*: (fh_array*) (obj) \
+)
 
 struct fh_d5564c56_0195_411c_bb8e_6293c07ec0d3 {
   fh_object_type type;
@@ -134,7 +137,7 @@ enum fh_mod {
   FH_MOD_COUNT
 };
 
-#define FH_MOD_WAS_ENABLED (1 << 31)
+#define FH_MOD_WAS_ENABLED (UINT32_C(1) << 31)
 
 __FLUFFYHEAP_EXPORT int fh_enable_mod(enum fh_mod mod, uint32_t flags);
 __FLUFFYHEAP_EXPORT void fh_disable_mod(enum fh_mod mod);

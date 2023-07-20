@@ -11,4 +11,8 @@ menu "Mods"
     bool "Enable Debug mod"
     default n
     select HOOK
+  
+  if MOD_DEBUG
+    source "src/api/mods/debug/Kconfig.debug"
+  endif
 endmenu
