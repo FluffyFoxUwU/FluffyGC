@@ -26,7 +26,14 @@ void api_cleanup();
 )
 
 struct api_state {
-  struct api_mod_state modStates[FH_MOD_COUNT];
+  struct {
+    struct api_mod_state modStates[FH_MOD_COUNT];
+    
+    // Used to remember how many mods initialized
+    int modIteratedCountDuringInit;
+  } modManager;
+  
+  // Used to remember how many part of API initialized
   int initCounts;
 };
 

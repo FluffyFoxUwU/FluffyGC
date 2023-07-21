@@ -143,7 +143,7 @@ int object_put_dma(struct root_ref* rootRef, struct userptr dma) {
   return 0;
 }
 
-void object_init(struct object* self, struct descriptor* desc, void address_heap* data) {
+static void commonInit(struct object* self, struct descriptor* desc, void address_heap* data) {
   *self = (struct object) {
     .objectSize = descriptor_get_object_size(desc),
     .dataPtr = {data}
@@ -153,6 +153,13 @@ void object_init(struct object* self, struct descriptor* desc, void address_heap
   for (int i = 0; i < GC_MAX_GENERATIONS; i++)
     list_init_as_invalid(&self->rememberedSetNode[i]);
   descriptor_init_object(desc, self);
+}
+
+static _Atomic(uint64_t) uniqueIDGenerator = 1;
+
+void object_init(struct object* self, struct descriptor* desc, void address_heap* data) {
+  commonInit(self, desc, data);
+  self->movePreserve.foreverUniqueID = atomic_fetch_add(&uniqueIDGenerator, 1);
 }
 
 void object_fix_pointers(struct object* self) {
@@ -171,7 +178,7 @@ struct object* object_move(struct object* self, struct heap* dest) {
   
   struct object* newBlockObj = &newBlock->objMetadata;
   self->forwardingPointer = newBlockObj;
-  object_init(newBlockObj, self->movePreserve.descriptor, newBlock->dataPtr.ptr);
+  commonInit(newBlockObj, self->movePreserve.descriptor, newBlock->dataPtr.ptr);
   memcpy(newBlockObj->dataPtr.ptr, self->dataPtr.ptr, self->objectSize);
   
   newBlockObj->movePreserve = self->movePreserve;

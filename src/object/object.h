@@ -56,6 +56,7 @@ struct object {
   struct {
     struct descriptor* descriptor;
     int generationID;
+    uint64_t foreverUniqueID;
     
     // Some special descriptors which embedded inside object
     struct embedded_descriptor embedded;

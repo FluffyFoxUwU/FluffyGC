@@ -9,7 +9,6 @@
 #include "FluffyHeap.h"
 #include "mods.h"
 #include "config.h"
-#include "panic.h"
 #include "util/util.h"
 
 static struct api_mod_info mods[FH_MOD_COUNT] = {
@@ -28,29 +27,44 @@ static struct api_mod_info mods[FH_MOD_COUNT] = {
   [FH_MOD_DEBUG] = {
     .available = true,
     .supportedFlags = 0,
-    .checkFlags = api_mod_debug_check_flags,
+    .checkFlags = debug_check_flags,
     
-    .init = api_mod_debug_init,
-    .cleanup = api_mod_debug_cleanup
+    .init = debug_init,
+    .cleanup = debug_cleanup
   },
 # endif
 };
 
-static thread_local struct api_mod_state modStates[FH_MOD_COUNT] = {};
+static thread_local struct api_mod_state currentModStates[FH_MOD_COUNT] = {};
 int api_mods_init(struct managed_heap* heap) {
-  memcpy(heap->api.state->modStates, modStates, sizeof(modStates));
-  for (int i = 0; i < FH_MOD_COUNT; i++) {
-    if (!heap->api.state->modStates[i].enabled)
+  struct api_mod_state* modStates = heap->api.state->modManager.modStates;
+  memcpy(modStates, currentModStates, sizeof(currentModStates));
+  int modInitCounts = 0;
+  int ret = 0;
+  
+  for (; modInitCounts < FH_MOD_COUNT; modInitCounts++) {
+    if (!modStates[modInitCounts].enabled)
       continue;
     
-    int ret = heap->api.state->modStates[i].info->init(&heap->api.state->modStates[i]);
-    if (ret < 0)
-      panic("Not implemented yet!");
+    if ((ret = modStates[modInitCounts].info->init(&modStates[modInitCounts])) < 0)
+      break;
   }
-  return 0;
+  
+  heap->api.state->modManager.modIteratedCountDuringInit = modInitCounts;
+  return ret;
 }
 
 void api_mods_cleanup(struct managed_heap* heap) {
+  struct api_mod_state* modStates = heap->api.state->modManager.modStates;
+  int modInitCounts = 0;
+  for (; modInitCounts > 0; modInitCounts--) {
+    int current = modInitCounts - 1;
+    if (!modStates[current].enabled)
+      continue;
+    
+    modStates[current].info->cleanup(&modStates[current]);
+  }
+  heap->api.state->modManager.modIteratedCountDuringInit = 0;
 }
 
 static struct api_mod_info* getMod(enum fh_mod mod) {
@@ -62,7 +76,7 @@ static struct api_mod_info* getMod(enum fh_mod mod) {
 __FLUFFYHEAP_EXPORT uint32_t fh_get_flags(enum fh_mod mod) {
   if (!getMod(mod))
     return 0;
-  return modStates[mod].flags | FH_MOD_WAS_ENABLED;
+  return currentModStates[mod].flags | FH_MOD_WAS_ENABLED;
 }
 
 __FLUFFYHEAP_EXPORT bool fh_check_mod(enum fh_mod mod, uint32_t flags) {
@@ -80,7 +94,7 @@ __FLUFFYHEAP_EXPORT int fh_enable_mod(enum fh_mod mod, uint32_t flags) {
   if (!(info = getMod(mod)))
     return -ENODEV;
   
-  if (modStates[mod].enabled == true)
+  if (currentModStates[mod].enabled == true)
     return -EBUSY;
   
   if ((info->supportedFlags & flags) != flags)
@@ -88,15 +102,15 @@ __FLUFFYHEAP_EXPORT int fh_enable_mod(enum fh_mod mod, uint32_t flags) {
   if (info->checkFlags(flags) < 0)
     return -EINVAL;
   
-  modStates[mod].enabled = true;
-  modStates[mod].flags = flags;
-  modStates[mod].info = info;
+  currentModStates[mod].enabled = true;
+  currentModStates[mod].flags = flags;
+  currentModStates[mod].info = info;
   return 0;
 }
 
 __FLUFFYHEAP_EXPORT void fh_disable_mod(enum fh_mod mod) {
   if (!getMod(mod))
     return;
-  modStates[mod].enabled = false;
+  currentModStates[mod].enabled = false;
 }
 

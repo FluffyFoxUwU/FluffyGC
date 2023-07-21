@@ -3,9 +3,7 @@
 
 #include <stdint.h>
 
-#include "hook/hook.h"
-#include "FluffyHeap.h"
-#include "util/util.h"
+#include "attributes.h"
 
 struct api_mod_state;
 
@@ -21,14 +19,16 @@ struct debug_mod_state {
   bool panicOnWarn;
 };
 
-int api_mod_debug_check_flags(uint32_t flags);
-int api_mod_debug_init(NONNULLABLE(struct api_mod_state*) self);
-void api_mod_debug_cleanup(NONNULLABLE(struct api_mod_state*) self);
+int debug_check_flags(uint32_t flags);
+int debug_init(struct api_mod_state* self);
+void debug_cleanup(struct api_mod_state* self);
+bool debug_can_do_check();
 
-HOOK_FUNCTION_DECLARE(, size_t, api_mod_debug_hook_fh_array_get_length, __FLUFFYHEAP_NONNULL(fh_array*), self);
+ATTRIBUTE_PRINTF(1, 2)
+void debug_info(const char* msg, ...);
 
-HOOK_FUNCTION_DECLARE(, __FLUFFYHEAP_NULLABLE(fluffyheap*), api_mod_debug_hook_fh_new_head, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams);
-HOOK_FUNCTION_DECLARE(, __FLUFFYHEAP_NULLABLE(fluffyheap*), api_mod_debug_hook_fh_new_tail, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams);
+ATTRIBUTE_PRINTF(1, 2)
+void debug_warn(const char* msg, ...);
 
 #endif
 

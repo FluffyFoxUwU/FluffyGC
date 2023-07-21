@@ -126,11 +126,14 @@ int main2() {
     fh_object* readVal = fh_array_get_element(array, 0);
     printf("[Main] Array[0] is %ssame what just written\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
     
+    fh_array_calc_offset(array, 999);
+    
     const fh_type_info* info = fh_object_get_type_info(FH_CAST_TO_OBJECT(array));
     printf("[Main] Array is %zu has entries long\n", info->info.refArray->length);
     printf("[Main] Array is %zu has entries according to API call\n", fh_array_get_length(array));
-    printf("[Main] Not real array has %zu entries according to API call\n", fh_array_get_length(FH_CAST_TO_ARRAY(obj)));
     fh_object_put_type_info(FH_CAST_TO_OBJECT(array), info);
+    
+    printf("[Main] Not real array has %zu entries according to API call\n", fh_array_get_length(FH_CAST_TO_ARRAY(obj)));
     
     fh_del_ref((fh_object*) array);
     fh_del_ref((fh_object*) readVal);

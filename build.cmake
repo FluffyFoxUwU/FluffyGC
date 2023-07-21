@@ -140,6 +140,11 @@ macro(PostConfigurationLoad)
   
   if (DEFINED CONFIG_MOD_DEBUG)
     list(APPEND BUILD_SOURCES "./src/api/mods/debug/debug.c")
+    list(APPEND BUILD_SOURCES "./src/api/mods/debug/common.c")
+    
+    # Various hooks
+    list(APPEND BUILD_SOURCES "./src/api/mods/debug/hooks/always_enable.c")
+    list(APPEND BUILD_SOURCES "./src/api/mods/debug/hooks/arrays.c")
   endif()
   
   if (DEFINED CONFIG_HOOK)
