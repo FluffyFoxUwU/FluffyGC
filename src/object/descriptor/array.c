@@ -1,4 +1,7 @@
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "FluffyHeap.h"
 #include "api/api.h"
@@ -28,9 +31,23 @@ static size_t impl_getAlignment(struct descriptor* super) {
   return alignof(struct object*);
 }
 
-// Array don't have names
 static const char* impl_getName(struct descriptor* super) {
-  return NULL;
+  struct array_descriptor* self = container_of(super, struct array_descriptor, super);
+  static thread_local char buffer[64 * 1024];
+  char* localBuffer = malloc(sizeof(buffer));
+  if (!localBuffer) {
+    snprintf(buffer, sizeof(buffer), "<Array type insufficient memory for type name>[%zu]", self->arrayInfo.length);
+    return buffer;
+  }
+  
+  // This may recurse in case of multi dimensional array
+  // and Fox couldn't think of better way than allocating
+  // local buffer and strncpy back to primary buffer
+  snprintf(localBuffer, sizeof(buffer), "%s[%zu]", descriptor_get_name(self->arrayInfo.elementDescriptor), self->arrayInfo.length);
+  
+  strncpy(buffer, localBuffer, sizeof(buffer));
+  free(localBuffer);
+  return buffer;
 }
 
 static void impl_runFinalizer(struct descriptor* super, struct object* obj) {

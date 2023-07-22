@@ -8,11 +8,6 @@ choice
     help
       Warn only
   
-  config MOD_DEBUG_VERBOSE
-    bool "Verbose"
-    help
-      Print each API call and return value
-  
   config MOD_DEBUG_ULTRA_VERBOSE
     bool "Ultra verbose"
     help

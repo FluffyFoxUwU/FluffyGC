@@ -25,7 +25,12 @@ struct descriptor;
 struct descriptor_ops {
   void (*postInitObject)(struct descriptor* self, struct object* obj);
   void (*runFinalizer)(struct descriptor* self, struct object* obj);
+  
+  // Memory given may valid until next
+  // getName call of same type (even if its
+  // different descriptor instance)
   const char* (*getName)(struct descriptor* self);
+  
   size_t (*getAlignment)(struct descriptor* self);
   size_t (*getObjectSize)(struct descriptor* self);
   struct descriptor* (*getDescriptorAt)(struct descriptor* self, size_t offset);
@@ -67,6 +72,8 @@ void descriptor_init_object(struct descriptor* self, struct object* obj);
 
 size_t descriptor_get_object_size(struct descriptor* self);
 size_t descriptor_get_alignment(struct descriptor* self);
+
+// Memory valid until next call even if different descriptor
 const char* descriptor_get_name(struct descriptor* self);
 
 // Only track number of keepalive uses, does not automaticly

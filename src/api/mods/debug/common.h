@@ -12,6 +12,7 @@ enum debug_access {
 };
 
 bool debug_check_access(fh_object* obj, size_t offset, size_t size, enum debug_access access);
+const char* debug_get_unique_name(fh_object* obj);
 
 #endif
 

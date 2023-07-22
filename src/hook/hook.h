@@ -78,20 +78,21 @@ void _hook_unregister(void* target, enum hook_location location, hook_func func)
 #define ____HOOK_PROCESS_ARGUMENT(a, ...) va_arg(args, a) MACRO_EXPAND_IF_NOT1(MACRO_NARG(__VA_ARGS__), ____HOOK_COMMA)
 #define HOOK_FUNCTION_DECLARE(spec, ret, name, ...) \
   typedef ret (*____HOOK_TO_TARGET_TYPE(name))(____HOOK_MAKE_ARGS(__VA_ARGS__)); \
-  spec ____HOOK_DECLARE(ret, name, NULLABLE(struct hook_call_info*), ci __VA_OPT__(,) __VA_ARGS__); \
+  spec ____HOOK_DECLARE(void, name, ret*, returnLocation, NULLABLE(struct hook_call_info*), ci __VA_OPT__(,) __VA_ARGS__); \
   spec enum hook_action ____HOOK_TO_HANDLER(name)(NONNULLABLE(struct hook_call_info*) ci, va_list args); \
-  spec ____HOOK_DECLARE(ret, name, NULLABLE(struct hook_call_info*), ci __VA_OPT__(,) __VA_ARGS__)
+  spec ____HOOK_DECLARE(void, name, ret*, returnLocation, NULLABLE(struct hook_call_info*), ci __VA_OPT__(,) __VA_ARGS__)
 
 #define HOOK_FUNCTION(spec, ret, name, ...) \
   typedef ret (*____HOOK_TO_TARGET_TYPE(name))(____HOOK_MAKE_ARGS(__VA_ARGS__)); \
-  spec ____HOOK_DECLARE(ret, name, struct hook_call_info*, ci __VA_OPT__(,) __VA_ARGS__); \
+  spec ____HOOK_DECLARE(void, name, ret*, returnLocation, struct hook_call_info*, ci __VA_OPT__(,) __VA_ARGS__); \
   spec enum hook_action ____HOOK_TO_HANDLER(name)(struct hook_call_info* ci, va_list args) { \
-    ret retVal = name(ci, MACRO_FOR_EACH_STRIDE2(____HOOK_PROCESS_ARGUMENT, ____HOOK_TARGET_IGNORE, __VA_ARGS__)); \
+    ret retVal; \
+    name(&retVal, ci __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____HOOK_PROCESS_ARGUMENT, ____HOOK_TARGET_IGNORE, __VA_ARGS__)); \
     if (ci->action == HOOK_RETURN) \
       *(ret*) ci->returnValue = retVal; \
     return ci->action; \
   } \
-  spec ____HOOK_DECLARE(ret, name, struct hook_call_info*, ci __VA_OPT__(,) __VA_ARGS__)
+  spec ____HOOK_DECLARE(void, name, ret*, returnLocation, struct hook_call_info*, ci __VA_OPT__(,) __VA_ARGS__)
 
 #if IS_ENABLED(CONFIG_HOOK)
 #define HOOK_TARGET(ret, name, ...) \

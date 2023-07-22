@@ -14,6 +14,7 @@ set(BUILD_SOURCES
   # turn off btree for now
   #src/util/btree.c
   src/util/thread_pool.c
+  src/util/id_generator.c
   
   src/object/descriptor.c
   src/object/object.c
@@ -56,12 +57,14 @@ set(BUILD_SOURCES
   
   deps/templated-hashmap/hashmap.c  
   deps/vec/vec.c
+  deps/buffer/buffer.c
 )
 
 set(BUILD_INCLUDE_DIRS
   deps/list/
   deps/templated-hashmap/
   deps/vec/
+  deps/buffer/
   
   include/
 )

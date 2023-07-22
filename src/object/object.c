@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include "address_spaces.h"
 #include "concurrency/mutex.h"
@@ -16,6 +17,7 @@
 #include "object.h"
 #include "context.h"
 #include "panic.h"
+#include "util/id_generator.h"
 #include "util/list_head.h"
 #include "util/util.h"
 #include "descriptor.h"
@@ -155,11 +157,9 @@ static void commonInit(struct object* self, struct descriptor* desc, void addres
   descriptor_init_object(desc, self);
 }
 
-static _Atomic(uint64_t) uniqueIDGenerator = 1;
-
 void object_init(struct object* self, struct descriptor* desc, void address_heap* data) {
   commonInit(self, desc, data);
-  self->movePreserve.foreverUniqueID = atomic_fetch_add(&uniqueIDGenerator, 1);
+  self->movePreserve.foreverUniqueID = id_generator_get();
 }
 
 void object_fix_pointers(struct object* self) {
@@ -198,4 +198,10 @@ int object_for_each_field(struct object* self, int (^iterator)(struct object* ob
   return descriptor_for_each_offset(self, ^int (size_t offset) {
     return iterator(atomic_load(getAtomicPtrToReference(self, offset)), offset);
   });
+}
+
+const char* object_get_unique_name(struct object* self) {
+  static thread_local char buffer[32 * 1024];
+  snprintf(buffer, sizeof(buffer), "%s#%" PRIu64, descriptor_get_name(self->movePreserve.descriptor), self->movePreserve.foreverUniqueID);
+  return buffer;
 }

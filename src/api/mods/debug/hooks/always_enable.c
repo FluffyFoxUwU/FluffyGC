@@ -16,7 +16,7 @@ HOOK_FUNCTION(, __FLUFFYHEAP_NULLABLE(fluffyheap*), debug_hook_fh_new_head, __FL
   debug_info("Always enabled activated!");
   
   ci->action = HOOK_CONTINUE;
-  return NULL;
+  return;
 }
 
 HOOK_FUNCTION(, __FLUFFYHEAP_NULLABLE(fluffyheap*), debug_hook_fh_new_tail, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams) {
@@ -27,5 +27,5 @@ HOOK_FUNCTION(, __FLUFFYHEAP_NULLABLE(fluffyheap*), debug_hook_fh_new_tail, __FL
     fh_enable_mod(FH_MOD_DEBUG, prevDebugFlags & (~FH_MOD_WAS_ENABLED));
   
   ci->action = HOOK_CONTINUE;
-  return NULL;
+  return;
 }

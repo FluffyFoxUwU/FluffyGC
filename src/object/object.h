@@ -100,5 +100,8 @@ int object_for_each_field(struct object* self, int (^iterator)(struct object* ob
 
 int object_init_synchronization_structs(struct object* self);
 
+// Uses internal static buffer
+const char* object_get_unique_name(struct object* self);;
+
 #endif
 
