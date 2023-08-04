@@ -1,6 +1,4 @@
-#include <assert.h>
 #include <pthread.h>
-#include <stdatomic.h>
 #include <stdint.h>
 
 #include "btree.h"

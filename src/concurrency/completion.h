@@ -4,10 +4,12 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 
-#include "event.h"
+#include "concurrency/condition.h"
+#include "concurrency/mutex.h"
 
 struct completion {
-  struct event onComplete;
+  struct mutex lock;
+  struct condition onComplete;
   unsigned int done;
 };
 

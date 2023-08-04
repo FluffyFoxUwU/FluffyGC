@@ -23,15 +23,43 @@ void condition_cleanup(struct condition* self) {
     panic();
 }
 
-void condition__wake(struct condition* self) {
+void condition_wake(struct condition* self) {
   pthread_cond_signal(&self->cond);
 }
 
-void condition__wake_all(struct condition* self) {
+void condition_wake_all(struct condition* self) {
   pthread_cond_broadcast(&self->cond);
 }
 
-void condition__wait(struct condition* self, struct mutex* mutex) {
-  pthread_cond_wait(&self->cond, &mutex->mutex);
+int condition_wait2(struct condition* self, struct mutex* mutex, int flags, const struct timespec* abstimeout, condition_checker checker) {
+  int ret;
+retry:
+  if (flags & CONDITION_WAIT_TIMED)
+    ret = pthread_cond_timedwait(&self->cond, &mutex->mutex, abstimeout);
+  else
+    ret = pthread_cond_wait(&self->cond, &mutex->mutex);
+  
+  switch (ret) {
+    case EINVAL:
+      return -EINVAL;
+    case ETIMEDOUT:
+      return -ETIMEDOUT;
+    case 0:
+      break;
+    default:
+      panic();
+    
+    case ENOTRECOVERABLE:
+      panic("Why are ENOTRECOVERABLE even exists for pthread_cond_timedwait()");
+  }
+  
+  // If only checker is enabled and checker says retry
+  // jump to retry
+  if (!(flags & CONDITION_WAIT_NO_CHECKER) && checker())
+    goto retry;
+  return 0;
 }
 
+void condition_wait(struct condition* self, struct mutex* mutex, condition_checker checker) {
+  condition_wait2(self, mutex, 0, NULL, checker);
+}

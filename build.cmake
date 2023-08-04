@@ -31,7 +31,6 @@ set(BUILD_SOURCES
   src/memory/heap.c
   src/memory/heap_free_block_searchers.c
   
-  src/concurrency/event.c
   src/concurrency/mutex.c
   src/concurrency/rwlock.c
   src/concurrency/condition.c

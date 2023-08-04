@@ -1,11 +1,10 @@
-#include <pthread.h>
 #include <stdarg.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>
 
 #include "bug.h"
 #include "hook.h"
+#include "concurrency/rwlock.h"
 #include "panic.h"
 #include "util/util.h"
 #include "vec.h"
@@ -15,7 +14,7 @@ struct target_entry {
   vec_t(hook_func) hooksLocations[HOOK_COUNT];
 };
 
-static pthread_rwlock_t listLock = PTHREAD_RWLOCK_INITIALIZER;
+static struct rwlock listLock = RWLOCK_INITIALIZER;
 static bool hasInitialized = false;
 static vec_t(struct target_entry*) list;
 
@@ -100,7 +99,7 @@ failure:
 }
 
 int hook_init() {
-  pthread_rwlock_wrlock(&listLock);
+  rwlock_rdlock(&listLock);
   int ret = 0;
   if (hasInitialized)
     goto already_initialized;
@@ -140,7 +139,7 @@ failure:
     vec_deinit(&list);
   }
 already_initialized:
-  pthread_rwlock_unlock(&listLock);
+  rwlock_unlock(&listLock);
   return ret;
 }
 
@@ -151,7 +150,7 @@ static hook_func** findHookFunc(struct target_entry* target, enum hook_location 
 }
 
 static bool runHandlers(enum hook_location location, void* func, void* ret, va_list args) {
-  pthread_rwlock_rdlock(&listLock);
+  rwlock_rdlock(&listLock);
   bool doReturn = false;
   
   struct target_entry* target = getTarget(func);
@@ -175,7 +174,7 @@ static bool runHandlers(enum hook_location location, void* func, void* ret, va_l
     };
   }
 quit:
-  pthread_rwlock_unlock(&listLock);
+  rwlock_unlock(&listLock);
   return doReturn;
 }
 
@@ -206,14 +205,14 @@ bool hook_run_invoke(void* func, void* ret, ...) {
 }
 
 int _hook_register(void* target, enum hook_location location, hook_func func) {
-  pthread_rwlock_wrlock(&listLock);
+  rwlock_wrlock(&listLock);
   int ret = hookRegisterNoLock(target, location, func);
-  pthread_rwlock_unlock(&listLock);
+  rwlock_unlock(&listLock);
   return ret;
 }
 
 void _hook_unregister(void* target, enum hook_location location, hook_func func) {
-  pthread_rwlock_wrlock(&listLock);
+  rwlock_wrlock(&listLock);
   struct target_entry* targetEntry = getTarget(target);
   BUG_ON(!targetEntry);
   if (findHookFunc(targetEntry, location, func) == NULL)
@@ -226,5 +225,5 @@ void _hook_unregister(void* target, enum hook_location location, hook_func func)
   // Copied to take bsearch advantage
   vec_splice(&targetEntry->hooksLocations[location], indexof(targetEntry->hooksLocations[location].data, hookFuncLocation), 1);
 failure:
-  pthread_rwlock_unlock(&listLock);
+  rwlock_unlock(&listLock);
 }

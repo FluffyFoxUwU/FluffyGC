@@ -1,14 +1,9 @@
 #ifndef _headers_1683286554_FluffyGC_binary_tree
 #define _headers_1683286554_FluffyGC_binary_tree
 
-#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
-#include "attributes.h"
 #include "bits.h"
-#include "concurrency/rwlock.h"
-#include "util/util.h"
 
 // Bushy tree (Actually B-tree but like to think as bushy tree lol)
 // Refuses on overlapping ranges

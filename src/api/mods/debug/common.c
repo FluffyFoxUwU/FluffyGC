@@ -1,5 +1,3 @@
-#include <inttypes.h>
-
 #include "common.h"
 #include "api/mods/debug/debug.h"
 #include "context.h"

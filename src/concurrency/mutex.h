@@ -4,67 +4,36 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdatomic.h>
-#include <errno.h>
-
-#include "attributes.h"
-#include "concurrency/rwlock.h"
 
 struct mutex {
   pthread_mutex_t mutex;
   bool inited;
   
-  bool locked;
-  struct rwlock ownerLock;
-  pthread_t owner;
+  // Must not be dereferenced
+  atomic_uintptr_t owner;
 };
+
+#define MUTEX_INITIALIZER { \
+    .mutex = PTHREAD_MUTEX_INITIALIZER, \
+    .inited = true, \
+    .locked = false, \
+    .ownerLock = RWLOCK_INITIALIZER, \
+  }
+#define MUTEX_DEFINE(name) \
+  struct mutex name = MUTEX_INITIALIZER;
 
 int mutex_init(struct mutex* self);
 void mutex_cleanup(struct mutex* self);
 
-ATTRIBUTE_USED()
-static inline void mutex_lock(struct mutex* self) {
-  pthread_mutex_lock(&self->mutex);
-  rwlock_wrlock(&self->ownerLock);
-  self->owner = pthread_self();
-  self->locked = true;
-  rwlock_unlock(&self->ownerLock);
-  atomic_thread_fence(memory_order_acquire);
-} 
+#define MUTEX_LOCK_NONBLOCK 0x01
+#define MUTEX_LOCK_TIMED    0x02
 
-ATTRIBUTE_USED()
-static inline bool mutex_try_lock(struct mutex* self) {
-  int res = pthread_mutex_trylock(&self->mutex);
-  if (res == EBUSY)
-    return false;
-  
-  rwlock_wrlock(&self->ownerLock);
-  self->owner = pthread_self();
-  self->locked = true;
-  rwlock_unlock(&self->ownerLock);
-  atomic_thread_fence(memory_order_acquire);
-  return true;
-} 
 
-ATTRIBUTE_USED()
-static inline void mutex_unlock(struct mutex* self) {
-  atomic_thread_fence(memory_order_release);
-  rwlock_wrlock(&self->ownerLock);
-  self->locked = false;
-  rwlock_unlock(&self->ownerLock);
-  pthread_mutex_unlock(&self->mutex);
-}
+void mutex_lock(struct mutex* self);
+int mutex_lock2(struct mutex* self, int flags, const struct timespec* abstime);
 
-ATTRIBUTE_USED()
-static inline bool mutex_is_owned_by_current(struct mutex* self) {
-  rwlock_rdlock(&self->ownerLock);
-  bool res = false;
-  if (!self->locked)
-    goto is_locked;
-  res = pthread_equal(self->owner, pthread_self());
-is_locked:
-  rwlock_unlock(&self->ownerLock);
-  return res;
-}
+void mutex_unlock(struct mutex* self);
+bool mutex_is_owned_by_current(struct mutex* self);
 
 #endif
 

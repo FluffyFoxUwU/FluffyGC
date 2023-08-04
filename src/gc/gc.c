@@ -91,26 +91,27 @@ static void* mainGCThread(void* _self) {
 
 static enum gc_status callGC(struct gc_struct* self, struct channel_message* msg, struct channel_message* respPtr) {
   struct channel_message resp = {};
-  msg->cookie = (uintptr_t) msg;
+  msg->cookie = (uintptr_t) &resp;
   
   if (!IS_ENABLED(CONFIG_GC_SEPERATE_THREAD)) {
     processMessage(msg, &resp);
     goto done_call;
   }
   
-  atomic_thread_fence(memory_order_seq_cst);
+  atomic_thread_fence(memory_order_release);
   channel_send(self->commandChannel, msg);
   
   while (true) {
     channel_recv(self->responseChannel, &resp);
-    atomic_thread_fence(memory_order_seq_cst);
+    atomic_thread_fence(memory_order_acquire);
     if (resp.cookie == msg->cookie)
       break;
     
     // This not our response, send back to channel
-    atomic_thread_fence(memory_order_seq_cst);
+    atomic_thread_fence(memory_order_release);
     channel_send(self->responseChannel, &resp);
   }
+  atomic_thread_fence(memory_order_release);
   
 done_call:
   if (respPtr)
@@ -186,8 +187,8 @@ void gc_free(struct gc_struct* self) {
   if (!self)
     return;
   
-  // Call shutdown if main thread is up or seperate thread disabled
-  if (self->mainThreadIsUpAndSqueaking || !IS_ENABLED(CONFIG_GC_SEPERATE_THREAD))
+  // Call shutdown if main thread is up
+  if (self->mainThreadIsUpAndSqueaking)
     callGC(self, &CHANNEL_MESSAGE(GC_OP_SHUTDOWN), NULL);
   
   if (self->mainThreadIsUpAndSqueaking && IS_ENABLED(CONFIG_GC_SEPERATE_THREAD))

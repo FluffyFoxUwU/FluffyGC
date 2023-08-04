@@ -3,7 +3,6 @@
 
 #include <pthread.h>
 #include <stdbool.h>
-#include <stdatomic.h>
 
 struct mutex;
 struct condition {
@@ -11,28 +10,27 @@ struct condition {
   bool inited;
 };
 
+typedef bool (^condition_checker)();
+
 int condition_init(struct condition* self);
 void condition_cleanup(struct condition* self);
 
-void condition__wake(struct condition* self);
-void condition__wake_all(struct condition* self);
-void condition__wait(struct condition* self, struct mutex* mutex);
+#define CONDITION_WAIT_TIMED      0x01
+#define CONDITION_WAIT_NO_CHECKER 0x02
 
-#define condition_wait(self, mutex) do { \
-  atomic_thread_fence(memory_order_release); \
-  condition__wait((self), (mutex)); \
-  atomic_thread_fence(memory_order_acquire); \
-} while (0)
+// the checker acts like
+// while (checker())
+//   <whatever waiting function>
+void condition_wake(struct condition* self);
+void condition_wake_all(struct condition* self);
+void condition_wait(struct condition* self, struct mutex* mutex, condition_checker checker);
 
-#define condition_wake(self) do { \
-  atomic_thread_fence(memory_order_release); \
-  condition__wake((self)); \
-} while (0)
-
-#define condition_wake_all(self) do { \
-  atomic_thread_fence(memory_order_release); \
-  condition__wake_all((self)); \
-} while (0)
+// If flags == 0 it acts like condition_wait, because it is void. 
+// call with flags == 0 never return errors (always 0)
+// Errors:
+// -EINVAL   : Invalid absolute time
+// -ETIMEDOUT: Timed out
+int condition_wait2(struct condition* self, struct mutex* mutex, int flags, const struct timespec* abstime, condition_checker checker);
 
 #endif
 

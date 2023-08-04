@@ -1,7 +1,6 @@
 #include "pre_code.h"
 
 #include <stdatomic.h>
-#include <string.h>
 
 #include "api/api.h"
 #include "object/descriptor.h"
@@ -58,7 +57,7 @@ API_FUNCTION_DEFINE_VOID(fh_object_wait, __FLUFFYHEAP_NONNULL(fh_object*), self,
   context_unblock_gc();
   
   managed_heap_set_context_state(context_current, CONTEXT_SLEEPING);
-  condition_wait(&syncStructure->cond, &syncStructure->lock);
+  condition_wait2(&syncStructure->cond, &syncStructure->lock, CONDITION_WAIT_NO_CHECKER, NULL, NULL);
   managed_heap_set_context_state(context_current, CONTEXT_RUNNING);
 }
 

@@ -1,6 +1,4 @@
 #include <pthread.h>
-#include <stdatomic.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -160,9 +158,9 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
   
   while (!block) {
     if (gc_upgrade_to_gc_mode(gc_current)) {
-      mutex_lock(&self->gcCompleted.onComplete.lock);
+      mutex_lock(&self->gcCompleted.lock);
       completion_reset(&self->gcCompleted);
-      mutex_unlock(&self->gcCompleted.onComplete.lock);
+      mutex_unlock(&self->gcCompleted.lock);
       
       // This thread is the winner
       // and this thread got first attempt to allocate
@@ -173,9 +171,9 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
       if (block)
         break;
       
-      mutex_lock(&self->gcCompleted.onComplete.lock);
+      mutex_lock(&self->gcCompleted.lock);
       completion_reset(&self->gcCompleted);
-      mutex_unlock(&self->gcCompleted.onComplete.lock);
+      mutex_unlock(&self->gcCompleted.lock);
       
       gc_start(self->gcState, NULL);
       block = allocFunc(gen->fromHeap, descriptor_get_alignment(desc), descriptor_get_object_size(desc));
@@ -228,25 +226,25 @@ failure:
 }
 
 static void managed_heap_set_context_state_nolock(struct context* context, enum context_state state) {
+  context->state = state;
+  list_del(&context_current->list);
+  list_add(&context_current->list, &managed_heap_current->contextStates[state]);
+}
+
+void managed_heap_set_context_state(struct context* context, enum context_state state) {
   if (context_current)
     context_block_gc();
   else
     gc_block(gc_current);
   
-  context->state = state;
-  list_del(&context_current->list);
-  list_add(&context_current->list, &managed_heap_current->contextStates[state]);
+  mutex_lock(&managed_heap_current->contextTrackerLock);
+  managed_heap_set_context_state_nolock(context, state);
+  mutex_unlock(&managed_heap_current->contextTrackerLock);
   
   if (context_current)
     context_unblock_gc();
   else
     gc_unblock(gc_current);
-}
-
-void managed_heap_set_context_state(struct context* context, enum context_state state) {
-  mutex_lock(&managed_heap_current->contextTrackerLock);
-  managed_heap_set_context_state_nolock(context, state);
-  mutex_unlock(&managed_heap_current->contextTrackerLock);
 }
 
 static struct context* switchContextOutNolock() {
@@ -281,10 +279,19 @@ int managed_heap_attach_thread(struct managed_heap* self) {
   struct context* ctx = managed_heap_new_context(self);
   if (!ctx)
     return -ENOMEM;
-    
+  if (context_current)
+    context_block_gc();
+  else
+    gc_block(gc_current);
+  
   mutex_lock(&self->contextTrackerLock);
   switchContextInNolock(ctx);
   mutex_unlock(&self->contextTrackerLock);
+  
+  if (context_current)
+    context_unblock_gc();
+  else
+    gc_unblock(gc_current);
   return 0;
 }
 
@@ -296,6 +303,10 @@ void managed_heap_detach_thread(struct managed_heap* self) {
 
 int managed_heap_swap_context(struct context* new) {
   BUG_ON(new->managedHeap != context_current->managedHeap);
+  if (context_current)
+    context_block_gc();
+  else
+    gc_block(gc_current);
   
   struct managed_heap* heap = managed_heap_current;
   mutex_lock(&heap->contextTrackerLock);
@@ -310,6 +321,10 @@ int managed_heap_swap_context(struct context* new) {
   }
   
   mutex_unlock(&heap->contextTrackerLock);
+  if (context_current)
+    context_unblock_gc();
+  else
+    gc_unblock(gc_current);
   return ret;
 }
 
@@ -336,12 +351,81 @@ failure:
 void managed_heap_free_context(struct managed_heap* self, struct context* ctx) {
   BUG_ON(ctx->managedHeap != self);
   managed_heap_push_states(self, ctx);
+  if (context_current)
+    context_block_gc();
+  else
+    gc_block(gc_current);
   
   mutex_lock(&managed_heap_current->contextTrackerLock);
   self->contextCount--;
   list_del(&ctx->list);
   mutex_unlock(&managed_heap_current->contextTrackerLock);
-  context_free(ctx);
   
+  if (context_current)
+    context_unblock_gc();
+  else
+    gc_unblock(gc_current);
+  
+  context_free(ctx);
   managed_heap_pop_states();
 }
+
+/*
+M0 = Hook list read lock
+M1 = Block GC
+
+WARNING: ThreadSanitizer: lock-order-inversion (potential deadlock) (pid=16774)
+  Cycle in lock order graph: M0 (0x555b26277ef0) => M1 (0x7b3000000010) => M0
+
+  Mutex M1 acquired here while holding mutex M0 in main thread:
+    #0 pthread_rwlock_rdlock <null> (Executable+0xe4a7b) (BuildId: fc7254bf1024d329)
+    #1 rwlock_rdlock /home/fox/FluffyGC/src/concurrency/rwlock.h:34:3 (Executable+0x168e6b) (BuildId: fc7254bf1024d329)
+    #2 rwulock_rdlock /home/fox/FluffyGC/src/concurrency/rwulock.h:32:3 (Executable+0x16a031) (BuildId: fc7254bf1024d329)
+    #3 context__block_gc /home/fox/FluffyGC/src/context.c:52:5 (Executable+0x169fbf) (BuildId: fc7254bf1024d329)
+    #4 checkIfArray /home/fox/FluffyGC/src/api/mods/debug/hooks/arrays.c:15:3 (Executable+0x1c4375) (BuildId: fc7254bf1024d329)
+    #5 debug_hook_fh_array_calc_offset_head /home/fox/FluffyGC/src/api/mods/debug/hooks/arrays.c:49:8 (Executable+0x1c4fe3) (BuildId: fc7254bf1024d329)
+    #6 ____hook_handler_debug_hook_fh_array_calc_offset_head /home/fox/FluffyGC/src/api/mods/debug/hooks/arrays.c:39:1 (Executable+0x1c4beb) (BuildId: fc7254bf1024d329)
+    #7 runHandlers /home/fox/FluffyGC/src/hook/hook.c:172:9 (Executable+0x1c7e35) (BuildId: fc7254bf1024d329)
+    #8 hook_run_head /home/fox/FluffyGC/src/hook/hook.c:185:14 (Executable+0x1c7783) (BuildId: fc7254bf1024d329)
+    #9 fh_array_calc_offset /home/fox/FluffyGC/src/api/array.c:19:1 (Executable+0x1aca9a) (BuildId: fc7254bf1024d329)
+    #10 ____hook_func_fh_array_set_element_real /home/fox/FluffyGC/src/api/array.c:32:48 (Executable+0x1acfdd) (BuildId: fc7254bf1024d329)
+    #11 fh_array_set_element /home/fox/FluffyGC/src/api/array.c:31:1 (Executable+0x1acf53) (BuildId: fc7254bf1024d329)
+    #12 main2 /home/fox/FluffyGC/src/main.c:125:5 (Executable+0x16853b) (BuildId: fc7254bf1024d329)
+    #13 testWorker /home/fox/FluffyGC/src/premain.c:19:16 (Executable+0x167eee) (BuildId: fc7254bf1024d329)
+    #14 main /home/fox/FluffyGC/src/premain.c:34:5 (Executable+0x167d8f) (BuildId: fc7254bf1024d329)
+
+  Mutex M0 previously acquired by the same thread here:
+    #0 pthread_rwlock_rdlock <null> (Executable+0xe4a7b) (BuildId: fc7254bf1024d329)
+    #1 runHandlers /home/fox/FluffyGC/src/hook/hook.c:154:3 (Executable+0x1c784a) (BuildId: fc7254bf1024d329)
+    #2 hook_run_head /home/fox/FluffyGC/src/hook/hook.c:185:14 (Executable+0x1c7783) (BuildId: fc7254bf1024d329)
+    #3 fh_array_calc_offset /home/fox/FluffyGC/src/api/array.c:19:1 (Executable+0x1aca9a) (BuildId: fc7254bf1024d329)
+    #4 ____hook_func_fh_array_set_element_real /home/fox/FluffyGC/src/api/array.c:32:48 (Executable+0x1acfdd) (BuildId: fc7254bf1024d329)
+    #5 fh_array_set_element /home/fox/FluffyGC/src/api/array.c:31:1 (Executable+0x1acf53) (BuildId: fc7254bf1024d329)
+    #6 main2 /home/fox/FluffyGC/src/main.c:125:5 (Executable+0x16853b) (BuildId: fc7254bf1024d329)
+    #7 testWorker /home/fox/FluffyGC/src/premain.c:19:16 (Executable+0x167eee) (BuildId: fc7254bf1024d329)
+    #8 main /home/fox/FluffyGC/src/premain.c:34:5 (Executable+0x167d8f) (BuildId: fc7254bf1024d329)
+
+  Mutex M0 acquired here while holding mutex M1 in main thread:
+    #0 pthread_rwlock_rdlock <null> (Executable+0xe4a7b) (BuildId: fc7254bf1024d329)
+    #1 runHandlers /home/fox/FluffyGC/src/hook/hook.c:154:3 (Executable+0x1c784a) (BuildId: fc7254bf1024d329)
+    #2 hook_run_tail /home/fox/FluffyGC/src/hook/hook.c:193:14 (Executable+0x1c8027) (BuildId: fc7254bf1024d329)
+    #3 fh_attach_thread /home/fox/FluffyGC/src/api/heap_api.c:42:1 (Executable+0x19e9c9) (BuildId: fc7254bf1024d329)
+    #4 main2 /home/fox/FluffyGC/src/main.c:66:3 (Executable+0x168206) (BuildId: fc7254bf1024d329)
+    #5 testWorker /home/fox/FluffyGC/src/premain.c:19:16 (Executable+0x167eee) (BuildId: fc7254bf1024d329)
+    #6 main /home/fox/FluffyGC/src/premain.c:34:5 (Executable+0x167d8f) (BuildId: fc7254bf1024d329)
+
+  Mutex M1 previously acquired by the same thread here:
+    #0 pthread_rwlock_rdlock <null> (Executable+0xe4a7b) (BuildId: fc7254bf1024d329)
+    #1 rwlock_rdlock /home/fox/FluffyGC/src/concurrency/rwlock.h:34:3 (Executable+0x1701eb) (BuildId: fc7254bf1024d329)
+    #2 rwulock_rdlock /home/fox/FluffyGC/src/concurrency/rwulock.h:32:3 (Executable+0x1748b1) (BuildId: fc7254bf1024d329)
+    #3 managed_heap_attach_thread /home/fox/FluffyGC/src/managed_heap.c:285:5 (Executable+0x174ed1) (BuildId: fc7254bf1024d329)
+    #4 ____hook_func_fh_attach_thread_real /home/fox/FluffyGC/src/api/heap_api.c:43:13 (Executable+0x19ea2d) (BuildId: fc7254bf1024d329)
+    #5 fh_attach_thread /home/fox/FluffyGC/src/api/heap_api.c:42:1 (Executable+0x19e9ab) (BuildId: fc7254bf1024d329)
+    #6 main2 /home/fox/FluffyGC/src/main.c:66:3 (Executable+0x168206) (BuildId: fc7254bf1024d329)
+    #7 testWorker /home/fox/FluffyGC/src/premain.c:19:16 (Executable+0x167eee) (BuildId: fc7254bf1024d329)
+    #8 main /home/fox/FluffyGC/src/premain.c:34:5 (Executable+0x167d8f) (BuildId: fc7254bf1024d329)
+
+SUMMARY: ThreadSanitizer: lock-order-inversion (potential deadlock) (/home/fox/FluffyGC/build/Executable+0xe4a7b) (BuildId: fc7254bf1024d329) in pthread_rwlock_rdlock
+==================
+
+*/

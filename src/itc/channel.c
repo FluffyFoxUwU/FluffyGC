@@ -1,5 +1,6 @@
 #include "config.h"
-#include "panic.h"
+
+#include <limits.h>
 #include <sys/types.h>
 
 #if !IS_ENABLED(CONFIG_STRICTLY_POSIX)
@@ -11,7 +12,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "panic.h"
 #include "channel.h"
+
+static_assert(PIPE_BUF >= 512);
 
 static int createPipe(int* read, int* write) {
   int fds[2] = {};

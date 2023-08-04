@@ -126,6 +126,7 @@ int main2() {
     fh_object* readVal = fh_array_get_element(array, 0);
     printf("[Main] Array[0] is %ssame what just written\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
     
+    // Triger warning (or abort) intentionally
     fh_array_calc_offset(array, 999);
     
     const fh_type_info* info = fh_object_get_type_info(FH_CAST_TO_OBJECT(array));
