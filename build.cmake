@@ -38,6 +38,7 @@ set(BUILD_SOURCES
   src/concurrency/thread_local.c
   
   src/itc/channel.c
+  src/rcu/rcu.c
   
   src/api/hooks.c
   src/api/heap_api.c

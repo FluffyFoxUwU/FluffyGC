@@ -1,12 +1,17 @@
+#include <pthread.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "FluffyHeap.h"
 #include "bug.h"
 #include "hook/hook.h"
 #include "mods/dma.h"
+#include "rcu/rcu.h"
+#include "util/util.h"
 
 struct test_type2 {
   int im;
@@ -40,9 +45,7 @@ static int loader(const char* name, void* udata, fh_descriptor_param* param) {
   return -ESRCH;
 }
 
-int main2() {
-  hook_init();
-  
+void doTestNormal() {
   size_t sizes[] = {
     64 * 1024 * 1024
   };
@@ -57,7 +60,7 @@ int main2() {
   if (ret < 0) {
     errno = -ret;
     perror("fh_enable_mod");
-    return EXIT_FAILURE;
+    return;
   }
   
   fluffyheap* heap = fh_new(&param);
@@ -162,5 +165,82 @@ int main2() {
   // Cleaning up
   fh_detach_thread(heap);
   fh_free(heap);
+}
+
+struct an_rcu_using_struct {
+  struct rcu_head rcuHead;
+  
+  int uwu;
+};
+
+struct rcu_struct rcuProtected;
+void* worker(void*) {
+  uint64_t iteration = 0;
+  pthread_t selfThread = pthread_self();
+  while (1) {
+    rcu_read_lock(&rcuProtected);
+    struct an_rcu_using_struct* result = container_of(rcu_read(&rcuProtected), struct an_rcu_using_struct, rcuHead);
+    fprintf(stderr, "Reader: %d -> %20ld (Thread: %20ld)\r", result->uwu, iteration, selfThread);
+    rcu_read_unlock(&rcuProtected, &result->rcuHead);
+    
+    pthread_testcancel();
+    iteration++;
+  }
+  return NULL;
+}
+
+void freeRcuData(struct rcu_head* head) {
+  struct an_rcu_using_struct* self = container_of(head, struct an_rcu_using_struct, rcuHead);
+  free(self);
+}
+
+void doTestRCU() {
+  rcu_init(&rcuProtected);
+  pthread_t new, new2;
+  
+  {
+    struct an_rcu_using_struct* currentData = malloc(sizeof(*currentData));
+    *currentData = (struct an_rcu_using_struct) {};
+    rcu_exchange_and_synchronize(&rcuProtected, &currentData->rcuHead);
+  }
+  
+  pthread_create(&new, NULL, worker, NULL);
+  pthread_create(&new2, NULL, worker, NULL);
+  
+  for (int i = 0; i < 5; i++) {
+    fprintf(stderr, "\033[2KWriter start writing %d into data\n", i);
+    struct an_rcu_using_struct* newCopy = malloc(sizeof(*newCopy));
+    
+    // Create copy
+    {
+      rcu_read_lock(&rcuProtected);
+      struct an_rcu_using_struct* current = container_of(rcu_read(&rcuProtected), struct an_rcu_using_struct, rcuHead);
+      rcu_memcpy(&newCopy->rcuHead, &current->rcuHead, offsetof(struct an_rcu_using_struct, rcuHead), sizeof(*newCopy));
+      rcu_read_unlock(&rcuProtected, &current->rcuHead);
+    }
+    
+    // Update
+    newCopy->uwu = i;
+    
+    // Write, synchronize and clean old instance
+    struct rcu_head* old = rcu_exchange_and_synchronize(&rcuProtected, &newCopy->rcuHead);
+    free(container_of(old, struct an_rcu_using_struct, rcuHead));
+    
+    fprintf(stderr, "Writer written %d into data\n", i);
+    sleep(1);
+  }
+  
+  pthread_cancel(new);
+  pthread_cancel(new2);
+  pthread_join(new, NULL);
+  pthread_join(new2, NULL);
+  rcu_cleanup(&rcuProtected);
+}
+
+int main2() {
+  hook_init();
+  
+  doTestRCU();
+  
   return EXIT_SUCCESS;
 }

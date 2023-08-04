@@ -32,6 +32,10 @@ void condition_wake_all(struct condition* self) {
 }
 
 int condition_wait2(struct condition* self, struct mutex* mutex, int flags, const struct timespec* abstimeout, condition_checker checker) {
+  // Exit early if not needed
+  if (!checker())
+    return 0;
+  
   int ret;
 retry:
   if (flags & CONDITION_WAIT_TIMED)
