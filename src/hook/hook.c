@@ -4,6 +4,7 @@
 
 #include "bug.h"
 #include "hook.h"
+#include "concurrency/mutex.h"
 #include "concurrency/rwlock.h"
 #include "panic.h"
 #include "util/util.h"
@@ -13,6 +14,9 @@ struct target_entry {
   void* target;
   vec_t(hook_func) hooksLocations[HOOK_COUNT];
 };
+
+// Protects the struct target_entry and the list from writers
+static struct mutex modifyTargetEntryLock = MUTEX_INITIALIZER;
 
 static struct rwlock listLock = RWLOCK_INITIALIZER;
 static bool hasInitialized = false;

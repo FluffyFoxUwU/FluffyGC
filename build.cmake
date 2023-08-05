@@ -39,6 +39,7 @@ set(BUILD_SOURCES
   
   src/itc/channel.c
   src/rcu/rcu.c
+  src/rcu/rcu_generic.c
   
   src/api/hooks.c
   src/api/heap_api.c

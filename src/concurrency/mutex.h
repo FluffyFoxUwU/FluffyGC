@@ -16,8 +16,7 @@ struct mutex {
 #define MUTEX_INITIALIZER { \
     .mutex = PTHREAD_MUTEX_INITIALIZER, \
     .inited = true, \
-    .locked = false, \
-    .ownerLock = RWLOCK_INITIALIZER, \
+    .owner = 0, \
   }
 #define MUTEX_DEFINE(name) \
   struct mutex name = MUTEX_INITIALIZER;

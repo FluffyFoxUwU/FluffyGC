@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +12,8 @@
 #include "hook/hook.h"
 #include "mods/dma.h"
 #include "rcu/rcu.h"
+#include "rcu/rcu_generic.h"
+#include "rcu/rcu_generic_type.h"
 #include "util/util.h"
 
 struct test_type2 {
@@ -173,15 +176,15 @@ struct an_rcu_using_struct {
   int uwu;
 };
 
-struct rcu_struct rcuProtected;
+static struct rcu_struct rcuProtected;
 void* worker(void*) {
   uint64_t iteration = 0;
   pthread_t selfThread = pthread_self();
   while (1) {
-    rcu_read_lock(&rcuProtected);
+    struct rcu_head* currentRcu = rcu_read_lock(&rcuProtected);
     struct an_rcu_using_struct* result = container_of(rcu_read(&rcuProtected), struct an_rcu_using_struct, rcuHead);
     fprintf(stderr, "Reader: %d -> %20ld (Thread: %20ld)\r", result->uwu, iteration, selfThread);
-    rcu_read_unlock(&rcuProtected, &result->rcuHead);
+    rcu_read_unlock(&rcuProtected,currentRcu);
     
     pthread_testcancel();
     iteration++;
@@ -198,10 +201,13 @@ void doTestRCU() {
   rcu_init(&rcuProtected);
   pthread_t new, new2;
   
+  // Init
   {
     struct an_rcu_using_struct* currentData = malloc(sizeof(*currentData));
     *currentData = (struct an_rcu_using_struct) {};
-    rcu_exchange_and_synchronize(&rcuProtected, &currentData->rcuHead);
+    struct rcu_head* old = rcu_exchange_and_synchronize(&rcuProtected, &currentData->rcuHead);
+    if (old)
+      free(container_of(old, struct an_rcu_using_struct, rcuHead));
   }
   
   pthread_create(&new, NULL, worker, NULL);
@@ -213,10 +219,10 @@ void doTestRCU() {
     
     // Create copy
     {
-      rcu_read_lock(&rcuProtected);
+      struct rcu_head* currentRcu = rcu_read_lock(&rcuProtected);
       struct an_rcu_using_struct* current = container_of(rcu_read(&rcuProtected), struct an_rcu_using_struct, rcuHead);
       rcu_memcpy(&newCopy->rcuHead, &current->rcuHead, offsetof(struct an_rcu_using_struct, rcuHead), sizeof(*newCopy));
-      rcu_read_unlock(&rcuProtected, &current->rcuHead);
+      rcu_read_unlock(&rcuProtected, currentRcu);
     }
     
     // Update
@@ -237,10 +243,113 @@ void doTestRCU() {
   rcu_cleanup(&rcuProtected);
 }
 
+struct some_data_uwu {
+  int UwU;
+};
+
+RCU_GENERIC_TYPE_DEFINE_TYPE(some_data_uwu_rcu, struct some_data_uwu);
+
+static struct some_data_uwu_rcu rcuProtected2;
+void* worker2(void*) {
+  uint64_t iteration = 0;
+  pthread_t selfThread = pthread_self();
+  while (1) {
+    
+    struct rcu_head* currentRcu = rcu_read_lock(&rcuProtected2.generic.rcu);
+    struct some_data_uwu_rcu_readonly_container instance = rcu_generic_type_get(&rcuProtected2);
+    fprintf(stderr, "Reader: %d -> %20ld (Thread: %20ld)\r", instance.data->UwU, iteration, selfThread);
+    rcu_read_unlock(&rcuProtected2.generic.rcu, currentRcu);
+    
+    pthread_testcancel();
+    iteration++;
+  }
+  return NULL;
+}
+
+void doTestRCUGenericType() {
+  rcu_generic_type_init(&rcuProtected2, NULL);
+  pthread_t new, new2;
+  
+  // Init
+  {
+    struct some_data_uwu_rcu_writeable_container instance = rcu_generic_type_alloc_for(&rcuProtected2);
+    instance.data->UwU = 0;
+    rcu_generic_write(&rcuProtected2.generic, instance.container);
+  }
+  
+  pthread_create(&new, NULL, worker2, NULL);
+  pthread_create(&new2, NULL, worker2, NULL);
+  
+  for (int i = 0; i < 5; i++) {
+    fprintf(stderr, "\033[2KWriter start writing %d into data\n", i);
+    
+    // Copy
+    struct some_data_uwu_rcu_writeable_container copy = rcu_generic_type_copy(&rcuProtected2);
+    
+    // Update
+    copy.data->UwU = i;
+    
+    // Write
+    rcu_generic_write(&rcuProtected2.generic, copy.container);
+    
+    fprintf(stderr, "Writer written %d into data\n", i);
+    sleep(1);
+  }
+  
+  pthread_cancel(new);
+  pthread_cancel(new2);
+  pthread_join(new, NULL);
+  pthread_join(new2, NULL);
+  rcu_generic_type_cleanup(&rcuProtected2);
+}
+
 int main2() {
   hook_init();
   
-  doTestRCU();
+  // doTestRCU();
+  // doTestNormal();
+  // doTestRCUGenericType();
+  // doTestVecRCU();
   
   return EXIT_SUCCESS;
 }
+
+/*
+ultra rare warning UwU
+
+Writer start writing 0 into data
+==================            552 (Thread:      139928875820736)
+WARNING: ThreadSanitizer: data race (pid=49480)
+  Read of size 4 at 0x7b0800000040 by thread T2:
+    #0 worker2 /home/fox/FluffyGC/src/main.c:260:77 (Executable+0x16c4bc) (BuildId: 17394c296b114e27)
+
+  Previous write of size 8 at 0x7b0800000040 by main thread:
+    #0 rcu_exchange_and_synchronize /home/fox/FluffyGC/src/rcu/rcu.c:46:3 (Executable+0x1a133d) (BuildId: 17394c296b114e27)
+    #1 rcu_generic_write /home/fox/FluffyGC/src/rcu/rcu_generic.c:27:26 (Executable+0x1a2394) (BuildId: 17394c296b114e27)
+    #2 doTestRCUGenericType /home/fox/FluffyGC/src/main.c:293:5 (Executable+0x16c86e) (BuildId: 17394c296b114e27)
+    #3 main2 /home/fox/FluffyGC/src/main.c:311:3 (Executable+0x16cd8e) (BuildId: 17394c296b114e27)
+    #4 testWorker /home/fox/FluffyGC/src/premain.c:19:16 (Executable+0x16ae1e) (BuildId: 17394c296b114e27)
+    #5 main /home/fox/FluffyGC/src/premain.c:34:5 (Executable+0x16acbf) (BuildId: 17394c296b114e27)
+
+  Location is heap block of size 20 at 0x7b0800000040 allocated by main thread:
+    #0 malloc <null> (Executable+0xe2fcc) (BuildId: 17394c296b114e27)
+    #1 rcu_generic_alloc_container /home/fox/FluffyGC/src/rcu/rcu_generic.c:67:39 (Executable+0x1a3200) (BuildId: 17394c296b114e27)
+    #2 rcu_generic_copy /home/fox/FluffyGC/src/rcu/rcu_generic.c:50:40 (Executable+0x1a2ad2) (BuildId: 17394c296b114e27)
+    #3 __doTestRCUGenericType_block_invoke_2 /home/fox/FluffyGC/src/main.c:287:57 (Executable+0x16cbab) (BuildId: 17394c296b114e27)
+    #4 doTestRCUGenericType /home/fox/FluffyGC/src/main.c:287:57 (Executable+0x16c79b) (BuildId: 17394c296b114e27)
+    #5 main2 /home/fox/FluffyGC/src/main.c:311:3 (Executable+0x16cd8e) (BuildId: 17394c296b114e27)
+    #6 testWorker /home/fox/FluffyGC/src/premain.c:19:16 (Executable+0x16ae1e) (BuildId: 17394c296b114e27)
+    #7 main /home/fox/FluffyGC/src/premain.c:34:5 (Executable+0x16acbf) (BuildId: 17394c296b114e27)
+
+  Thread T2 (tid=49483, running) created by main thread at:
+    #0 pthread_create <null> (Executable+0xe4bab) (BuildId: 17394c296b114e27)
+    #1 doTestRCUGenericType /home/fox/FluffyGC/src/main.c:281:3 (Executable+0x16c732) (BuildId: 17394c296b114e27)
+    #2 main2 /home/fox/FluffyGC/src/main.c:311:3 (Executable+0x16cd8e) (BuildId: 17394c296b114e27)
+    #3 testWorker /home/fox/FluffyGC/src/premain.c:19:16 (Executable+0x16ae1e) (BuildId: 17394c296b114e27)
+    #4 main /home/fox/FluffyGC/src/premain.c:34:5 (Executable+0x16acbf) (BuildId: 17394c296b114e27)
+
+SUMMARY: ThreadSanitizer: data race /home/fox/FluffyGC/src/main.c:260:77 in worker2
+==================
+
+
+*/

@@ -25,7 +25,7 @@ struct userptr {
   void address_heap* ptr;
 };
 
-#define USERPTR(x) ((struct userptr) {x})
+#define USERPTR(x) ((struct userptr) {(void address_heap*) (x)})
 #define USERPTR_NULL USERPTR(NULL)
 
 struct object_sync_structure {
