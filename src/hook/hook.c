@@ -15,7 +15,8 @@ struct target_entry {
   vec_t(hook_func) hooksLocations[HOOK_COUNT];
 };
 
-// Protects the struct target_entry and the list from writers
+// The list and target_entry should be RCU protected
+// and this is mutex lock for both
 static struct mutex modifyTargetEntryLock = MUTEX_INITIALIZER;
 
 static struct rwlock listLock = RWLOCK_INITIALIZER;

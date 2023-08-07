@@ -4,11 +4,12 @@
 // Generic container for RCU data
 // doesn't really care what data its storing
 
-#include "rcu/rcu.h"
-#include "util/util.h"
 #include <stdint.h>
 
-typedef void (*rcu_generic_copy_func)(const void* src, void* dest);
+#include "rcu/rcu.h"
+#include "util/util.h"
+
+typedef int (*rcu_generic_copy_func)(const void* src, void* dest);
 typedef void (*rcu_generic_cleanup_func)(void* data);
 
 struct rcu_generic_ops {
@@ -53,7 +54,7 @@ struct rcu_generic_container* rcu_generic_exchange(struct rcu_generic* self, str
 // Get writeable copy
 struct rcu_generic_container* rcu_generic_copy(struct rcu_generic* self);
 
-// Container management
+// Container management (dealloc does not run cleanup function)
 struct rcu_generic_container* rcu_generic_alloc_container(size_t size);
 void rcu_generic_dealloc_container(struct rcu_generic_container* container);
 

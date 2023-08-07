@@ -26,20 +26,32 @@
 
 #define rcu_generic_type_init(self, ops) rcu_generic_init(&(self)->generic, ops)
 #define rcu_generic_type_cleanup(self) rcu_generic_cleanup(&(self)->generic)
-// #define rcu_generic_type_get(self) ((typeof(*(self)->readContainerType)) { \
-//   .container = rcu_generic_get_readonly(&(self)->generic), \
-//   .data = rcu_generic_get_readonly(&(self)->generic)->data.ptr \
-// })
 
-#define rcu_generic_type_get(self) \
-  (*((^typeof(*(self)->readContainerType)* (typeof(*(self)->readContainerType)* x) { \
+#define rcu_generic_type_get(_self) \
+  (*((^typeof(*(_self)->readContainerType)* (typeof(_self) self, typeof(*(_self)->readContainerType)* x) { \
     struct rcu_generic_container* container = rcu_generic_get_readonly(&(self)->generic); \
     if (!container) \
       return NULL; \
     x->container = container; \
     x->data = container->data.ptr; \
     return x; \
-  })(&(typeof(*(self)->readContainerType)) {})))
+  })(_self, &(typeof(*(_self)->readContainerType)) {})))
+
+#define rcu_generic_type_exchange(_self, new) \
+  (*((^typeof(*(_self)->writeContainerType)* (typeof(_self) self, typeof(*(self)->writeContainerType)* x) { \
+    typeof(*(self)->writeContainerType)* newVar = (new); \
+    struct rcu_generic_container* container = rcu_generic_exchange(&(self)->generic, newVar ? newVar->container : NULL); \
+    if (!container) \
+      return NULL; \
+    x->container = container; \
+    x->data = container->data.ptr; \
+    return x; \
+  })(_self, &(typeof(*(_self)->writeContainerType)) {})))
+
+#define rcu_generic_type_write(_self, new) do {\
+  typeof((_self)->writeContainerType) a = (new); \
+  rcu_generic_write(&(_self)->generic, a ? a->container : NULL); \
+} while (0)
 
 // This is fine, https://godbolt.org/z/dfzrxvP1r
 // Clang can inline Block calls
@@ -49,7 +61,7 @@
     if (!container) \
       return NULL; \
     x->container = container; \
-    x->data = container->data.ptr; \
+    x->data = container != NULL ? container->data.ptr : NULL; \
     return x; \
   })(&(typeof(*(self)->writeContainerType)) {})))
 

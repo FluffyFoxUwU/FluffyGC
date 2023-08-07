@@ -44,7 +44,9 @@ struct rcu_head* rcu_read(struct rcu_struct* self) {
 }
 
 struct rcu_head* rcu_exchange_and_synchronize(struct rcu_struct* self, struct rcu_head* data) {
-  atomic_init(&data->readerCount, 0);
+  if (data)
+    atomic_init(&data->readerCount, 0);
+  
   mutex_lock(&self->updaterLock);
   struct rcu_head* watching = atomic_exchange(&self->current, data);
   
