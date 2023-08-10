@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "FluffyHeap.h"
+#include "attributes.h"
 #include "bug.h"
 #include "hook/hook.h"
 #include "mods/dma.h"
@@ -51,6 +52,7 @@ static int loader(const char* name, void* udata, fh_descriptor_param* param) {
   return -ESRCH;
 }
 
+ATTRIBUTE_USED()
 static void doTestNormal() {
   size_t sizes[] = {
     64 * 1024 * 1024
@@ -200,6 +202,7 @@ static void freeRcuData(struct rcu_head* head) {
   free(self);
 }
 
+ATTRIBUTE_USED()
 static void doTestRCU() {
   rcu_init(&rcuProtected);
   pthread_t new, new2;
@@ -269,6 +272,7 @@ static void* worker2(void*) {
   return NULL;
 }
 
+ATTRIBUTE_USED()
 static void doTestRCUGenericType() {
   rcu_generic_type_init(&rcuProtected2, NULL);
   
@@ -316,6 +320,9 @@ static struct vec_hi_rcu rcuProtected3;
 static void* worker3(void*) {
   uint64_t iteration = 0;
   pthread_t selfThread = pthread_self();
+  (void) iteration;
+  (void) selfThread;
+  
   while (1) {
     struct rcu_head* currentRcu = rcu_read_lock(&rcuProtected3.generic.rcu);
     struct vec_hi_rcu_readonly_container readonly = rcu_generic_type_get(&rcuProtected3);
@@ -335,6 +342,7 @@ static void* worker3(void*) {
   return NULL;
 }
 
+ATTRIBUTE_USED()
 static void doTestVecRCU() {
   rcu_generic_type_init(&rcuProtected3, &rcu_vec_t_ops);
   
@@ -399,6 +407,5 @@ int main2() {
   // doTestRCU();
   // doTestRCUGenericType();
   // doTestVecRCU();
-  
   return EXIT_SUCCESS;
 }

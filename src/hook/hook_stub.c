@@ -9,6 +9,8 @@ int hook_init() {
   return -ENOSYS;
 }
 
+void hook_cleanup() {}
+
 bool hook__run_head(struct hook_internal_state* state, void* ret, ...) {
   panic("Hooking infrastructure is disabled!");
 }

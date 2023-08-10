@@ -262,12 +262,27 @@ static void hookCleanup() {
   
   int i = 0;
   struct target_entry_rcu* entry;
-  vec_foreach(&list.data->array, entry, i)
+  vec_foreach(&list.data->array, entry, i) {
     rcu_generic_type_write(entry, NULL);
+    rcu_generic_type_cleanup(entry);
+    free(entry);
+  }
 
 target_list_not_initialized:
   rcu_read_unlock(rcu_generic_type_get_rcu(&targetsList), rcuTmp);
   rcu_generic_type_write(&targetsList, NULL);
+  rcu_generic_type_cleanup(&targetsList);
+}
+
+void hook_cleanup() {
+  mutex_lock(&startupLock);
+  if (!hasInitialized)
+    goto not_initialized;
+  
+  hookCleanup();
+  hasInitialized = false;
+not_initialized:
+  mutex_unlock(&startupLock);
 }
 
 int hook_init() {
@@ -278,6 +293,9 @@ int hook_init() {
   
   if ((ret = rcu_vec_init_rcu(&targetsList)) < 0)
     goto failed_initializing_target_list;
+  
+  // Set atexit cleanup function
+  atexit(hookCleanup);
   
   struct target_entry_list_rcu_writeable_container list = rcu_generic_type_alloc_for(&targetsList);
   if (!list.data) {

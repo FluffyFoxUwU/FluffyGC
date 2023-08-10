@@ -56,6 +56,7 @@ typedef enum hook_action (*hook_func)(struct hook_call_info*, va_list args);
 #define ____HOOK_PASS_ARGUMENTS(...) MACRO_FOR_EACH_STRIDE2(____HOOK_TARGET_IGNORE, ____HOOK_TARGET_PASSTHROUGHB, __VA_ARGS__)
 
 int hook_init();
+void hook_cleanup();
 
 bool hook__run_head(struct hook_internal_state* state, void* ret, ...);
 bool hook__run_tail(struct hook_internal_state* state, void* ret, ...);
