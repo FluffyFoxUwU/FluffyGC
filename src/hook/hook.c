@@ -210,6 +210,10 @@ static int hookRegister(void* target, enum hook_location location, hook_func fun
     goto error_registering;
   }
   
+  // Sort for bsearch usage later on
+  typeof(targetEntryWriteable.data->hooksLocations[location])* hookArray = &targetEntryWriteable.data->hooksLocations[location];
+  qsort(hookArray->data, hookArray->length, sizeof(*hookArray->data), compareHookFunc);
+  
   rcu_generic_type_write(targetEntry, &targetEntryWriteable);
 error_registering:
   if (ret < 0)
@@ -402,16 +406,17 @@ void hook__unregister(void* target, enum hook_location location, hook_func func)
     rcu_read_unlock(rcu_generic_type_get_rcu(targetEntryRcu), rcuTmp);
     return;
   }
-
+  size_t hookIndex = indexof(targetEntry.data->hooksLocations[location].data, hookFuncLocation);
+  
   struct target_entry_rcu_writeable_container targetEntryCopy = rcu_generic_type_copy(targetEntryRcu);
   if (!targetEntryCopy.data)
     panic("TODO: Find right error handling for hook_unregister");
   rcu_read_unlock(rcu_generic_type_get_rcu(targetEntryRcu), rcuTmp);
   
   typeof(targetEntryCopy.data->hooksLocations[location])* hookArray = &targetEntryCopy.data->hooksLocations[location];
+  vec_splice(hookArray, hookIndex, 1);
   
-  vec_splice(hookArray, indexof(hookArray->data, hookFuncLocation), 1);
+  // Sort for bsearch usage later on
   qsort(hookArray->data, hookArray->length, sizeof(*hookArray->data), compareHookFunc);
-  
   rcu_generic_type_write(targetEntryRcu, &targetEntryCopy);
 }

@@ -324,6 +324,7 @@ static void* worker3(void*) {
     struct uwu* current;
     vec_foreach_ptr(&readonly.data->array, current, i) {
       // printf("[%ld] [%20ld] Got {%ld, \"%s\"} at %d\033[2K\r", selfThread, iteration, current->UwU, current->OwO, i);
+      (void) current;
     }
     
     rcu_read_unlock(&rcuProtected3.generic.rcu, currentRcu);
@@ -378,9 +379,21 @@ static void doTestVecRCU() {
   rcu_generic_type_cleanup(&rcuProtected3);
 }
 
+HOOK_FUNCTION(static, __FLUFFYHEAP_NULLABLE(fluffyheap*), hookTest, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams) {
+  ci->action = HOOK_CONTINUE;
+  puts("Testing runtime adding");
+  return;
+}
+
 int main2() {
   int ret = hook_init();
   BUG_ON(ret < 0 && ret != -ENOSYS);
+  
+  hook_register(fh_new, HOOK_HEAD, hookTest);
+  
+  doTestNormal();
+  
+  hook_unregister(fh_new, HOOK_HEAD, hookTest);
   
   doTestNormal();
   // doTestRCU();
