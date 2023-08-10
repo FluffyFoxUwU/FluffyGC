@@ -102,6 +102,9 @@ __FLUFFYHEAP_EXPORT int fh_enable_mod(enum fh_mod mod, uint32_t flags) {
     // Flags given is not subset of already enabled one
     if ((currentModStates[mod].flags & flags) != flags)
       return -EBUSY;
+    
+    // Add the flags
+    flags |= currentModStates[mod].flags;
   }
   
   currentModStates[mod].enabled = true;
