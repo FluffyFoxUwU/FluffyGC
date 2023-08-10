@@ -24,9 +24,9 @@ struct mutex {
 int mutex_init(struct mutex* self);
 void mutex_cleanup(struct mutex* self);
 
+// nonblock takes over precedence to timed
 #define MUTEX_LOCK_NONBLOCK 0x01
 #define MUTEX_LOCK_TIMED    0x02
-
 
 void mutex_lock(struct mutex* self);
 int mutex_lock2(struct mutex* self, int flags, const struct timespec* abstime);

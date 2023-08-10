@@ -7,7 +7,7 @@
 #include "concurrency/mutex.h"
 
 // Most codes are reformatted from (comments preserved)
-// https://github.com/noahcroit/RingBuffer_and_DataFraming_C/blob/master/circularBuffer.c
+// https://github.com/noahcroit/RingBuffer_and_DataFraming_C/blob/8d41e99a78e1977ae71968a3d4cb3cb607bc770a/circularBuffer.c
 
 enum buf_state {
   BUF_STATE_EMPTY,
@@ -16,19 +16,20 @@ enum buf_state {
   BUF_STATE_R_LESS_THAN_F
 };
 
-static bool startCritical(struct circular_buffer* self, int flags, const struct timespec* abstimeout) {
+static int startCritical(struct circular_buffer* self, int flags, const struct timespec* abstimeout) {
+  int ret = 0;
   if (flags & CIRCULAR_BUFFER_NO_LOCK)
-    return true;
+    return 0;
   
   if (flags & CIRCULAR_BUFFER_NONBLOCK) {
-    // Is going to sleep
-    if (!mutex_lock2(&self->lock, MUTEX_LOCK_TIMED, abstimeout))
-      return false;
+    ret = mutex_lock2(&self->lock, MUTEX_LOCK_NONBLOCK, NULL);
+  } else if (flags & CIRCULAR_BUFFER_WITH_TIMEOUT) {
+    ret = mutex_lock2(&self->lock, MUTEX_LOCK_TIMED, abstimeout);
   } else {
     mutex_lock(&self->lock);
   }
   
-  return true;
+  return ret;
 }
 
 static void endCritical(struct circular_buffer* self, int flags) {
@@ -54,12 +55,10 @@ int circular_buffer_is_full(struct circular_buffer* self, int flags, const struc
   return res;
 }
 
-static enum buf_state getBufState(struct circular_buffer* self, const struct timespec* abstimeout) {
+static enum buf_state getBufState(struct circular_buffer* self, int flags, const struct timespec* abstimeout) {
   enum buf_state ret;
-  if (circular_buffer_is_empty(self, CIRCULAR_BUFFER_NO_LOCK, abstimeout))
+  if (circular_buffer_is_empty(self, flags | CIRCULAR_BUFFER_NO_LOCK, abstimeout))
     ret = BUF_STATE_EMPTY;         //Empty state
-  else if (circular_buffer_is_empty(self, CIRCULAR_BUFFER_NO_LOCK, abstimeout))
-    ret = BUF_STATE_FULL;          //Full state
   else if(self->r  > self->f)
     ret = BUF_STATE_R_MORE_THAN_F; //rear > front
   else if(self->r  < self->f)
@@ -70,22 +69,30 @@ static enum buf_state getBufState(struct circular_buffer* self, const struct tim
 }
 
 int circular_buffer_write(struct circular_buffer* self, int flags, const void* data, size_t size, const struct timespec* abstimeout) {
-  if (!startCritical(self, flags, abstimeout))
-    return -EAGAIN;
+  int ret = 0;
+  if ((ret = startCritical(self, flags, abstimeout)) < 0)
+    return ret;
   
   __block enum buf_state bufferState;
-  int ret = condition_wait2(&self->dataHasRead, &self->lock, CONDITION_WAIT_TIMED, abstimeout, ^bool () {
-    return (bufferState = getBufState(self, abstimeout)) == BUF_STATE_FULL;  
+  ret = condition_wait2(&self->dataHasRead, &self->lock, CONDITION_WAIT_TIMED, abstimeout, ^bool () {
+    if (circular_buffer_is_full(self, flags & CIRCULAR_BUFFER_NO_LOCK, abstimeout))
+      return true;
+    
+    bufferState = getBufState(self, flags, abstimeout);  
+    return false;
   });
   
   if (ret < 0)
     goto failed_waiting_to_have_space;
   
+  if (bufferState == BUF_STATE_EMPTY) {
+    //Empty state
+    /* Change buffer to non-empty state (buffer is reset) */
+    self->r = 0;
+    self->f = 0;
+  }
+  
   switch (bufferState) {
-    case BUF_STATE_EMPTY: //Empty state
-      /* Change buffer to non-empty state (buffer is reset) */
-      self->r = 0;
-      self->f = 0;
     case BUF_STATE_R_MORE_THAN_F:
       if ((self->r + size) <= self->bufferSize) {
         /**  memcpy() between buffer and enqueue data
@@ -117,6 +124,7 @@ int circular_buffer_write(struct circular_buffer* self, int flags, const void* d
           self->r %= self->bufferSize;
         } else {
           // TODO: Do something (Overwriting detected!)
+          // TODO: Make it wait until reader consumes
           BUG();
         }
       }
@@ -132,14 +140,94 @@ int circular_buffer_write(struct circular_buffer* self, int flags, const void* d
         self->r %= self->bufferSize;
       } else {
         // TODO: Do something (Overwriting detected!)
+        // TODO: Make it wait until reader consumes
         BUG();
       }
       break;
+    case BUF_STATE_EMPTY:
     case BUF_STATE_FULL:
       BUG();
   }
   
 failed_waiting_to_have_space:
+  endCritical(self, flags);
+  return ret;
+}
+
+int circular_buffer_read(struct circular_buffer* self, int flags, void* data, size_t size, const struct timespec* abstimeout) {
+  int ret = 0;
+  if ((ret = startCritical(self, flags, abstimeout)) < 0)
+    return ret;
+  
+  __block enum buf_state bufferState;
+  ret = condition_wait2(&self->dataHasRead, &self->lock, CONDITION_WAIT_TIMED, abstimeout, ^bool () {
+    if (circular_buffer_is_empty(self, flags & CIRCULAR_BUFFER_NO_LOCK, abstimeout))
+      return true;
+    
+    bufferState = getBufState(self, flags, abstimeout);  
+    return false;
+  });
+  
+  if (ret < 0)
+    goto failed_waiting_to_have_data;
+  
+  switch (bufferState) {
+    case BUF_STATE_R_MORE_THAN_F: //rear > front
+      if (size <= (self->r - self->f)) {
+        /**  memcpy() between buffer and dequeue data
+          *  start from front:f to f + dequeueSize
+          *  when f + dequeueSize does not exceed r
+          */
+        memcpy(data, self->buf + self->f, size);
+        self->f += size;
+        self->f %= self->bufferSize;
+      } else {
+        // TODO: Do something overreading detected!
+        // TODO: Overreading detected! Make it wait until new data arrived
+        BUG();
+      }
+    case BUF_STATE_R_LESS_THAN_F:
+      if (self->f + size <= self->bufferSize) {
+        /**  memcpy() between buffer and dequeue data
+          *  start from front:f to f + dequeueSize
+          *  when f + dequeueSize is not exceed end-of-buffer   (Not Wrapping)
+          *  then, dequeue only 1 section
+          */
+        
+        memcpy(data, self->buf + self->f, size);
+        self->f += size;
+        self->f %= self->bufferSize;
+      } else {
+        /**  memcpy() between buffer and dequeue data
+          *  start from front:f to f + dequeueSize
+          *  when f + dequeueSize is exceed end-of-buffer   (Wrapping)
+          *  then, dequeue with 2 sections
+          */
+        /* 1st section copy */
+        memcpy(data, self->buf + self->f, self->bufferSize - self->f);
+        data += self->bufferSize - self->f;
+        
+        /* 2nd section copy (wrapping part) */
+        // No overwritten occur
+        if(size + self->f - self->bufferSize <= self->r) {
+          memcpy(data, self->buf, size + self->f - self->bufferSize);
+          self->f += size;
+          self->f %= self->bufferSize;
+        } else {
+          // TODO: Overreading detected! Make it wait until new data arrived
+          BUG();
+        }
+      }
+    case BUF_STATE_FULL:
+    case BUF_STATE_EMPTY:
+      BUG();
+  }
+   
+  if (self->r == self->f) {
+    self->r = -1;
+    self->f = -1;
+  }
+failed_waiting_to_have_data:
   endCritical(self, flags);
   return ret;
 }

@@ -46,6 +46,7 @@ void circular_buffer_free(struct circular_buffer* self);
 
 // But, if gonna sleep return immediately, if this flag
 // not given functions must not return -EAGAIN
+// Nonblock takes over precedence to timeout
 #define CIRCULAR_BUFFER_NONBLOCK 0x02
 #define CIRCULAR_BUFFER_WITH_TIMEOUT 0x04
 
