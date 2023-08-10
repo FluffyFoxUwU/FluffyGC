@@ -161,7 +161,14 @@ fh_enable_mod
 
    int fh_enable_mod(enum fh_mod mod, uint32_t flags)
 
-Enable the corresponding ``mod``
+Enable the corresponding ``mod``. This function must sucess
+if the mod already enabled and the given are subset of what
+already enabled
+
+.. tip::
+   On -EBUSY, Caller should bitwise OR on `fh_get_mod_flags`_ and
+   the ``flags`` and then reenable. This would ensure the flags the
+   caller needed available and keep the existing flags
 
 Since
 =====
@@ -178,7 +185,7 @@ Return value
 Zero indicate success
  * -EINVAL: Invalid flags and mod combination
  * -ENODEV: Mod not found
- * -EBUSY: Mod already enabled (``flags`` not checked in this scenario)
+ * -EBUSY: Mod already enabled and its flags incompatible with given
 
 fh_disable_mod
 **************
@@ -186,7 +193,8 @@ fh_disable_mod
 
    void fh_disable_mod(enum fh_mod mod)
 
-Disable the corresponding ``mod`` to prevent being used on new heap creation
+Disable the corresponding ``mod`` to prevent being used on new heap creation.
+Shall be no-op if mod wasn't enable or unknown mod
 
 Since
 =====
