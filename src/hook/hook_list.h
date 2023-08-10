@@ -1,5 +1,6 @@
 #ifndef _headers_1689844559_FluffyGC_hook_list
 #define _headers_1689844559_FluffyGC_hook_list
+// This file only ever included by hook.c
 
 #include "FluffyHeap.h"
 #include "attributes.h"

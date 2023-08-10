@@ -19,6 +19,10 @@ struct rcu_vec_head {
     vec_t(t) array; \
   })
 
+// Gives expression which can be typeof
+#define rcu_vec_element_type(list) \
+  (*(list)->array.data)
+
 extern struct rcu_generic_ops rcu_vec_t_ops;
 
 #define rcu_vec_init(_self) do { \
@@ -27,6 +31,9 @@ extern struct rcu_generic_ops rcu_vec_t_ops;
   self->data->header.elementSize = sizeof(*self->data->array.data); \
   vec_init(&self->data->array); \
 } while (0)
+
+#define rcu_vec_init_rcu(rcu) \
+  rcu_generic_type_init((rcu), &rcu_vec_t_ops)
 
 #endif
 

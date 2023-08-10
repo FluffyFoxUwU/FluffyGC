@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "config.h"
+#include "rcu/rcu.h"
 #include "util/macro_magics.h"
 #include "util/util.h"
 
@@ -27,11 +28,19 @@ enum hook_location {
 };
 
 struct hook_call_info {
+  const char* name;
   // func points to the faked function not the real one
   void* func;
   void* returnValue;
   enum hook_action action;
   enum hook_location location;
+};
+
+struct hook_internal_state {
+  const char* funcName;
+  struct rcu_head* targetEntryRcuTemp;
+  struct target_entry_rcu* targetRcu;
+  void* func;
 };
 
 typedef enum hook_action (*hook_func)(struct hook_call_info*, va_list args);
@@ -48,30 +57,33 @@ typedef enum hook_action (*hook_func)(struct hook_call_info*, va_list args);
 
 int hook_init();
 
-bool hook_run_head(void* func, void* ret, ...);
-bool hook_run_tail(void* func, void* ret, ...);
+bool hook__run_head(struct hook_internal_state* state, void* ret, ...);
+bool hook__run_tail(struct hook_internal_state* state, void* ret, ...);
 
 // Invoke basicly replaces the function if there
 // defined hooks
-bool hook_run_invoke(void* func, void* ret, ...);
+bool hook__run_invoke(struct hook_internal_state* state, void* ret, ...);
 
-int _hook_register(void* target, enum hook_location location, hook_func func);
-void _hook_unregister(void* target, enum hook_location location, hook_func func);
+int hook__register(void* target, enum hook_location location, hook_func func);
+void hook__unregister(void* target, enum hook_location location, hook_func func);
+
+void hook__enter_function(void* func, struct hook_internal_state* ci);
+void hook__exit_function(struct hook_internal_state* ci);
 
 #ifdef __GNUC__
 #   define hook_register(target, location, func) ({ \
   ____HOOK_TO_TARGET_TYPE(func) a = target; \
   a; \
-  _hook_register(target, location, ____HOOK_TO_HANDLER(func)); \
+  hook__register(target, location, ____HOOK_TO_HANDLER(func)); \
 })
 #   define hook_unregister(target, location, func) do { \
   ____HOOK_TO_TARGET_TYPE(func) a = target; \
   a; \
-  _hook_unregister(target, location, ____HOOK_TO_HANDLER(func)); \
+  hook__unregister(target, location, ____HOOK_TO_HANDLER(func)); \
 } while (0);
 #else
-#define hook_register(target, location, func) _hook_register(target, location, ____HOOK_TO_HANDLER(func))
-#define hook_unregister(target, location, func) _hook_unregister(target, location, ____HOOK_TO_HANDLER(func))
+#define hook_register(target, location, func) hook__register(target, location, ____HOOK_TO_HANDLER(func))
+#define hook_unregister(target, location, func) hook__unregister(target, location, ____HOOK_TO_HANDLER(func))
 #endif
 
 #define ____HOOK_COMMA ,
@@ -104,19 +116,24 @@ void _hook_unregister(void* target, enum hook_location location, hook_func func)
   ____HOOK_DECLARE(ret, name, __VA_ARGS__) { \
     ret retVal; \
     ret realRetVal; \
-    if (hook_run_head(name, &retVal __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__))) { \
+    struct hook_internal_state internal = { \
+      .funcName = __func__ \
+    }; \
+    hook__enter_function(name, &internal); \
+    if (hook__run_head(&internal, &retVal __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__))) { \
       realRetVal = retVal; \
       goto quit_function; \
     } \
-    if (hook_run_invoke(name, &retVal __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__))) \
+    if (hook__run_invoke(&internal, &retVal __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__))) \
       realRetVal = retVal; \
     else \
       realRetVal = ____HOOK_TO_REAL(name)(____HOOK_PASS_ARGUMENTS(__VA_ARGS__)); \
 quit_function: \
-    if (hook_run_tail(name, &retVal __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__))) { \
+    if (hook__run_tail(&internal, &retVal __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__))) { \
       realRetVal = retVal; \
       goto quit_function; \
     } \
+    hook__exit_function(&internal); \
     return realRetVal; \
   } \
   /* Define real foo */ \
@@ -128,12 +145,17 @@ quit_function: \
   static inline ____HOOK_DECLARE(void, ____HOOK_TO_REAL(name) __VA_OPT__(,) __VA_ARGS__); \
   /* Define faked foo */ \
   ____HOOK_DECLARE(void, name, __VA_ARGS__) { \
-    if (hook_run_head(name, NULL __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__))) \
+    struct hook_internal_state internal = { \
+      .funcName = __func__ \
+    }; \
+    hook__enter_function(name, &internal); \
+    if (hook__run_head(&internal, NULL __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__))) \
       goto quit_function; \
-    if (!hook_run_invoke(name, NULL __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__))) \
+    if (!hook__run_invoke(&internal, NULL __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__))) \
       ____HOOK_TO_REAL(name)(____HOOK_PASS_ARGUMENTS(__VA_ARGS__)); \
 quit_function: \
-    hook_run_tail(name, NULL __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__)); \
+    hook__run_tail(&internal, NULL __VA_OPT__(,) ____HOOK_PASS_ARGUMENTS(__VA_ARGS__)); \
+    hook__exit_function(&internal); \
     return; \
   } \
   /* Define real foo */ \

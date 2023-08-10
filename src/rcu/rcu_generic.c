@@ -20,7 +20,10 @@ void rcu_generic_cleanup(struct rcu_generic* self) {
 
 // Get readonly version
 struct rcu_generic_container* rcu_generic_get_readonly(struct rcu_generic* self) {
-  return GENERIC_CONTAINER(rcu_read(&self->rcu));
+  struct rcu_head* res = rcu_read(&self->rcu);
+  if (!res)
+    return NULL;
+  return GENERIC_CONTAINER(res);
 }
 
 // Writing
@@ -32,7 +35,7 @@ void rcu_generic_write(struct rcu_generic* self, struct rcu_generic_container* n
   
   struct rcu_generic_container* oldContainer = GENERIC_CONTAINER(old);
   
-  if (self->ops && self->ops->cleanup)
+  if (self->ops && self->ops->cleanup && oldContainer)
     self->ops->cleanup(oldContainer->data.ptr);
   rcu_generic_dealloc_container(oldContainer);
 }

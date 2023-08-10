@@ -31,7 +31,7 @@
   (*((^typeof(*(_self)->readContainerType)* (typeof(_self) self, typeof(*(_self)->readContainerType)* x) { \
     struct rcu_generic_container* container = rcu_generic_get_readonly(&(self)->generic); \
     if (!container) \
-      return NULL; \
+      return x; \
     x->container = container; \
     x->data = container->data.ptr; \
     return x; \
@@ -42,7 +42,7 @@
     typeof(*(self)->writeContainerType)* newVar = (new); \
     struct rcu_generic_container* container = rcu_generic_exchange(&(self)->generic, newVar ? newVar->container : NULL); \
     if (!container) \
-      return NULL; \
+      return x; \
     x->container = container; \
     x->data = container->data.ptr; \
     return x; \
@@ -59,7 +59,7 @@
   (*((^typeof(*(self)->writeContainerType)* (typeof(*(self)->writeContainerType)* x) { \
     struct rcu_generic_container* container = rcu_generic_alloc_container(sizeof(*x->data)); \
     if (!container) \
-      return NULL; \
+      return x; \
     x->container = container; \
     x->data = container != NULL ? container->data.ptr : NULL; \
     return x; \
@@ -72,7 +72,7 @@
   (*((^typeof(*(self)->writeContainerType)* (typeof(*(self)->writeContainerType)* x) { \
     struct rcu_generic_container* container = rcu_generic_copy(&(self)->generic); \
     if (!container) \
-      return NULL; \
+      return x; \
     x->container = container; \
     x->data = container->data.ptr; \
     return x; \

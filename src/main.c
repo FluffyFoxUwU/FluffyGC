@@ -379,12 +379,13 @@ static void doTestVecRCU() {
 }
 
 int main2() {
-  hook_init();
+  int ret = hook_init();
+  BUG_ON(ret < 0);
   
+  doTestNormal();
   // doTestRCU();
-  // doTestNormal();
   // doTestRCUGenericType();
-  doTestVecRCU();
+  // doTestVecRCU();
   
   return EXIT_SUCCESS;
 }
