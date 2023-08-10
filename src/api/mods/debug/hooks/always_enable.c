@@ -15,7 +15,7 @@ HOOK_FUNCTION(, __FLUFFYHEAP_NULLABLE(fluffyheap*), debug_hook_fh_new_head, __FL
   int ret;
   if (prevDebugFlags & FH_MOD_WAS_ENABLED) {
     fh_disable_mod(FH_MOD_DEBUG);
-    ret = fh_enable_mod(FH_MOD_DEBUG, prevDebugFlags | EXTRA_FLAGS);
+    ret = fh_enable_mod(FH_MOD_DEBUG, (prevDebugFlags & (~FH_MOD_WAS_ENABLED)) | EXTRA_FLAGS);
   } else {
     ret = fh_enable_mod(FH_MOD_DEBUG, EXTRA_FLAGS);
   }
