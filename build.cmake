@@ -154,6 +154,8 @@ macro(PostConfigurationLoad)
   
   if (DEFINED CONFIG_HOOK)
     list(APPEND BUILD_SOURCES "./src/hook/hook.c")
+  else()
+    list(APPEND BUILD_SOURCES "./src/hook/hook_stub.c")
   endif()
 endmacro()
 

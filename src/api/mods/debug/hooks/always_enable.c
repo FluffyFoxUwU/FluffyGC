@@ -25,6 +25,8 @@ HOOK_FUNCTION(, __FLUFFYHEAP_NULLABLE(fluffyheap*), debug_hook_fh_new_tail, __FL
   // Restore flags if the debug mod was enabled
   if ((prevDebugFlags & FH_MOD_WAS_ENABLED) != 0)
     fh_enable_mod(FH_MOD_DEBUG, prevDebugFlags & (~FH_MOD_WAS_ENABLED));
+  else
+    fh_disable_mod(FH_MOD_DEBUG);
   
   ci->action = HOOK_CONTINUE;
   return;

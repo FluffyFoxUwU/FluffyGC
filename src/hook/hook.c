@@ -1,5 +1,4 @@
 #include <stdarg.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
@@ -45,9 +44,11 @@ static int targetEntryCopy(const void* _src, void* _dest) {
       goto failure;
   
   // Copy
-  for (int i = 0; i < HOOK_COUNT; i++)
+  for (int i = 0; i < HOOK_COUNT; i++) {
     for (int j = 0; j < src->hooksLocations[i].length; j++)
       dest->hooksLocations[i].data[j] = src->hooksLocations[i].data[j];
+    dest->hooksLocations[i].length = src->hooksLocations[i].length;
+  }
 
 failure:
   if (ret < 0)
@@ -203,7 +204,6 @@ static int hookRegister(void* target, enum hook_location location, hook_func fun
     ret = -EINVAL;
     goto invalid_register;
   }
-  
   
   if (vec_push(&targetEntryWriteable.data->hooksLocations[location], func) < 0) {
     ret = -ENOMEM;

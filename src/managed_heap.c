@@ -51,7 +51,8 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
   if (generationCount > GC_MAX_GENERATIONS || gc_generation_count(algo, gcFlags) != generationCount)
     return NULL;
    
-  if (hook_init() < 0)
+  int hookRet = hook_init();
+  if (hookRet < 0 && hookRet != -ENOSYS)
     return NULL;
   
   struct managed_heap* self = malloc(sizeof(*self) + sizeof(*self->generations) * generationCount);
@@ -279,19 +280,21 @@ int managed_heap_attach_thread(struct managed_heap* self) {
   struct context* ctx = managed_heap_new_context(self);
   if (!ctx)
     return -ENOMEM;
-  if (context_current)
-    context_block_gc();
-  else
+  
+  bool doRawBlock = context_current == NULL;
+  if (doRawBlock)
     gc_block(gc_current);
+  else
+    context_block_gc();
   
   mutex_lock(&self->contextTrackerLock);
   switchContextInNolock(ctx);
   mutex_unlock(&self->contextTrackerLock);
   
-  if (context_current)
-    context_unblock_gc();
-  else
+  if (doRawBlock)
     gc_unblock(gc_current);
+  else
+    context_unblock_gc();
   return 0;
 }
 

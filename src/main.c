@@ -380,7 +380,7 @@ static void doTestVecRCU() {
 
 int main2() {
   int ret = hook_init();
-  BUG_ON(ret < 0);
+  BUG_ON(ret < 0 && ret != -ENOSYS);
   
   doTestNormal();
   // doTestRCU();

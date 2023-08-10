@@ -16,8 +16,10 @@ static bool checkIfArray(fh_object* self, const char* src) {
   struct descriptor* desc = atomic_load(&INTERN(self)->obj)->movePreserve.descriptor;
   if (desc->type != OBJECT_ARRAY)
     debug_warn("%s: Getting length on non array object!!\n", src);
-  return desc->type == OBJECT_ARRAY;
+  
+  bool isCorrect = desc->type == OBJECT_ARRAY;
   context_unblock_gc();
+  return isCorrect;
 }
 
 HOOK_FUNCTION(, size_t, debug_hook_fh_array_get_length_head, __FLUFFYHEAP_NONNULL(fh_array*), self) {

@@ -22,8 +22,8 @@ enum hook_action {
 
 enum hook_location {
   HOOK_HEAD,
-  HOOK_TAIL,
   HOOK_INVOKE,
+  HOOK_TAIL,
   HOOK_COUNT
 };
 
@@ -162,7 +162,7 @@ quit_function: \
   static inline ____HOOK_DECLARE(void, ____HOOK_TO_REAL(name) __VA_OPT__(,) __VA_ARGS__)
 #else
 #define HOOK_TARGET(ret, name, ...) ____HOOK_DECLARE(ret, name, __VA_ARGS__)
-#define HOOK_TARGET_VOID(ret, name, ...) ____HOOK_DECLARE(ret, name, __VA_ARGS__)
+#define HOOK_TARGET_VOID(name, ...) ____HOOK_DECLARE(void, name, __VA_ARGS__)
 #endif
 
 /*
