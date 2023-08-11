@@ -30,10 +30,14 @@ struct circular_buffer {
   struct condition dataHasRead;
   struct condition dataHasWritten;
   
+  void* allocPtr;
   void* buf;
-  uintptr_t r;
-  uintptr_t f;
-  uintptr_t bufferSize;
+  intptr_t r;
+  intptr_t f;
+  size_t bufferSize;
+  
+  // Bytes of ready to read data
+  size_t dataInBuffer;
 };
 
 struct circular_buffer* circular_buffer_new(size_t size);
@@ -50,17 +54,20 @@ void circular_buffer_free(struct circular_buffer* self);
 #define CIRCULAR_BUFFER_NONBLOCK 0x02
 #define CIRCULAR_BUFFER_WITH_TIMEOUT 0x04
 
-// Returns:
-// -ETIMEDOUT: Timed out waiting for free space
-// -EINVAL   : Invalid timeout (follows POSIX's condition for the spec "The abstime argument specified a nanosecond value less than zero or greater than or equal to 1000 million.")
-// -EOVERFLOW: (Writer only) Too large write request
-// -EAGAIN   : Going to sleep
-int circular_buffer_write(struct circular_buffer* self, int flags, const void* data, size_t size, const struct timespec* abstimeout);
-int circular_buffer_read(struct circular_buffer* self, int flags, void* data, size_t size, const struct timespec* abstimeout);
+// Returns size processed (if not equal to requested
+// error is occured, check errno)
+// Errors:
+//   ETIMEDOUT: Timed out waiting for free space
+//   EINVAL   : Invalid timeout (follows POSIX's condition for the spec "The abstime argument specified a nanosecond value less than zero or greater than or equal to 1000 million.")
+//   EOVERFLOW: (Writer only) Too large write request
+//   EAGAIN   : Going to block
+size_t circular_buffer_write(struct circular_buffer* self, int flags, const void* data, size_t size, const struct timespec* abstimeout);
+size_t circular_buffer_read(struct circular_buffer* self, int flags, void* data, size_t size, const struct timespec* abstimeout);
 
 // Same as circular_buffer_read but do not reads just waste
 // `size` bytes of data
-int circular_buffer_waste(struct circular_buffer* self, int flags, size_t size, const struct timespec* abstimeout);
+// returns bytes wasted
+size_t circular_buffer_waste(struct circular_buffer* self, int flags, size_t size, const struct timespec* abstimeout);
 
 int circular_buffer_is_empty(struct circular_buffer* self, int flags, const struct timespec* abstimeout);
 int circular_buffer_is_full(struct circular_buffer* self, int flags, const struct timespec* abstimeout);

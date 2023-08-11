@@ -52,6 +52,7 @@ set(BUILD_SOURCES
   src/api/api.c
   src/api/array.c
   src/api/mods/mods.c
+  src/util/circular_buffer.c
   
   deps/list/list_node.c
   deps/list/list.c

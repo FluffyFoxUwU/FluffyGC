@@ -7,6 +7,7 @@
 #include <stdatomic.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #include "bits.h"
 
@@ -86,6 +87,15 @@ void* util_aligned_alloc(size_t alignment, size_t size);
 static inline bool util_prefixed_by(const char* prefix, const char* str) {
   return strncmp(str, prefix, strlen(prefix)) == 0;
 }
+
+void util_sleep(unsigned int secs);
+void util_msleep(unsigned int microsecs);
+void util_usleep(unsigned long milisecs);
+void util_nanosleep(unsigned long nanosecs);
+
+float util_get_monotonic_time();
+float util_get_total_cpu_time();
+float util_get_thread_cpu_time();
 
 #define __stringify_1(x...)	#x
 #define stringify(x...)	__stringify_1(x)

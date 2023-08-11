@@ -1,13 +1,16 @@
 #include "config.h"
+#include <bits/time.h>
 #if !IS_ENABLED(CONFIG_STRICTLY_POSIX)
 #define _GNU_SOURCE
 #endif
 
+#include <time.h>
 #include <errno.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <sys/times.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <unistd.h>
@@ -16,6 +19,13 @@
 
 #include "util.h"
 #include "bug.h"
+
+#ifndef _POSIX_CPUTIME
+# error "_POSIX_CPUTIME is required"
+#endif
+#ifndef _POSIX_THREAD_CPUTIME
+# error "_POSIX_THREAD_CPUTIME is required"
+#endif
 
 bool util_atomic_add_if_less_uint(volatile atomic_uint* data, unsigned int n, unsigned int max, unsigned int* result) {
   unsigned int new;
@@ -213,4 +223,58 @@ void* util_aligned_alloc(size_t alignment, size_t size) {
     res = NULL;
   BUG_ON(ret == -EINVAL);
   return res;
+}
+
+void util_nanosleep(unsigned long nanosecs) {
+  struct timespec time = {
+    .tv_sec = nanosecs / 1'000'000'000L,
+    .tv_nsec = nanosecs % 1'000'000'000L
+  };
+  
+  while (nanosleep(&time, &time) == -1 && errno == EINTR)
+    ;
+  
+  BUG_ON(errno == -EINVAL);
+}
+
+void util_usleep(unsigned long microsecs) {
+  util_nanosleep(microsecs * 1000L);
+}
+
+void util_msleep(unsigned int milisecs) {
+  util_usleep(milisecs * 1000L);
+}
+
+void util_sleep(unsigned int secs) {
+  util_msleep(secs * 1000);
+}
+
+float util_get_total_cpu_time() {
+  float result;
+  struct timespec ts;
+  if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) < 0)
+    BUG();
+  result = ts.tv_sec;
+  result += (float) ts.tv_nsec / (float) 1'000'000'000;
+  return result;
+}
+
+float util_get_thread_cpu_time() {
+  float result;
+  struct timespec ts;
+  if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0)
+    BUG();
+  result = ts.tv_sec;
+  result += (float) ts.tv_nsec / (float) 1'000'000'000;
+  return result;
+}
+
+float util_get_monotonic_time() {
+  float result;
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) < 0)
+    BUG();
+  result = ts.tv_sec;
+  result += (float) ts.tv_nsec / (float) 1'000'000'000;
+  return result;
 }

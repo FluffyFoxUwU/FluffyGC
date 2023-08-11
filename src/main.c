@@ -12,6 +12,7 @@
 #include "bug.h"
 #include "hook/hook.h"
 #include "mods/dma.h"
+#include "util/circular_buffer.h"
 #include "util/util.h"
 
 #include "rcu/rcu.h"
@@ -173,6 +174,22 @@ static void doTestNormal() {
   // Cleaning up
   fh_detach_thread(heap);
   fh_free(heap);
+}
+
+HOOK_FUNCTION(static, __FLUFFYHEAP_NULLABLE(fluffyheap*), hookTest, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams) {
+  ci->action = HOOK_CONTINUE;
+  puts("Testing runtime adding");
+  return;
+}
+
+ATTRIBUTE_USED()
+static void doTestNormal2() {
+  hook_register(fh_new, HOOK_HEAD, hookTest);
+  
+  doTestNormal();
+  
+  hook_unregister(fh_new, HOOK_HEAD, hookTest);
+  doTestNormal();
 }
 
 struct an_rcu_using_struct {
@@ -387,23 +404,56 @@ static void doTestVecRCU() {
   rcu_generic_type_cleanup(&rcuProtected3);
 }
 
-HOOK_FUNCTION(static, __FLUFFYHEAP_NULLABLE(fluffyheap*), hookTest, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams) {
-  ci->action = HOOK_CONTINUE;
-  puts("Testing runtime adding");
-  return;
+static struct circular_buffer* buffer;
+
+static void* worker4(void*) {
+  float deadline = util_get_monotonic_time() + 1.0f;
+  int prev = 0;
+  for (int i = 0;; i++) {
+    int result = rand();
+    circular_buffer_write(buffer, 0, &result, sizeof(result), NULL);
+    util_msleep(200);
+    
+    if (util_get_monotonic_time() >= deadline) {
+      printf("Writer: Speed %d writes/s\n", i - prev);
+      prev = i;
+      deadline = util_get_monotonic_time() + 1.0f;
+    }
+  }
+  return NULL;
+}
+
+ATTRIBUTE_USED()
+static void doTestCircularBuffer() {
+  buffer = circular_buffer_new(128);
+  
+  pthread_t worker;
+  pthread_create(&worker, NULL, worker4, NULL);
+  
+  float deadline = util_get_monotonic_time() + 1.0f;
+  int prev = 0;
+  for (int i = 0;; i++) {
+    int result;
+    circular_buffer_read(buffer, 0, &result, sizeof(result), NULL);
+    util_msleep(500);
+    
+    if (util_get_monotonic_time() >= deadline) {
+      printf("Reader: Speed %d reads/s\n", i - prev);
+      prev = i;
+      deadline = util_get_monotonic_time() + 1.0f;
+    }
+  }
+  
+  pthread_join(worker, NULL);
+  circular_buffer_free(buffer);
 }
 
 int main2() {
   int ret = hook_init();
   BUG_ON(ret < 0 && ret != -ENOSYS);
   
-  hook_register(fh_new, HOOK_HEAD, hookTest);
-  
-  doTestNormal();
-  
-  hook_unregister(fh_new, HOOK_HEAD, hookTest);
-  
-  doTestNormal();
+  doTestCircularBuffer();
+  // doTestNormal2();
   // doTestRCU();
   // doTestRCUGenericType();
   // doTestVecRCU();
