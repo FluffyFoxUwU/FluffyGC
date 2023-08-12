@@ -1,6 +1,7 @@
 #include "api/pre_code.h"
 
 #include "api/mods/debug/debug.h"
+#include "api/mods/debug/helper.h"
 #include "hook/hook.h"
 #include "FluffyHeap.h"
 #include "managed_heap.h"
@@ -22,10 +23,9 @@ static bool checkIfArray(fh_object* self, const char* src) {
   return isCorrect;
 }
 
-HOOK_FUNCTION(, size_t, debug_hook_fh_array_get_length_head, __FLUFFYHEAP_NONNULL(fh_array*), self) {
+DEBUG_API_TRACEPOINT(, size_t, debug_hook_fh_array_get_length_head, __FLUFFYHEAP_NONNULL(fh_array*), self) {
   ci->action = HOOK_CONTINUE;
-  debug_try_print_api_call(self);
-  
+    
   if (!debug_can_do_check())
     return;
   
@@ -33,15 +33,12 @@ HOOK_FUNCTION(, size_t, debug_hook_fh_array_get_length_head, __FLUFFYHEAP_NONNUL
   return;
 }
 
-HOOK_FUNCTION(, size_t, debug_hook_fh_array_get_length_tail, __FLUFFYHEAP_NONNULL(fh_array*), self) {
+DEBUG_API_TRACEPOINT(, size_t, debug_hook_fh_array_get_length_tail, __FLUFFYHEAP_NONNULL(fh_array*), self) {
   ci->action = HOOK_CONTINUE;
-  debug_try_print_api_return_value(*returnLocation);
 }
 
-HOOK_FUNCTION(, ssize_t, debug_hook_fh_array_calc_offset_head, __FLUFFYHEAP_NONNULL(fh_array*), self, size_t, index) {
+DEBUG_API_TRACEPOINT(, ssize_t, debug_hook_fh_array_calc_offset_head, __FLUFFYHEAP_NONNULL(fh_array*), self, size_t, index) {
   ci->action = HOOK_CONTINUE;
-  debug_try_print_api_call(self, index);
-  
   if (!debug_can_do_check())
     return;
   
@@ -60,7 +57,6 @@ not_array:
   context_unblock_gc();
 }
 
-HOOK_FUNCTION(, ssize_t, debug_hook_fh_array_calc_offset_tail, __FLUFFYHEAP_NONNULL(fh_array*), self, size_t, index) {
+DEBUG_API_TRACEPOINT(, ssize_t, debug_hook_fh_array_calc_offset_tail, __FLUFFYHEAP_NONNULL(fh_array*), self, size_t, index) {
   ci->action = HOOK_CONTINUE;
-  debug_try_print_api_return_value(*returnLocation);
 }

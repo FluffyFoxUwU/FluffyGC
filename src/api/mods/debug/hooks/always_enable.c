@@ -6,11 +6,12 @@
 #include "bug.h"
 #include "hook/hook.h"
 #include "api/mods/debug/debug.h"
+#include "api/mods/debug/helper.h"
 
 #define EXTRA_FLAGS (0)
 
 static thread_local uint32_t prevDebugFlags = 0;
-HOOK_FUNCTION(, __FLUFFYHEAP_NULLABLE(fluffyheap*), debug_hook_fh_new_head, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams) {
+DEBUG_API_TRACEPOINT(, __FLUFFYHEAP_NULLABLE(fluffyheap*), debug_hook_fh_new_head, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams) {
   prevDebugFlags = fh_get_flags(FH_MOD_DEBUG);
   int ret;
   if (prevDebugFlags & FH_MOD_WAS_ENABLED) {
@@ -27,7 +28,7 @@ HOOK_FUNCTION(, __FLUFFYHEAP_NULLABLE(fluffyheap*), debug_hook_fh_new_head, __FL
   return;
 }
 
-HOOK_FUNCTION(, __FLUFFYHEAP_NULLABLE(fluffyheap*), debug_hook_fh_new_tail, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams) {
+DEBUG_API_TRACEPOINT(, __FLUFFYHEAP_NULLABLE(fluffyheap*), debug_hook_fh_new_tail, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams) {
   fh_disable_mod(FH_MOD_DEBUG);
   
   // Restore flags if the debug mod was enabled

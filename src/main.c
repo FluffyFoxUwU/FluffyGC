@@ -412,7 +412,7 @@ static void* worker4(void*) {
   for (int i = 0;; i++) {
     int result = rand();
     circular_buffer_write(buffer, 0, &result, sizeof(result), NULL);
-    util_msleep(200);
+    util_msleep(1);
     
     if (util_get_monotonic_time() >= deadline) {
       printf("Writer: Speed %d writes/s\n", i - prev);
@@ -425,7 +425,7 @@ static void* worker4(void*) {
 
 ATTRIBUTE_USED()
 static void doTestCircularBuffer() {
-  buffer = circular_buffer_new(128);
+  buffer = circular_buffer_new(16384);
   
   pthread_t worker;
   pthread_create(&worker, NULL, worker4, NULL);

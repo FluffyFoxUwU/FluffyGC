@@ -1,5 +1,4 @@
 #include "config.h"
-#include <bits/time.h>
 #if !IS_ENABLED(CONFIG_STRICTLY_POSIX)
 #define _GNU_SOURCE
 #endif
@@ -20,11 +19,22 @@
 #include "util.h"
 #include "bug.h"
 
+// TODO: In <bits/posix_opt.h> it is written that it
+// should be checked at runtime and there wasn't any
+// indication from the https://pubs.opengroup.org/onlinepubs/9699919799/functions/V2_chap02.html
+// that it should be checked
+
+#ifndef _POSIX_TIMERS
+# error "POSIX timers unsupported on this platform"
+#endif
 #ifndef _POSIX_CPUTIME
-# error "_POSIX_CPUTIME is required"
+# error "CLOCK_PROCESS_CPUTIME_ID unsupported on this platform"
 #endif
 #ifndef _POSIX_THREAD_CPUTIME
-# error "_POSIX_THREAD_CPUTIME is required"
+# error "CLOCK_THREAD_CPUTIME_ID unsupported on this platform"
+#endif
+#ifndef _POSIX_MONOTONIC_CLOCK
+# error "CLOCK_MONOTONIC unsupported on this platform"
 #endif
 
 bool util_atomic_add_if_less_uint(volatile atomic_uint* data, unsigned int n, unsigned int max, unsigned int* result) {
