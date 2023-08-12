@@ -58,6 +58,10 @@ struct circular_buffer {
 #define DEFINE_CIRCULAR_BUFFER(name, ptr, size) \
   struct circular_buffer name = CIRCULAR_BUFFER_INITIALIZER(ptr, size)
 
+#define DEFINE_CIRCULAR_BUFFER_STATIC(name, size) \
+  static char  ___backingBuffer__ ## name[size]; \
+  static struct circular_buffer name = CIRCULAR_BUFFER_INITIALIZER(___backingBuffer__ ## name, size)
+
 struct circular_buffer* circular_buffer_new(size_t size);
 struct circular_buffer* circular_buffer_new_from_ptr(size_t size, void* ptr);
 

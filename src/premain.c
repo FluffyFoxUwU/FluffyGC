@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <pthread.h>
 
+#include "logger/logger.h"
 #include "specials.h"
 #include "config.h"
 #include "bug.h"
@@ -39,7 +40,7 @@ int main(int argc, char** argv) {
     pthread_join(tmp, NULL);
   }
 
-  puts("Exiting :3");
+  pr_info("Exiting :3");
   return res;
 }
 

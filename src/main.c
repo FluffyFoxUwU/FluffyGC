@@ -13,6 +13,7 @@
 #include "attributes.h"
 #include "bug.h"
 #include "hook/hook.h"
+#include "mods/debug.h"
 #include "mods/dma.h"
 #include "util/circular_buffer.h"
 #include "util/util.h"
@@ -74,6 +75,13 @@ static void doTestNormal() {
     return;
   }
   
+  ret = fh_enable_mod(FH_MOD_DEBUG, 0);
+  if (ret < 0) {
+    errno = -ret;
+    perror("fh_enable_mod");
+    return;
+  }
+  
   fluffyheap* heap = fh_new(&param);
   BUG_ON(!heap);
   
@@ -121,13 +129,13 @@ static void doTestNormal() {
     data.a = "C string test UwU";
     fh_object_write_data(obj, &data, 0, sizeof(data));
     fh_object_read_data(obj, &data, 0, sizeof(data));
-    pr_info("[Main] Got: %s", data.a);
+    pr_alert("Got: %s", data.a);
     
     fh_object_write_ref(obj, offsetof(struct fluff, fox), obj);
     fh_object_write_ref(obj, offsetof(struct fluff, any), obj);
     
     fh_object* readVal = fh_object_read_ref(obj, offsetof(struct fluff, fox));
-    pr_info("[Main] Object is %ssame object", fh_object_is_alias(obj, readVal) ? "" : "not ");
+    pr_alert("Object is %ssame object", fh_object_is_alias(obj, readVal) ? "" : "not ");
     fh_del_ref(readVal);
   }
   
@@ -138,17 +146,17 @@ static void doTestNormal() {
     fh_array* array = fh_alloc_array(fluffDesc, 5);
     fh_array_set_element(array, 0, obj);
     fh_object* readVal = fh_array_get_element(array, 0);
-    pr_info("[Main] Array[0] is %ssame what just written", fh_object_is_alias(obj, readVal) ? "" : "not ");
+    pr_alert("Array[0] is %ssame what just written", fh_object_is_alias(obj, readVal) ? "" : "not ");
     
     // Triger warning (or abort) intentionally
     fh_array_calc_offset(array, 999);
     
     const fh_type_info* info = fh_object_get_type_info(FH_CAST_TO_OBJECT(array));
-    pr_info("[Main] Array is %zu has entries long", info->info.refArray->length);
-    pr_info("[Main] Array is %zu has entries according to API call", fh_array_get_length(array));
+    pr_alert("Array is %zu has entries long", info->info.refArray->length);
+    pr_alert("Array is %zu has entries according to API call", fh_array_get_length(array));
     fh_object_put_type_info(FH_CAST_TO_OBJECT(array), info);
     
-    pr_info("[Main] Not real array has %zu entries according to API call", fh_array_get_length(FH_CAST_TO_ARRAY(obj)));
+    pr_alert("Not real array has %zu entries according to API call", fh_array_get_length(FH_CAST_TO_ARRAY(obj)));
     
     fh_del_ref((fh_object*) array);
     fh_del_ref((fh_object*) readVal);
@@ -169,7 +177,7 @@ static void doTestNormal() {
     fh_object_unmap_dma(obj, mapped);
     long long result;
     fh_object_read_data(obj, &result, offsetof(struct fluff, cute), sizeof(result));
-    pr_info("UwU Result 0x%llx\n", result);
+    pr_alert("UwU Result 0x%llx", result);
     fh_del_ref(obj);
   }
   
@@ -180,7 +188,7 @@ static void doTestNormal() {
 
 HOOK_FUNCTION(static, __FLUFFYHEAP_NULLABLE(fluffyheap*), hookTest, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams) {
   ci->action = HOOK_CONTINUE;
-  puts("Testing runtime adding");
+  pr_alert("Testing runtime adding");
   return;
 }
 
@@ -420,7 +428,7 @@ static void* worker4(void*) {
     circular_buffer_write(buffer, 0, &result, sizeof(result), NULL);
     
     if (util_get_monotonic_time() >= deadline) {
-      pr_info("Writer: Speed %d writes/s", i - prev);
+      pr_alert("Writer: Speed %d writes/s", i - prev);
       prev = i;
       deadline = util_get_monotonic_time() + 1.0f;
     }
@@ -448,7 +456,7 @@ static void doTestCircularBuffer() {
     circular_buffer_read(buffer, 0, &result, sizeof(result), NULL);
     
     if (util_get_monotonic_time() >= deadline) {
-      pr_info("Reader: Speed %d reads/s", i - prev);
+      pr_alert("Reader: Speed %d reads/s", i - prev);
       prev = i;
       deadline = util_get_monotonic_time() + 1.0f;
     }
@@ -470,7 +478,7 @@ static void doTestSleep() {
     util_add_timespec(&sleepUntil, 1.0f);
     
     clock_gettime(CLOCK_REALTIME, &time);
-    pr_info("Time %lf", (double) time.tv_sec + ((double) time.tv_nsec / (double) 1'000'000'000));
+    pr_alert("Time %lf", (double) time.tv_sec + ((double) time.tv_nsec / (double) 1'000'000'000));
     
     util_sleep_until(&sleepUntil);
   }
@@ -498,9 +506,9 @@ int main2() {
   ret = hook_init();
   BUG_ON(ret < 0 && ret != -ENOSYS);
   
-  doTestSleep();
+  // doTestSleep();
   // doTestCircularBuffer();
-  // doTestNormal2();
+  doTestNormal2();
   // doTestRCU();
   // doTestRCUGenericType();
   // doTestVecRCU();

@@ -16,7 +16,7 @@ static bool checkIfArray(fh_object* self, const char* src) {
   context_block_gc();
   struct descriptor* desc = atomic_load(&INTERN(self)->obj)->movePreserve.descriptor;
   if (desc->type != OBJECT_ARRAY)
-    debug_warn("%s: Getting length on non array object!!\n", src);
+    debug_warn("%s: Getting length on non array object!!", src);
   
   bool isCorrect = desc->type == OBJECT_ARRAY;
   context_unblock_gc();

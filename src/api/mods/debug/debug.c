@@ -1,18 +1,20 @@
-#include <stdarg.h>
-#include <stdio.h>
 #include <threads.h>
 
-#include "attributes.h"
-#include "panic.h"
+#include "logger/logger.h"
 #include "api/api.h"
 #include "api/mods/debug/debug.h"
 #include "config.h"
 #include "context.h"
 #include "FluffyHeap.h"
 #include "managed_heap.h"
-#include "panic.h"
+
+#include "mods/debug.h"
 
 // Debug mode
+DEFINE_LOGGER(debug_logger, "Debug Mod");
+
+#undef LOGGER_DEFAULT
+#define LOGGER_DEFAULT (&debug_logger)
 
 int debug_check_flags(uint32_t flags) {
   return 0;
@@ -27,8 +29,10 @@ bool debug_can_do_api_verbose() {
 }
 
 int debug_init(struct api_mod_state* self) {
-  self->data.debugMod.panicOnWarn = IS_ENABLED(CONFIG_MOD_DEBUG_PANIC);
+  // Build configuration overrides app request
+  self->data.debugMod.panicOnError = IS_ENABLED(CONFIG_MOD_DEBUG_DEFAULT_PANIC) || (!!(self->flags & FH_MOD_DEBUG_DONT_KEEP_GOING));
   self->data.debugMod.verbosity = MOD_DEBUG_ULTRA_VERBOSE;
+  pr_info("Debug mod enabled!");
   return 0;
 }
 
@@ -36,35 +40,6 @@ void debug_cleanup(struct api_mod_state* self) {
   return;
 }
 
-ATTRIBUTE_PRINTF(1, 2)
-static void writeDebugOutputf(const char* fmt, ...) {
-  va_list args;
-  va_start(args);
-  vfprintf(stderr, fmt, args);
-  va_end(args);
-}
-
-void debug_info(const char* msg, ...) {
-  va_list args;
-  va_start(args, msg);
-  
-  static thread_local char buffer[512 * 1024];
-  vsnprintf(buffer, sizeof(buffer), msg, args);
-  
-  writeDebugOutputf("[DEBUG] [INFO] %s\n", buffer);
-  va_end(args);
-}
-
-void debug_warn(const char* msg, ...) {
-  va_list args;
-  va_start(args, msg);
-  
-  static thread_local char buffer[512 * 1024];
-  vsnprintf(buffer, sizeof(buffer), msg, args);
-  
-  if (managed_heap_current->api.state->modManager.modStates[FH_MOD_DEBUG].data.debugMod.panicOnWarn)
-    panic("Ouch -w-: %s", buffer);
-  else
-    writeDebugOutputf("[DEBUG] [WARN] %s\n", buffer);
-  va_end(args);
+bool debug_can_panic_on_warn() {
+  return managed_heap_current->api.state->modManager.modStates[FH_MOD_DEBUG].data.debugMod.panicOnError;
 }

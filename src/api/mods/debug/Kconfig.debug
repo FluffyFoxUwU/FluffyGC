@@ -15,10 +15,10 @@ choice
       arguments
 endchoice
 
-config MOD_DEBUG_PANIC
+config MOD_DEBUG_DEFAULT_PANIC
   bool "Panic on error"
   help
-    Panics by default on invalid API call else print
+    Panics on invalid API call else print
     warnings
 
 config MOD_DEBUG_ALWAYS_ENABLE

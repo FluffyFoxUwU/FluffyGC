@@ -7,16 +7,57 @@
 
 #include "logger.h"
 #include "concurrency/mutex.h"
+#include "panic.h"
 #include "util/circular_buffer.h"
+
+#ifdef BUG
+#  undef BUG
+#endif
+#ifdef BUG_ON
+#  undef BUG_ON
+#endif
+
+// BUG in here is hard panic
+// because Fox cannot tell
+// whether it caused in logger
+// or not so just hard panic
+#define BUG() hard_panic("BUG: failure at %s:%d/%s()!\n", __FILE__, __LINE__, __func__); 
+
+#define BUG_ON(cond) do { \
+  if (cond)  \
+    BUG(); \
+} while(0)
 
 #define LOG_BUFFER_SIZE (8 * 1024 * 1024)
 #define LOCAL_BUFFER_SIZE (96 * 1024)
 static_assert(LOCAL_BUFFER_SIZE - 4096 > 0, "4 KiB extra must be available");
 
-static DEFINE_LOGGER(defaultLogger, "Misc");
+DEFINE_LOGGER_STATIC(defaultLogger, "Misc");
+DEFINE_CIRCULAR_BUFFER_STATIC(buffer, LOG_BUFFER_SIZE);
 
-static char backingBuffer[LOG_BUFFER_SIZE];
-DEFINE_CIRCULAR_BUFFER(buffer, backingBuffer, sizeof(backingBuffer));
+static const char* loglevelToString(enum logger_loglevel level) {
+  switch (level) {
+    case LOG_FATAL:
+      return "FATAL";
+    case LOG_ALERT:
+      return "ALERT";
+    case LOG_CRITICAL:
+      return "CRITICAL";
+    case LOG_ERROR:
+      return "ERROR";
+    case LOG_WARN:
+      return "WARN";
+    case LOG_NOTICE:
+      return "NOTICE";
+    case LOG_INFO:
+      return "INFO";
+    case LOG_VERBOSE:
+      return "VERBOSE";
+    case LOG_DEBUG:
+      return "DEBUG";
+  }
+  BUG();
+}
 
 void logger_doPrintk_va(struct logger* logger, enum logger_loglevel level, const char* location, const char* func, const char* fmt, va_list args) {
   static thread_local char outputBuffer[LOCAL_BUFFER_SIZE];
@@ -51,7 +92,7 @@ void logger_doPrintk_va(struct logger* logger, enum logger_loglevel level, const
   
   // Format is [timestamp] [subsystemName] [ThreadName/loglevel] [FileSource.c:line#function()] Message
   // Example: [Sat 12 Aug 2023, 10:31 AM +0700] [Renderer] [Render Thread/INFO] [renderer/renderer.c:20#init()] Initalizing OpenGL...
-  size_t messageLen = snprintf(outputBuffer, sizeof(outputBuffer), "[%s] [%s] [%s/<UWU>] [%s%s()] %s", timestampBuffer, logger->subsystemName, util_get_thread_name(), location, func, messageBuffer);
+  size_t messageLen = snprintf(outputBuffer, sizeof(outputBuffer), "[%s] [%s] [%s/%s] [%s%s()] %s", timestampBuffer, logger->subsystemName, util_get_thread_name(), loglevelToString(level), location, func, messageBuffer);
   
   struct logger_entry header = {
     .len = messageLen,

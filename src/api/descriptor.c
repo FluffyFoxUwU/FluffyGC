@@ -1,7 +1,6 @@
 #include "pre_code.h"
 
 #include <stdatomic.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 
@@ -9,7 +8,7 @@
 #include "bug.h"
 #include "concurrency/mutex.h"
 #include "object/object.h"
-
+#include "logger/logger.h"
 #include "object/descriptor/object.h"
 #include "concurrency/rwlock.h"
 #include "context.h"
@@ -22,6 +21,10 @@
 #include "vec.h"
 
 typedef vec_t(struct object_descriptor*) descriptor_stack;
+
+DEFINE_LOGGER(LOGGER, "Descriptor Loader");
+#undef LOGGER_DEFAULT
+#define LOGGER_DEFAULT (&LOGGER)
 
 struct descriptor_loader_context {
   struct list_head stack;
@@ -59,11 +62,11 @@ static int loadDescriptor(struct descriptor_loader_context* loader, const char* 
   rwlock_unlock(&managed_heap_current->api.registry->lock);
   context_unblock_gc();
   if (loader->appLoader) {
-    printf("[DescriptorLoader] Calling Application's loader for '%s'\n", name);
+    pr_info("Calling Application's loader for '%s'", name);
     ret = loader->appLoader(name, managed_heap_current->api.udata, &new->api.param);
-    printf("[DescriptorLoader] Loaded '%s' result: %d\n", name, ret);
+    pr_info("Loaded '%s' result: %d", name, ret);
   } else {
-    printf("[DescriptorLoader] Loader not present or disabled during loading of '%s'\n", name);
+    pr_info("Loader not present or disabled during loading of '%s'", name);
     ret = -ESRCH;
   }
   context_block_gc();
@@ -179,7 +182,7 @@ failure:;
     } else {
       object_descriptor_init(current);
       list_add(&current->super.list, &managed_heap_current->descriptorList);
-      printf("[DescriptorLoader] Descriptor '%s' was loaded\n", current->name);
+      pr_info("Descriptor '%s' was loade", current->name);
     }
   }
   
@@ -191,7 +194,7 @@ failure:;
   exitClassLoaderExclusive();
   
   if (ret < 0)
-    printf("[DescriptorLoader] Failed loading '%s'\n", name);
+    pr_info("Failed loading '%s'", name);
   return ret;
 }
 

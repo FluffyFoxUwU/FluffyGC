@@ -15,6 +15,7 @@ enum logger_loglevel {
   LOG_WARN,
   LOG_NOTICE,
   LOG_INFO,
+  LOG_VERBOSE,
   LOG_DEBUG
 };
 
@@ -37,6 +38,8 @@ struct logger_entry {
   }
 #define DEFINE_LOGGER(name, subsystemName)  \
   struct logger name = LOGGER_INITIALIZER(subsystemName);
+#define DEFINE_LOGGER_STATIC(name, subsystemName)  \
+  static struct logger name = LOGGER_INITIALIZER(subsystemName);
 
 // Format is [timestamp] [subsystemName] [ThreadName/loglevel] [FileSource.c:line#function()] Message
 // Example: [Sat 12 Aug 2023, 10:31 AM +0700] [Renderer] [Render Thread/INFO] [renderer/renderer.c:20#init()] Initalizing OpenGL...
@@ -56,11 +59,8 @@ int logger_flush(struct timespec* abstimeout);
 void logger_get_entry(struct logger_entry* entry);
 
 // Individual source should define this
-// before including any files if printing
-// to own logger
-#ifndef LOGGER_DEFAULT
-# define LOGGER_DEFAULT NULL
-#endif
+// To use their logger instead Misc
+#define LOGGER_DEFAULT NULL
 
 #define printk(level, fmt, ...) \
   logger_doPrintk(LOGGER_DEFAULT, (level), __FILE__ ":" stringify(__LINE__) "#", __func__, fmt __VA_OPT__(,) __VA_ARGS__)
@@ -75,6 +75,7 @@ void logger_get_entry(struct logger_entry* entry);
   logger_doPrintk_va((logger), (level), __FILE__ ":" stringify(__LINE__) "#", __func__, (fmt), (va))
 
 #define pr_debug(fmt, ...)    printk(LOG_DEBUG, fmt __VA_OPT__(,) __VA_ARGS__)
+#define pr_verbose(fmt, ...)  printk(LOG_VERBOSE, fmt __VA_OPT__(,) __VA_ARGS__)
 #define pr_info(fmt, ...)     printk(LOG_INFO, fmt __VA_OPT__(,) __VA_ARGS__)
 #define pr_notice(fmt, ...)   printk(LOG_NOTICE, fmt __VA_OPT__(,) __VA_ARGS__)
 #define pr_warn(fmt, ...)     printk(LOG_WARN, fmt __VA_OPT__(,) __VA_ARGS__)

@@ -6,6 +6,9 @@
 #include "api/mods/debug/debug.h"
 #include "api/mods/dma_common.h"
 
+#include "mods/dma.h"
+#include "mods/debug.h"
+
 #include "FluffyHeap.h"
 #include "mods.h"
 #include "config.h"
@@ -26,7 +29,7 @@ static struct api_mod_info mods[FH_MOD_COUNT] = {
 # if IS_ENABLED(CONFIG_MOD_DEBUG)
   [FH_MOD_DEBUG] = {
     .available = true,
-    .supportedFlags = 0,
+    .supportedFlags = FH_MOD_DEBUG_DONT_KEEP_GOING,
     .checkFlags = debug_check_flags,
     
     .init = debug_init,
