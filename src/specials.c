@@ -48,11 +48,7 @@ static void selfRestart(char** argv) {
     exit(EXIT_FAILURE);
   }
   
-# if IS_ENABLED(CONFIG_BUILD_LLVM_XRAY)
   err = execvp(argv[0], argv);
-#else
-  err = 0;
-# endif
   if (err < 0) {
     fputs("[Boot] Failed to self restart: execvp: ", stderr);
     fputs(strerror(errNum), stderr);

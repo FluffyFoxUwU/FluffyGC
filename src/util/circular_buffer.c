@@ -1,12 +1,30 @@
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
+#include <stdlib.h>
 
+#include "panic.h"
 #include "circular_buffer.h"
-#include "bug.h"
 #include "concurrency/condition.h"
 #include "concurrency/mutex.h"
 #include "util.h"
+
+#ifdef BUG
+#  undef BUG
+#endif
+#ifdef BUG_ON
+#  undef BUG_ON
+#endif
+
+// BUG in here is hard panic
+// because Fox cannot tell
+// whether it caused in logger
+// or not so just hard panic
+#define BUG() hard_panic("BUG: failure at %s:%d/%s()!\n", __FILE__, __LINE__, __func__); 
+
+#define BUG_ON(cond) do { \
+  if (cond)  \
+    BUG(); \
+} while(0)
 
 // Most codes are reformatted from (comments preserved)
 // https://github.com/noahcroit/RingBuffer_and_DataFraming_C/blob/8d41e99a78e1977ae71968a3d4cb3cb607bc770a/circularBuffer.c
@@ -17,25 +35,36 @@ enum buf_state {
   BUF_STATE_R_LESS_THAN_F
 };
 
-static int startCritical(struct circular_buffer* self, int flags, const struct timespec* abstimeout) {
+static int lockMutex(struct mutex* mutex, int flags, const struct timespec* abstimeout) {
   int ret = 0;
   if (flags & CIRCULAR_BUFFER_NO_LOCK)
     return 0;
   
   if (flags & CIRCULAR_BUFFER_NONBLOCK) {
-    ret = mutex_lock2(&self->lock, MUTEX_LOCK_NONBLOCK, NULL);
+    ret = mutex_lock2(mutex, MUTEX_LOCK_NONBLOCK, NULL);
   } else if (flags & CIRCULAR_BUFFER_WITH_TIMEOUT) {
-    ret = mutex_lock2(&self->lock, MUTEX_LOCK_TIMED, abstimeout);
+    ret = mutex_lock2(mutex, MUTEX_LOCK_TIMED, abstimeout);
   } else {
-    mutex_lock(&self->lock);
+    mutex_lock(mutex);
   }
   
   return ret;
 }
 
+static void unlockMutex(struct mutex* mutex, int flags) {
+  if (flags & CIRCULAR_BUFFER_NO_LOCK)
+    return;
+  
+  mutex_unlock(mutex);
+  return;
+}
+
+static int startCritical(struct circular_buffer* self, int flags, const struct timespec* abstimeout) {
+  return lockMutex(&self->lock, flags, abstimeout);
+}
+
 static void endCritical(struct circular_buffer* self, int flags) {
-  if (!(flags & CIRCULAR_BUFFER_NO_LOCK))
-    mutex_unlock(&self->lock);
+  unlockMutex(&self->lock, flags);
 }
 
 int circular_buffer_is_empty(struct circular_buffer* self, int flags, const struct timespec* abstimeout) {
@@ -78,17 +107,16 @@ static int getWaitFlags(int flags) {
   return waitFlags;
 } 
 
-static size_t internalWrite(struct circular_buffer* self, int flags, const void** data, size_t* size, const struct timespec* abstimeout) {
-  if (*size == 0) {
-    errno = 0;
+static int internalWrite(struct circular_buffer* self, int flags, const void** data, size_t* size, const struct timespec* abstimeout) {
+  if (*size == 0)
     return 0;
-  }
+  
   int ret = 0;
   size_t writeSize = 0;
   
   enum buf_state bufferState;
   ret = condition_wait2(&self->dataHasRead, &self->lock, getWaitFlags(flags), abstimeout, ^bool () {
-    return circular_buffer_is_full(self, flags | CIRCULAR_BUFFER_NO_LOCK, abstimeout);
+    return self->dataInBuffer == self->bufferSize;
   });
   if (ret < 0)
     goto failed_waiting_to_have_space;
@@ -157,28 +185,18 @@ static size_t internalWrite(struct circular_buffer* self, int flags, const void*
   
   condition_wake_all(&self->dataHasWritten);
 failed_waiting_to_have_space:
-  if (ret < 0) {
-    errno = -ret;
-    writeSize = 0;
-  }
-  return writeSize;
+  return ret;
 }
 
-// Returns bytes read
-// Sets errno on error or sets errno to 0 on sucess
-// `data` and `size` updated accordingly
-// to amount actually read
-static size_t internalRead(struct circular_buffer* self, int flags, void** data, size_t* size, const struct timespec* abstimeout) {
-  if (*size == 0) {
-    errno = 0;
+static int internalRead(struct circular_buffer* self, int flags, void** data, size_t* size, const struct timespec* abstimeout) {
+  if (*size == 0)
     return 0;
-  }
   
   int ret = 0;
   size_t readSize = 0;
   enum buf_state bufferState;
   ret = condition_wait2(&self->dataHasWritten, &self->lock, getWaitFlags(flags), abstimeout, ^bool () {
-    return circular_buffer_is_empty(self, flags | CIRCULAR_BUFFER_NO_LOCK, abstimeout);
+    return self->dataInBuffer == 0;
   });
   if (ret < 0)
     goto failed_waiting_to_have_data;
@@ -210,7 +228,8 @@ static size_t internalRead(struct circular_buffer* self, int flags, void** data,
           *  then, dequeue only 1 section
           */
         
-        memcpy(*data, self->buf + self->f, readSize);
+        if (data)
+          memcpy(*data, self->buf + self->f, readSize);
         self->f += readSize;
         self->f %= self->bufferSize;
       } else {
@@ -220,13 +239,14 @@ static size_t internalRead(struct circular_buffer* self, int flags, void** data,
           *  then, dequeue with 2 sections
           */
         /* 1st section copy */
-        memcpy(data, self->buf + self->f, self->bufferSize - self->f);
-        data += self->bufferSize - self->f;
+        if (data)
+          memcpy(data, self->buf + self->f, self->bufferSize - self->f);
         
         /* 2nd section copy (wrapping part) */
         // No overwritten occur
         if(readSize + self->f - self->bufferSize <= self->r) {
-          memcpy(*data, self->buf, readSize + self->f - self->bufferSize);
+          if (data)
+            memcpy(*data + self->bufferSize - self->f, self->buf, readSize + self->f - self->bufferSize);
           self->f += readSize;
           self->f %= self->bufferSize;
         } else {
@@ -239,58 +259,91 @@ static size_t internalRead(struct circular_buffer* self, int flags, void** data,
       BUG();
   }
   
-  *data += readSize;
+  if (data)
+    *data += readSize;
   *size -= readSize;
   self->dataInBuffer -= readSize;
   
   condition_wake_all(&self->dataHasRead);
 failed_waiting_to_have_data:
-  if (ret < 0) {
-    errno = -ret;
-    readSize = 0;
-  }
-  return readSize;
+  return ret;
 }
 
-size_t circular_buffer_read(struct circular_buffer* self, int flags, void* data, size_t size, const struct timespec* abstimeout) {
+int circular_buffer_read(struct circular_buffer* self, int flags, void* data, size_t size, const struct timespec* abstimeout) {
   int ret = 0;
+  if ((ret = lockMutex(&self->readLock, flags, abstimeout)) < 0)
+    goto failure_getting_writelock;
   if ((ret = startCritical(self, flags, abstimeout)) < 0)
-    return ret;
+    goto failure_entering_critical;
   
   size_t leftToProcess = size;
-  size_t processedSize = 0;
   void* currentData = data;
   
-  while (leftToProcess > 0) {
-    errno = 0;
-    processedSize += internalRead(self, flags | CIRCULAR_BUFFER_NO_LOCK, &currentData, &leftToProcess, abstimeout);
-    if (errno > 0)
+  while (leftToProcess > 0)
+    if ((ret = internalRead(self, flags | CIRCULAR_BUFFER_NO_LOCK, &currentData, &leftToProcess, abstimeout)) < 0)
       break;
-  }
   
   endCritical(self, flags);
-  return processedSize;
+failure_entering_critical:
+  unlockMutex(&self->readLock, flags);
+failure_getting_writelock:
+  return ret;
 }
 
-size_t circular_buffer_write(struct circular_buffer* self, int flags, const void* data, size_t size, const struct timespec* abstimeout) {
+int circular_buffer_write(struct circular_buffer* self, int flags, const void* data, size_t size, const struct timespec* abstimeout) {
   int ret = 0;
+  if ((ret = lockMutex(&self->writeLock, flags, abstimeout)) < 0)
+    goto failure_getting_writelock;
   if ((ret = startCritical(self, flags, abstimeout)) < 0)
-    return ret;
+    goto failure_entering_critical;
   
   size_t leftToProcess = size;
-  size_t processedSize = 0;
   const void* currentData = data;
   
-  while (leftToProcess > 0) {
-    errno = 0;
-    processedSize += internalWrite(self, flags | CIRCULAR_BUFFER_NO_LOCK, &currentData, &leftToProcess, abstimeout);
-    if (errno > 0)
+  while (leftToProcess > 0)
+    if ((ret = internalWrite(self, flags | CIRCULAR_BUFFER_NO_LOCK, &currentData, &leftToProcess, abstimeout)) < 0)
       break;
-  }
   
   endCritical(self, flags);
-  return processedSize;
+failure_entering_critical:
+  unlockMutex(&self->writeLock, flags);
+failure_getting_writelock:
+  return ret;
 }
+
+int circular_buffer_waste(struct circular_buffer* self, int flags, size_t size, const struct timespec* abstimeout) {
+  int ret = 0;
+  if ((ret = lockMutex(&self->readLock, flags, abstimeout)) < 0)
+    goto failure_getting_writelock;
+  if ((ret = startCritical(self, flags, abstimeout)) < 0)
+    goto failure_entering_critical;
+  
+  size_t leftToProcess = size;
+  while (leftToProcess > 0)
+    if ((ret = internalWrite(self, flags | CIRCULAR_BUFFER_NO_LOCK, NULL, &leftToProcess, abstimeout)) < 0)
+      break;
+  
+  endCritical(self, flags);
+failure_entering_critical:
+  unlockMutex(&self->readLock, flags);
+failure_getting_writelock:
+  return ret;
+}
+
+int circular_buffer_flush(struct circular_buffer* self, int flags, const struct timespec* abstimeout) {
+  int ret = 0;
+  if ((ret = startCritical(self, flags, abstimeout)) < 0)
+    goto failure_entering_critical;
+  
+  ret = condition_wait2(&self->dataHasRead, &self->lock, abstimeout ? CONDITION_WAIT_TIMED : 0, abstimeout, ^bool () {
+    return self->dataInBuffer > 0;
+  });
+  
+  endCritical(self, flags);
+failure_entering_critical:
+  return ret;
+}
+
 
 struct circular_buffer* circular_buffer_new(size_t size) {
   void* buffer = malloc(size);
@@ -320,13 +373,33 @@ struct circular_buffer* circular_buffer_new_from_ptr(size_t size, void* ptr) {
     .r = 0,
     .f = 0
   };
+  
+  if (mutex_init(&self->lock) < 0)
+    goto failure;
+  if (mutex_init(&self->readLock) < 0)
+    goto failure;
+  if (mutex_init(&self->writeLock) < 0)
+    goto failure;
+  if (condition_init(&self->dataHasRead) < 0)
+    goto failure;
+  if (condition_init(&self->dataHasWritten) < 0)
+    goto failure;
+  
   return self;
+failure:
+  circular_buffer_free(self);
+  return NULL;
 }
 
 void circular_buffer_free(struct circular_buffer* self) {
   if (!self)
     return;
   
+  mutex_cleanup(&self->lock);
+  mutex_cleanup(&self->writeLock);
+  mutex_cleanup(&self->readLock);
+  condition_cleanup(&self->dataHasRead);
+  condition_cleanup(&self->dataHasWritten);
   free(self->allocPtr);
   free(self);
 }

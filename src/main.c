@@ -5,9 +5,11 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "FluffyHeap.h"
+#include "logger/logger.h"
 #include "attributes.h"
 #include "bug.h"
 #include "hook/hook.h"
@@ -119,13 +121,13 @@ static void doTestNormal() {
     data.a = "C string test UwU";
     fh_object_write_data(obj, &data, 0, sizeof(data));
     fh_object_read_data(obj, &data, 0, sizeof(data));
-    printf("[Main] Got: %s\n", data.a);
+    pr_info("[Main] Got: %s", data.a);
     
     fh_object_write_ref(obj, offsetof(struct fluff, fox), obj);
     fh_object_write_ref(obj, offsetof(struct fluff, any), obj);
     
     fh_object* readVal = fh_object_read_ref(obj, offsetof(struct fluff, fox));
-    printf("[Main] Object is %ssame object\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
+    pr_info("[Main] Object is %ssame object", fh_object_is_alias(obj, readVal) ? "" : "not ");
     fh_del_ref(readVal);
   }
   
@@ -136,17 +138,17 @@ static void doTestNormal() {
     fh_array* array = fh_alloc_array(fluffDesc, 5);
     fh_array_set_element(array, 0, obj);
     fh_object* readVal = fh_array_get_element(array, 0);
-    printf("[Main] Array[0] is %ssame what just written\n", fh_object_is_alias(obj, readVal) ? "" : "not ");
+    pr_info("[Main] Array[0] is %ssame what just written", fh_object_is_alias(obj, readVal) ? "" : "not ");
     
     // Triger warning (or abort) intentionally
     fh_array_calc_offset(array, 999);
     
     const fh_type_info* info = fh_object_get_type_info(FH_CAST_TO_OBJECT(array));
-    printf("[Main] Array is %zu has entries long\n", info->info.refArray->length);
-    printf("[Main] Array is %zu has entries according to API call\n", fh_array_get_length(array));
+    pr_info("[Main] Array is %zu has entries long", info->info.refArray->length);
+    pr_info("[Main] Array is %zu has entries according to API call", fh_array_get_length(array));
     fh_object_put_type_info(FH_CAST_TO_OBJECT(array), info);
     
-    printf("[Main] Not real array has %zu entries according to API call\n", fh_array_get_length(FH_CAST_TO_ARRAY(obj)));
+    pr_info("[Main] Not real array has %zu entries according to API call", fh_array_get_length(FH_CAST_TO_ARRAY(obj)));
     
     fh_del_ref((fh_object*) array);
     fh_del_ref((fh_object*) readVal);
@@ -167,7 +169,7 @@ static void doTestNormal() {
     fh_object_unmap_dma(obj, mapped);
     long long result;
     fh_object_read_data(obj, &result, offsetof(struct fluff, cute), sizeof(result));
-    printf("UwU Result 0x%llx\n", result);
+    pr_info("UwU Result 0x%llx\n", result);
     fh_del_ref(obj);
   }
   
@@ -347,7 +349,7 @@ static void* worker3(void*) {
     int i = 0;
     struct uwu* current;
     vec_foreach_ptr(&readonly.data->array, current, i) {
-      // printf("[%ld] [%20ld] Got {%ld, \"%s\"} at %d\033[2K\r", selfThread, iteration, current->UwU, current->OwO, i);
+      // fprintf(stderr, "[%ld] [%20ld] Got {%ld, \"%s\"} at %d\033[2K\r", selfThread, iteration, current->UwU, current->OwO, i);
       (void) current;
     }
     
@@ -408,17 +410,22 @@ static struct circular_buffer* buffer;
 
 static void* worker4(void*) {
   float deadline = util_get_monotonic_time() + 1.0f;
+  struct timespec sleepUntil;
   int prev = 0;
+  clock_gettime(CLOCK_MONOTONIC, &sleepUntil);
   for (int i = 0;; i++) {
+    util_add_timespec(&sleepUntil, 0.001);
+    
     int result = rand();
     circular_buffer_write(buffer, 0, &result, sizeof(result), NULL);
-    util_msleep(1);
     
     if (util_get_monotonic_time() >= deadline) {
-      printf("Writer: Speed %d writes/s\n", i - prev);
+      pr_info("Writer: Speed %d writes/s", i - prev);
       prev = i;
       deadline = util_get_monotonic_time() + 1.0f;
     }
+    
+    util_sleep_until(&sleepUntil);
   }
   return NULL;
 }
@@ -431,28 +438,68 @@ static void doTestCircularBuffer() {
   pthread_create(&worker, NULL, worker4, NULL);
   
   float deadline = util_get_monotonic_time() + 1.0f;
+  struct timespec sleepUntil;
   int prev = 0;
+  clock_gettime(CLOCK_MONOTONIC, &sleepUntil);
   for (int i = 0;; i++) {
+    util_add_timespec(&sleepUntil, 0.5);
+    
     int result;
     circular_buffer_read(buffer, 0, &result, sizeof(result), NULL);
-    util_msleep(500);
     
     if (util_get_monotonic_time() >= deadline) {
-      printf("Reader: Speed %d reads/s\n", i - prev);
+      pr_info("Reader: Speed %d reads/s", i - prev);
       prev = i;
       deadline = util_get_monotonic_time() + 1.0f;
     }
+    
+    util_sleep_until(&sleepUntil);
   }
   
   pthread_join(worker, NULL);
   circular_buffer_free(buffer);
 }
 
+ATTRIBUTE_USED()
+static void doTestSleep() {
+  struct timespec time;
+  struct timespec sleepUntil;
+  clock_gettime(CLOCK_MONOTONIC, &sleepUntil);
+  
+  while (1) {
+    util_add_timespec(&sleepUntil, 1.0f);
+    
+    clock_gettime(CLOCK_REALTIME, &time);
+    pr_info("Time %lf", (double) time.tv_sec + ((double) time.tv_nsec / (double) 1'000'000'000));
+    
+    util_sleep_until(&sleepUntil);
+  }
+}
+
+// Runs forever
+static void* loggerFunc(void*) {
+  while (1) {
+    struct logger_entry entry;
+    logger_get_entry(&entry);
+    fprintf(stderr, "%s\n", entry.message);
+  }
+  return NULL;
+}
+
 int main2() {
-  int ret = hook_init();
+  util_set_thread_name("Main Thread");
+  logger_init();
+  
+  pthread_t loggerThread;
+  int ret = 0;
+  if ((ret = -pthread_create(&loggerThread, NULL, loggerFunc, NULL)) < 0)
+    BUG();
+  
+  ret = hook_init();
   BUG_ON(ret < 0 && ret != -ENOSYS);
   
-  doTestCircularBuffer();
+  doTestSleep();
+  // doTestCircularBuffer();
   // doTestNormal2();
   // doTestRCU();
   // doTestRCUGenericType();

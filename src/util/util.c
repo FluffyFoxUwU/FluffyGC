@@ -3,6 +3,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include <math.h>
 #include <time.h>
 #include <errno.h>
 #include <stdatomic.h>
@@ -11,7 +12,6 @@
 #include <stddef.h>
 #include <sys/times.h>
 #include <sys/mman.h>
-#include <sys/prctl.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <string.h>
@@ -120,8 +120,13 @@ bool util_vasprintf(char** result, const char* fmt, va_list arg) {
   return true;
 }
 
+static thread_local char currentThreadName[UTIL_MAX_THREAD_NAME_LEN];
 void util_set_thread_name(const char* name) {
-  prctl(PR_SET_NAME, name);
+  strncpy(currentThreadName, name, sizeof(currentThreadName));
+}
+
+const char* util_get_thread_name() {
+  return currentThreadName;
 }
 
 int util_get_core_count() {
@@ -259,32 +264,67 @@ void util_sleep(unsigned int secs) {
   util_msleep(secs * 1000);
 }
 
-float util_get_total_cpu_time() {
+static float commonGetTimeFromClock(clockid_t clock) {
   float result;
   struct timespec ts;
-  if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) < 0)
+  if (clock_gettime(clock, &ts) < 0)
     BUG();
   result = ts.tv_sec;
   result += (float) ts.tv_nsec / (float) 1'000'000'000;
   return result;
+}
+
+float util_get_realtime_time() {
+  return commonGetTimeFromClock(CLOCK_REALTIME);
+}
+
+float util_get_total_cpu_time() {
+  return commonGetTimeFromClock(CLOCK_PROCESS_CPUTIME_ID);
 }
 
 float util_get_thread_cpu_time() {
-  float result;
-  struct timespec ts;
-  if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0)
-    BUG();
-  result = ts.tv_sec;
-  result += (float) ts.tv_nsec / (float) 1'000'000'000;
-  return result;
+  return commonGetTimeFromClock(CLOCK_THREAD_CPUTIME_ID);
 }
 
 float util_get_monotonic_time() {
-  float result;
-  struct timespec ts;
-  if (clock_gettime(CLOCK_MONOTONIC, &ts) < 0)
-    BUG();
-  result = ts.tv_sec;
-  result += (float) ts.tv_nsec / (float) 1'000'000'000;
-  return result;
+  return commonGetTimeFromClock(CLOCK_MONOTONIC);
+}
+
+int util_sleep_until(struct timespec* ts) {
+  int ret;
+  while ((ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, ts, NULL)) == EINTR)
+    ;
+  
+  BUG_ON(ret == ENOTSUP);
+  if (ret > 0)
+    ret = -ret;
+  return ret;
+}
+
+void util_add_timespec(struct timespec* ts, float offset) {
+  time_t secsDelta = floor(offset + 0.5f);
+  long nanosecsDelta = fmod(offset, 1) * 1'000'000'000;
+  
+  ts->tv_nsec += nanosecsDelta;
+  ts->tv_sec += secsDelta;
+  
+  // Handling overflows from [0, 1'000'000'000] range
+  if (ts->tv_nsec < 0) {
+    ts->tv_sec--;
+    ts->tv_nsec = 1'000'000'000 + ts->tv_nsec;
+  } else if (ts->tv_nsec >= 1'000'000'000) {
+    ts->tv_sec++;
+    ts->tv_nsec -= 1'000'000'000;
+  }
+}
+
+float util_timespec_to_float(struct timespec* ts) {
+  return (float) ts->tv_sec + (float) ts->tv_nsec / (float) 1'000'000'000;
+}
+
+struct timespec util_relative_to_abs(clockid_t clock, float offset) {
+  struct timespec abs;
+  clock_gettime(clock, &abs);
+  util_add_timespec(&abs, offset);
+  return abs;
 }

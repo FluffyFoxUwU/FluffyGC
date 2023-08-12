@@ -6,10 +6,13 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 
 #include "bits.h"
+
+#define UTIL_MAX_THREAD_NAME_LEN (128)
 
 // return true if assigned
 bool util_atomic_add_if_less_uint(volatile atomic_uint* data, unsigned int n, unsigned int max, unsigned int* result);
@@ -21,6 +24,7 @@ int util_atomic_min_int(volatile atomic_int* object, int newVal);
 bool util_vasprintf(char** result, const char* fmt, va_list arg);
 
 void util_set_thread_name(const char* name);
+const char* util_get_thread_name();
 
 int util_get_core_count();
 
@@ -93,9 +97,16 @@ void util_msleep(unsigned int microsecs);
 void util_usleep(unsigned long milisecs);
 void util_nanosleep(unsigned long nanosecs);
 
+int util_sleep_until(struct timespec* ts);
+
+float util_get_realtime_time();
 float util_get_monotonic_time();
 float util_get_total_cpu_time();
 float util_get_thread_cpu_time();
+
+void util_add_timespec(struct timespec* ts, float offset);
+float util_timespec_to_float(struct timespec* ts);
+struct timespec util_relative_to_abs(clockid_t clock, float offset);
 
 #define __stringify_1(x...)	#x
 #define stringify(x...)	__stringify_1(x)

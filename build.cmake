@@ -42,6 +42,8 @@ set(BUILD_SOURCES
   src/rcu/rcu_generic.c
   src/rcu/rcu_vec.c
   
+  src/logger/logger.c
+  
   src/api/hooks.c
   src/api/heap_api.c
   src/api/context.c

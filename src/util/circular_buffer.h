@@ -30,6 +30,9 @@ struct circular_buffer {
   struct condition dataHasRead;
   struct condition dataHasWritten;
   
+  struct mutex writeLock;
+  struct mutex readLock;
+  
   void* allocPtr;
   void* buf;
   intptr_t r;
@@ -39,6 +42,21 @@ struct circular_buffer {
   // Bytes of ready to read data
   size_t dataInBuffer;
 };
+
+#define CIRCULAR_BUFFER_INITIALIZER(ptr, size) \
+  { \
+    .lock = MUTEX_INITIALIZER, \
+    .dataHasRead = CONDITION_INITIALIZER, \
+    .dataHasWritten = CONDITION_INITIALIZER, \
+    .allocPtr = NULL, \
+    .buf = (ptr), \
+    .r = 0, \
+    .f = 0, \
+    .bufferSize = (size), \
+    .dataInBuffer = 0 \
+  }
+#define DEFINE_CIRCULAR_BUFFER(name, ptr, size) \
+  struct circular_buffer name = CIRCULAR_BUFFER_INITIALIZER(ptr, size)
 
 struct circular_buffer* circular_buffer_new(size_t size);
 struct circular_buffer* circular_buffer_new_from_ptr(size_t size, void* ptr);
@@ -54,23 +72,20 @@ void circular_buffer_free(struct circular_buffer* self);
 #define CIRCULAR_BUFFER_NONBLOCK 0x02
 #define CIRCULAR_BUFFER_WITH_TIMEOUT 0x04
 
-// Returns size processed (if not equal to requested
-// error is occured, check errno)
+// Returns 0 on success or negative -errno
+// With flags of 0 functions won't fail
 // Errors:
-//   ETIMEDOUT: Timed out waiting for free space
-//   EINVAL   : Invalid timeout (follows POSIX's condition for the spec "The abstime argument specified a nanosecond value less than zero or greater than or equal to 1000 million.")
-//   EOVERFLOW: (Writer only) Too large write request
-//   EAGAIN   : Going to block
-size_t circular_buffer_write(struct circular_buffer* self, int flags, const void* data, size_t size, const struct timespec* abstimeout);
-size_t circular_buffer_read(struct circular_buffer* self, int flags, void* data, size_t size, const struct timespec* abstimeout);
-
-// Same as circular_buffer_read but do not reads just waste
-// `size` bytes of data
-// returns bytes wasted
-size_t circular_buffer_waste(struct circular_buffer* self, int flags, size_t size, const struct timespec* abstimeout);
+// -ETIMEDOUT: Timed out (CIRCULAR_BUFFER_WITH_TIMEOUT)
+// -EINVAL   : Invalid tv_nsec in abstimeout (CIRCULAR_BUFFER_WITH_TIMEOUT)
+// -EAGAIN   : Going to block (CIRCULAR_BUFFER_NONBLOCK)
+int circular_buffer_write(struct circular_buffer* self, int flags, const void* data, size_t size, const struct timespec* abstimeout);
+int circular_buffer_read(struct circular_buffer* self, int flags, void* data, size_t size, const struct timespec* abstimeout);
+int circular_buffer_waste(struct circular_buffer* self, int flags, size_t size, const struct timespec* abstimeout);
 
 int circular_buffer_is_empty(struct circular_buffer* self, int flags, const struct timespec* abstimeout);
 int circular_buffer_is_full(struct circular_buffer* self, int flags, const struct timespec* abstimeout);
+
+int circular_buffer_flush(struct circular_buffer* self, int flags, const struct timespec* abstimeout);
 
 #endif
 

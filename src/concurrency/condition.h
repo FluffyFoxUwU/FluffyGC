@@ -10,6 +10,9 @@ struct condition {
   bool inited;
 };
 
+#define CONDITION_INITIALIZER \
+  {.cond = PTHREAD_COND_INITIALIZER, .inited = true}
+
 typedef bool (^condition_checker)();
 
 int condition_init(struct condition* self);

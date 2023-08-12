@@ -37,14 +37,14 @@ void debug_helper_process_return(const char* source, enum debug_argument_type ty
 #define ____DEBUG_MOD_API_PASSTHROUGHC(a, ...) typeof(a) __VA_OPT__(,)
 #define ____DEBUG_MOD_API_MAKE_ARGS(...) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_PASSTHROUGHA, ____DEBUG_MOD_API_PASSTHROUGHB, __VA_ARGS__)
 #define DEBUG_API_TRACEPOINT(spec, ret2, name, ...) \
-  spec void _____debug_api_tracepoint__real_ ## name(struct hook_call_info* ci __VA_OPT__(,) ____DEBUG_MOD_API_MAKE_ARGS(__VA_ARGS__)); \
+  static inline void _____debug_api_tracepoint__real_ ## name(struct hook_call_info* ci __VA_OPT__(,) ____DEBUG_MOD_API_MAKE_ARGS(__VA_ARGS__)); \
   HOOK_FUNCTION(spec, ret2, name, __VA_ARGS__) { \
     static enum debug_argument_type args[] = {MACRO_FOR_EACH(____debug_try_print_api_call_entry __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB, __VA_ARGS__))}; \
     debug_helper_print_api_call(#name, args, ARRAY_SIZE(args) __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB, __VA_ARGS__)); \
     _____debug_api_tracepoint__real_ ## name(ci __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB, __VA_ARGS__)); \
     debug_helper_process_return(#name, ____debug_try_print_api_call_entry(typeof(ret2)), ci->returnValue); \
   } \
-  spec void _____debug_api_tracepoint__real_ ## name(struct hook_call_info* ci __VA_OPT__(,) ____DEBUG_MOD_API_MAKE_ARGS(__VA_ARGS__))
+  static inline void _____debug_api_tracepoint__real_ ## name(struct hook_call_info* ci __VA_OPT__(,) ____DEBUG_MOD_API_MAKE_ARGS(__VA_ARGS__))
 
 #define DEBUG_API_TRACEPOINT_VOID(spec, name, ...) \
   spec void _____debug_api_tracepoint__real_ ## name(struct hook_call_info* ci __VA_OPT__(,) ____DEBUG_MOD_API_MAKE_ARGS(__VA_ARGS__)); \
