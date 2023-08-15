@@ -4,6 +4,7 @@
 #include "FluffyHeap.h"
 #include "api/mods/mods.h"
 #include "hook/hook.h"
+#include "api/mods/debug/helper.h"
 
 struct api_mod_state;
 
@@ -37,10 +38,16 @@ struct api_state {
   int initCounts;
 };
 
-#define API_FUNCTION_DEFINE(...) \
-  __FLUFFYHEAP_EXPORT HOOK_TARGET(__VA_ARGS__)
-#define API_FUNCTION_DEFINE_VOID(...) \
-  __FLUFFYHEAP_EXPORT HOOK_TARGET_VOID(__VA_ARGS__)
+#define _____API_IGNORE(a, ...) 
+#define _____API_PASSTHROUGHA(a, ...) a
+#define _____API_PASSTHROUGHB(a, ...) a __VA_OPT__(,)
+#define _____API_PASSTHROUGHC(a, ...) typeof(a) __VA_OPT__(,)
+#define _____API_MAKE_ARGS(...) MACRO_FOR_EACH_STRIDE2(_____API_PASSTHROUGHA, _____API_PASSTHROUGHB, __VA_ARGS__)
+
+#define API_FUNCTION_DEFINE(ret, name, ...) \
+  DEBUG_API_TRACEPOINT(__FLUFFYHEAP_EXPORT, ret, name, __VA_ARGS__)
+#define API_FUNCTION_DEFINE_VOID( name, ...) \
+  DEBUG_API_TRACEPOINT_VOID(__FLUFFYHEAP_EXPORT, name, __VA_ARGS__)
 
 #endif
 

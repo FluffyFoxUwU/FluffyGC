@@ -8,6 +8,9 @@
 
 #include "config.h"
 
+#include "logger/logger.h"
+#include "panic.h"
+
 #if IS_ENABLED(CONFIG_BUILD_ASAN)
 const char* __asan_default_options() {
   return CONFIG_BUILD_ASAN_OPTS;
@@ -38,26 +41,25 @@ static const char* xrayOpts = CONFIG_BUILD_LLVM_XRAY_OPTS;
 static const char* xrayOpts = "";
 #endif
 
+DEFINE_LOGGER_STATIC(logger, "XRay Settings");
+#undef LOGGER_DEFAULT
+#define LOGGER_DEFAULT (&logger)
+
 static void selfRestart(char** argv) {
   int err = setenv("XRAY_OPTIONS", xrayOpts, true);
   int errNum = errno;
   if (err < 0) {
-    fputs("[Boot] Failed to set XRAY_OPTIONS: setenv: ", stderr);
-    fputs(strerror(errNum), stderr);
-    fputs("\n", stderr);
+    pr_fatal("Failed to set XRAY_OPTIONS: setenv: %s", strerror(errNum));
     exit(EXIT_FAILURE);
   }
   
   err = execvp(argv[0], argv);
   if (err < 0) {
-    fputs("[Boot] Failed to self restart: execvp: ", stderr);
-    fputs(strerror(errNum), stderr);
-    fputs("\n", stderr);
+    pr_fatal("Failed to self restart: execvp: %s", strerror(errNum));
     exit(EXIT_FAILURE);
   }
-
-  fputs("[Boot] Can't reached here!!!", stderr);
-  exit(EXIT_FAILURE);
+  
+  hard_panic("Can't reached here!!!");
 }
 
 void special_premain(int argc, char** argv) {
@@ -66,11 +68,11 @@ void special_premain(int argc, char** argv) {
 
   const char* var;
   if ((var = getenv("XRAY_OPTIONS"))) {
-    fprintf(stderr, "[Boot] Success XRAY_OPTIONS now contain \"%s\"\n", var);
+    pr_info("Success XRAY_OPTIONS now contain \"%s\"\n", var);
     return;
   }
 
-  fputs("[Boot] Self restarting due XRAY_OPTIONS not set\n", stderr);
+  pr_alert("Self restarting due XRAY_OPTIONS not set\n", stderr);
   selfRestart(argv);
 }
 

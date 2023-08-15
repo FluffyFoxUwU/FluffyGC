@@ -44,6 +44,8 @@ set(BUILD_SOURCES
   
   src/logger/logger.c
   
+  src/stacktrace/stacktrace.c
+  
   src/api/hooks.c
   src/api/heap_api.c
   src/api/context.c
@@ -154,12 +156,18 @@ macro(PostConfigurationLoad)
     # Various hooks
     list(APPEND BUILD_SOURCES "./src/api/mods/debug/hooks/always_enable.c")
     list(APPEND BUILD_SOURCES "./src/api/mods/debug/hooks/arrays.c")
+    list(APPEND BUILD_SOURCES "./src/api/mods/debug/hooks/dma.c")
   endif()
   
   if (DEFINED CONFIG_HOOK)
     list(APPEND BUILD_SOURCES "./src/hook/hook.c")
   else()
     list(APPEND BUILD_SOURCES "./src/hook/hook_stub.c")
+  endif()
+  
+  if (DEFINED CONFIG_STACKTRACE_PROVIDER_LIBBACKTRACE)
+    list(APPEND BUILD_SOURCES src/stacktrace/provider/libbacktrace.c)
+    set(BUILD_LDFLAGS "${BUILD_LDFLAGS} -lbacktrace")
   endif()
 endmacro()
 

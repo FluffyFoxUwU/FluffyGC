@@ -15,13 +15,16 @@
 # define ADD_HOOK_TARGET(target) (void) target
 # define ADD_HOOK_FUNC(target, location, func) hook_register(target, location, func)
 #endif
+
+#ifndef ADD_HOOK_FUNC_AND_DECLARE
 # define ADD_HOOK_FUNC_AND_DECLARE(target, location, ret, func, ...) \
   HOOK_FUNCTION_DECLARE(, ret, func, __VA_ARGS__); \
   ADD_HOOK_FUNC(target, location, func)
+#endif
 
 #ifdef STANDALONE
 ATTRIBUTE_USED()
-static void uwu() {
+void (^uwu)() = ^() {
 #endif
 
 //////////////////////////////
@@ -112,8 +115,11 @@ ADD_HOOK_TARGET(fh_get_descriptor);
 ADD_HOOK_TARGET(fh_release_descriptor);
 ADD_HOOK_TARGET(fh_descriptor_get_param);
 
+// Mods
+#include "api/mods/mods_hooklist.h"
+
 #ifdef STANDALONE
-}
+};
 #endif
 
 #define UWU_SO_THAT_UNUSED_COMPLAIN_SHUT_UP

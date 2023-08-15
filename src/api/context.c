@@ -1,5 +1,3 @@
-#include <errno.h>
-
 #include "pre_code.h"
 
 #include "api.h"

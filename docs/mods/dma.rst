@@ -53,15 +53,15 @@ Access
 
 Methods (Extends ``fh_object*``)
 ################################
-+--------------+-----------------------------------------------------------------------------------------------------------+------------------------+
-| Return Value | Method                                                                                                    | Link                   |
-+==============+===========================================================================================================+========================+
-| fh_dma_ptr*  | fh_object_map_dma(fh_object* self, size_t offset, size_t size, unsigned int mapFlags, unsigned int usage) | `fh_object_map_dma`_   |
-+--------------+-----------------------------------------------------------------------------------------------------------+------------------------+
-| void         | fh_object_unmap_dma(fh_object* self, fh_dma_ptr* dma)                                                     | `fh_object_unmap_dma`_ |
-+--------------+-----------------------------------------------------------------------------------------------------------+------------------------+
-| void         | fh_object_sync_dma(fh_object* self, fh_dma_ptr* dma)                                                      | `fh_object_sync_dma`_  |
-+--------------+-----------------------------------------------------------------------------------------------------------+------------------------+
++--------------+-------------------------------------------------------------------------------------------------------------+------------------------+
+| Return Value | Method                                                                                                      | Link                   |
++==============+=============================================================================================================+========================+
+| fh_dma_ptr*  | fh_object_map_dma(fh_object* self, size_t offset, size_t size, unsigned long mapFlags, unsigned long usage) | `fh_object_map_dma`_   |
++--------------+-------------------------------------------------------------------------------------------------------------+------------------------+
+| void         | fh_object_unmap_dma(fh_object* self, fh_dma_ptr* dma)                                                       | `fh_object_unmap_dma`_ |
++--------------+-------------------------------------------------------------------------------------------------------------+------------------------+
+| void         | fh_object_sync_dma(fh_object* self, fh_dma_ptr* dma)                                                        | `fh_object_sync_dma`_  |
++--------------+-------------------------------------------------------------------------------------------------------------+------------------------+
 
 Function details
 ################
@@ -71,7 +71,7 @@ fh_object_map_dma
 .. code-block:: c
 
    @Nullable
-   fh_dma_ptr* fh_object_map_dma(fh_object* self, size_t offset, size_t size, unsigned int mapFlags, unsigned int usage)
+   fh_dma_ptr* fh_object_map_dma(fh_object* self, size_t offset, size_t size, unsigned long mapFlags, unsigned long usage)
 
 Maps a part of the object so it can be DMA accessed for the 
 whole program's address space. Pointer returned may be unique 

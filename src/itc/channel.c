@@ -1,12 +1,11 @@
 #include "config.h"
 
-#include <limits.h>
-#include <sys/types.h>
-
 #if !IS_ENABLED(CONFIG_STRICTLY_POSIX)
 # define _GNU_SOURCE
 #endif
 
+#include <limits.h>
+#include <sys/types.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -15,6 +14,8 @@
 #include "panic.h"
 #include "channel.h"
 
+// POSIX defines that PIPE_BUF shall atleast 512 bytes
+// but I'll check anyway
 static_assert(PIPE_BUF >= 512);
 
 static int createPipe(int* read, int* write) {
@@ -24,7 +25,7 @@ static int createPipe(int* read, int* write) {
   ret = pipe(fds);
 # else
   ret = pipe2(fds, O_CLOEXEC | O_DIRECT);
-  if (ret == -1 && errno = -EINVAL)
+  if (ret == -1 && errno == -EINVAL)
     ret = pipe2(fds, O_CLOEXEC);
 # endif
   *read = fds[0];

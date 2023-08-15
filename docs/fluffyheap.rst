@@ -42,7 +42,7 @@ be called on heap destruction
 
    typedef struct {
      enum fh_gc_hint hint;
-     uint32_t flags;
+     unsigned long flags;
      
      // Generation count with GC hint is not specified
      // use ``fh_get_generation_count`` to retrieve count

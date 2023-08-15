@@ -50,6 +50,14 @@ source "src/fuzzing/Kconfig"
 source "src/gc/Kconfig"
 source "src/api/mods/Kconfig"
 
+config ENABLE_STACKTRACE
+  bool "Enable stacktrace support"
+  depends on !STRICTLY_POSIX
+
+if ENABLE_STACKTRACE
+  source "src/stacktrace/Kconfig"
+endif
+
 config HOOK
   def_bool n
 

@@ -22,7 +22,7 @@ end
 
 // From https://groups.google.com/g/comp.std.c/c/d-6Mj5Lko_s?pli=1
 #define MACRO_NARG(...) \
-MACRO_NARG_(__VA_ARGS__,MACRO_RSEQ_N())
+MACRO_NARG_(__VA_ARGS__ __VA_OPT__(,) MACRO_RSEQ_N())
 #define MACRO_NARG_(...) \
 MACRO_ARG_N(__VA_ARGS__)
 #define MACRO_ARG_N( \
@@ -31,7 +31,7 @@ _11,_12,_13,_14,_15,N,...) N
 #define MACRO_RSEQ_N() \
 15,14,13,12,11,10, \
 9,8,7,6,5,4,3,2,1,0
-
+ 
 #define ___MACRO_PASTE(a, b) a ## b
 #define MACRO_PASTE(a, b) ___MACRO_PASTE(a, b)
 

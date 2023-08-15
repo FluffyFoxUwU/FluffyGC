@@ -22,7 +22,7 @@ struct fh_fee390b2_8691_4c7c_9fa5_173ca12e57e6 {
   __FLUFFYHEAP_NONNULL(void*) ptr;
 };
 
-__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_dma_ptr*) fh_object_map_dma(__FLUFFYHEAP_NONNULL(fh_object*) self, size_t offset, size_t size, unsigned int mapFlags, unsigned int usage);
+__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_dma_ptr*) fh_object_map_dma(__FLUFFYHEAP_NONNULL(fh_object*) self, size_t offset, size_t size, unsigned long mapFlags, unsigned long usage);
 __FLUFFYHEAP_EXPORT void fh_object_unmap_dma(__FLUFFYHEAP_NONNULL(fh_object*) self, __FLUFFYHEAP_NONNULL(fh_dma_ptr*) dma);
 __FLUFFYHEAP_EXPORT void fh_object_sync_dma(__FLUFFYHEAP_NONNULL(fh_object*) self, __FLUFFYHEAP_NONNULL(fh_dma_ptr*) dma);
 

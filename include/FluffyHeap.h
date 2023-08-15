@@ -2,7 +2,6 @@
 #define _headers_1686390737_FluffyGC_FluffyHeap
 
 #include <sys/types.h>
-#include <stdint.h>
 #include <stddef.h>
 #include <time.h>
 
@@ -38,6 +37,7 @@ typedef struct fh_783de216_08ed_4ad5_ade6_8da1c47e6cb0 fh_descriptor_field;
 typedef   enum fh_02261b19_abfa_4c90_93e2_c9887232e2ae fh_gc_hint;
 typedef   enum fh_975ffc9a_3ef7_4b0c_91a7_eeb74d09a086 fh_reference_strength;
 typedef   enum fh_d466bd64_51d5_4157_8f05_5d344bbcb85c fh_object_type;
+typedef   enum fh_6174940f_5413_4fd0_8945_2e882c5a0102 fh_mod;
 
 typedef int (*fh_descriptor_loader)(__FLUFFYHEAP_NONNULL(const char*) name, __FLUFFYHEAP_NULLABLE(void*) udata, __FLUFFYHEAP_NONNULL(struct fh_f39dbb2f_d8d1_4687_8486_a196de7712a3*) param);
 typedef void (*fh_finalizer)(__FLUFFYHEAP_NONNULL(const void*) objData);
@@ -54,7 +54,7 @@ enum fh_02261b19_abfa_4c90_93e2_c9887232e2ae {
 
 struct fh_89fe10c0_cf25_435b_b5a3_96e5e1e5ac98 {
   fh_gc_hint hint;
-  uint32_t flags;
+  unsigned long flags;
   
   size_t generationCount;
   __FLUFFYHEAP_NONNULL(size_t*) generationSizes;
@@ -130,19 +130,19 @@ __FLUFFYHEAP_EXPORT void fh_set_descriptor_loader(__FLUFFYHEAP_NONNULL(fluffyhea
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_descriptor_loader) fh_get_descriptor_loader(__FLUFFYHEAP_NONNULL(fluffyheap*) self);
 
 // Mods stuff
-enum fh_mod {
+enum fh_6174940f_5413_4fd0_8945_2e882c5a0102 {
   FH_MOD_UNKNOWN  = 0x0000,
   FH_MOD_DMA      = 0x0001,
   FH_MOD_DEBUG    = 0x0002,
   FH_MOD_COUNT
 };
 
-#define FH_MOD_WAS_ENABLED (UINT32_C(1) << 31)
+#define FH_MOD_WAS_ENABLED (1L << 31)
 
-__FLUFFYHEAP_EXPORT int fh_enable_mod(enum fh_mod mod, uint32_t flags);
-__FLUFFYHEAP_EXPORT void fh_disable_mod(enum fh_mod mod);
-__FLUFFYHEAP_EXPORT bool fh_check_mod(enum fh_mod mod, uint32_t flags);
-__FLUFFYHEAP_EXPORT uint32_t fh_get_flags(enum fh_mod mod);
+__FLUFFYHEAP_EXPORT int fh_enable_mod(fh_mod mod, unsigned long flags);
+__FLUFFYHEAP_EXPORT void fh_disable_mod(fh_mod mod);
+__FLUFFYHEAP_EXPORT bool fh_check_mod(fh_mod mod, unsigned long flags);
+__FLUFFYHEAP_EXPORT unsigned long fh_get_flags(fh_mod mod);
 
 // Context stuff
 __FLUFFYHEAP_EXPORT int fh_set_current(__FLUFFYHEAP_NONNULL(fh_context*) context);

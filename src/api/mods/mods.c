@@ -70,19 +70,19 @@ void api_mods_cleanup(struct managed_heap* heap) {
   heap->api.state->modManager.modIteratedCountDuringInit = 0;
 }
 
-static struct api_mod_info* getMod(enum fh_mod mod) {
+static struct api_mod_info* getMod(fh_mod mod) {
   if (mod <= 0 || mod >= ARRAY_SIZE(mods))
     return NULL;
   return mods[mod].available ? &mods[mod] : NULL;
 }
 
-__FLUFFYHEAP_EXPORT uint32_t fh_get_flags(enum fh_mod mod) {
+API_FUNCTION_DEFINE(unsigned long, fh_get_flags, fh_mod, mod) {
   if (!getMod(mod))
     return 0;
   return currentModStates[mod].flags | FH_MOD_WAS_ENABLED;
 }
 
-__FLUFFYHEAP_EXPORT bool fh_check_mod(enum fh_mod mod, uint32_t flags) {
+API_FUNCTION_DEFINE(bool, fh_check_mod, fh_mod, mod, unsigned long, flags) {
   struct api_mod_info* info = getMod(mod);
   if (!info)
     return false;
@@ -92,7 +92,7 @@ __FLUFFYHEAP_EXPORT bool fh_check_mod(enum fh_mod mod, uint32_t flags) {
   return info->checkFlags(flags);
 }
 
-__FLUFFYHEAP_EXPORT int fh_enable_mod(enum fh_mod mod, uint32_t flags) {
+API_FUNCTION_DEFINE(int, fh_enable_mod, fh_mod, mod, unsigned long, flags) {
   struct api_mod_info* info;
   if (!(info = getMod(mod)))
     return -ENODEV;
@@ -116,7 +116,7 @@ __FLUFFYHEAP_EXPORT int fh_enable_mod(enum fh_mod mod, uint32_t flags) {
   return 0;
 }
 
-__FLUFFYHEAP_EXPORT void fh_disable_mod(enum fh_mod mod) {
+API_FUNCTION_DEFINE_VOID(fh_disable_mod, fh_mod, mod) {
   if (!getMod(mod))
     return;
   currentModStates[mod].enabled = false;

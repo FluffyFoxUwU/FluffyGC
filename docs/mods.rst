@@ -99,13 +99,13 @@ Functions
 +--------------+------------------------------------------------+-------------------+
 | Return Value | Function                                       | Link              |
 +==============+================================================+===================+
-| int          | fh_enable_mod(enum fh_mod mod, uint32_t flags) | `fh_enable_mod`_  |
+| int          | fh_enable_mod(enum fh_mod mod, unsigned long flags) | `fh_enable_mod`_  |
 +--------------+------------------------------------------------+-------------------+
 | void         | fh_disable_mod(enum fh_mod mod)                | `fh_disable_mod`_ |
 +--------------+------------------------------------------------+-------------------+
-| bool         | fh_check_mod(enum fh_mod mod, uint32_t flags)  | `fh_check_mod`_   |
+| bool         | fh_check_mod(enum fh_mod mod, unsigned long flags)  | `fh_check_mod`_   |
 +--------------+------------------------------------------------+-------------------+
-| uint32_t     | fh_get_flags(enum fh_mod mod)                  | `fh_get_flags`_   |
+| unsigned long     | fh_get_flags(enum fh_mod mod)                  | `fh_get_flags`_   |
 +--------------+------------------------------------------------+-------------------+
 
 enum fh_mod
@@ -159,7 +159,7 @@ fh_enable_mod
 *************
 .. code-block:: c
 
-   int fh_enable_mod(enum fh_mod mod, uint32_t flags)
+   int fh_enable_mod(fh_mod mod, unsigned long flags)
 
 Enable the corresponding ``mod``. This function must sucess
 if the mod already enabled and the given are subset of what
@@ -191,7 +191,7 @@ fh_disable_mod
 **************
 .. code-block:: c
 
-   void fh_disable_mod(enum fh_mod mod)
+   void fh_disable_mod(fh_mod mod)
 
 Disable the corresponding ``mod`` to prevent being used on new heap creation.
 Shall be no-op if mod wasn't enable or unknown mod
@@ -208,7 +208,7 @@ fh_check_mod
 ************
 .. code-block:: c
 
-   bool fh_check_mod(enum fh_mod mod, int flags)
+   bool fh_check_mod(fh_mod mod, unsigned long flags)
 
 Check if ``mod`` and ``flags`` combination available.
 
@@ -230,7 +230,7 @@ fh_get_flags
 ************
 .. code-block:: c
 
-   uint32_t fh_get_flags(enum fh_mod mod)
+   unsigned long fh_get_flags(fh_mod mod)
 
 Gets flag which was set during fh_enable_mod call
 

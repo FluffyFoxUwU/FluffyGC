@@ -6,6 +6,7 @@
 #include "bug.h"
 #include "hook.h"
 #include "concurrency/mutex.h"
+#include "logger/logger.h"
 #include "panic.h"
 #include "rcu/rcu.h"
 #include "rcu/rcu_generic.h"
@@ -179,6 +180,7 @@ static int hookRegister(void* target, enum hook_location location, hook_func fun
   int ret = 0;
   
   if (!targetEntry) {
+    pr_error("Hook target %p not found while adding %p hook function (forget to append to src/hook/hook_list.h?)", target, func);
     ret = -ENODEV;
     goto target_not_found;
   }
@@ -400,7 +402,7 @@ void hook__enter_function(void* func, struct hook_internal_state* state) {
   state->func = func;
   struct target_entry_rcu* targetRcu = getTarget(func);
   if (!targetRcu)
-    panic("Target %p not found", func);
+    panic("Target %p not found while entering the function", func);
   state->targetRcu = targetRcu;
   state->targetEntryRcuTemp = rcu_read_lock(rcu_generic_type_get_rcu(targetRcu));
 }
