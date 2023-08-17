@@ -12,6 +12,7 @@
 #include "concurrency/completion.h"
 #include "concurrency/mutex.h"
 #include "gc/gc.h"
+#include "util/id_generator.h"
 #include "util/list_head.h"
 #include "gc/gc_flags.h"
 #include "context.h"
@@ -51,6 +52,14 @@ struct generation {
 
 struct managed_heap {
   struct gc_struct* gcState;
+  uint64_t foreverUniqueID;
+  
+  struct {
+    struct id_generator_state object;
+    struct id_generator_state context;
+    struct id_generator_state dmaPtr;
+    struct id_generator_state descriptor;
+  } idGenerators;
   
   struct {
     struct mutex descriptorLoaderSerializationLock;
@@ -89,6 +98,12 @@ void managed_heap_free_context(struct managed_heap* self, struct context* ctx);
 // Context swapping
 int managed_heap_swap_context(struct context* new);
 void managed_heap_set_context_state(struct context* ctx, enum context_state state);
+
+// ID generators
+uint64_t managed_heap_generate_object_id();
+uint64_t managed_heap_generate_context_id();
+uint64_t managed_heap_generate_dma_ptr_id();
+uint64_t managed_heap_generate_descriptor_id();
 
 #define managed_heap_set_states(self, ctx) \
   context_current = (ctx); \

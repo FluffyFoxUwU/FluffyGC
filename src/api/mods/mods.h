@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#include "FluffyHeap.h"
 #include "managed_heap.h"
 #include "debug/debug.h"
 
@@ -29,6 +30,9 @@ struct api_mod_state {
 
 int api_mods_init(struct managed_heap* heap);
 void api_mods_cleanup(struct managed_heap* heap);
+
+// Returns NULL on unknown
+const char* api_mods_tostring(fh_mod mod);
 
 #endif
 

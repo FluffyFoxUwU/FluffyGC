@@ -34,5 +34,8 @@ int mutex_lock2(struct mutex* self, int flags, const struct timespec* abstime);
 void mutex_unlock(struct mutex* self);
 bool mutex_is_owned_by_current(struct mutex* self);
 
+void mutex_mark_as_owner_by_current(struct mutex* self);
+void mutex_unmark_as_owner_by_current(struct mutex* self);
+
 #endif
 

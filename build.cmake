@@ -101,7 +101,7 @@ set(BUILD_PROTOBUF_FILES
 )
 
 set(BUILD_CFLAGS "")
-set(BUILD_LDFLAGS "")
+set(BUILD_LDFLAGS "-lm")
 
 # AddPkgConfigLib is in ./buildsystem/CMakeLists.txt
 macro(AddDependencies)

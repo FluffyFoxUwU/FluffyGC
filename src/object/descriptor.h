@@ -2,6 +2,7 @@
 #define _headers_1644388362_FoxGC_descriptors
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include "FluffyHeap.h"
 #include "util/counter.h"
@@ -45,6 +46,8 @@ struct descriptor_ops {
 };
 
 struct descriptor {
+  uint64_t foreverUniqueID;
+  
   enum object_type type;
   struct list_head list;
   struct descriptor_ops* ops;
@@ -61,6 +64,8 @@ struct descriptor {
     fh_type_info typeInfo;
   } api;
 };
+
+const char* descriptor_object_type_tostring(enum object_type type);
 
 int descriptor_init(struct descriptor* self, enum object_type type, struct descriptor_ops* ops, fh_type_info* typeInfo);
 void descriptor_free(struct descriptor* self);

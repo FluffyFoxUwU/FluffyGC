@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdatomic.h>
+#include <stdint.h>
 #include <threads.h>
 
 #include "util/list_head.h"
@@ -25,6 +26,7 @@ enum context_state {
 
 struct context {
   struct list_head list;
+  uint64_t foreverUniqueID;
   
   struct managed_heap* managedHeap;
   
@@ -36,7 +38,7 @@ struct context {
   enum context_state state;
 };
 
-struct context* context_new();
+struct context* context_new(struct managed_heap* heap);
 void context_free(struct context* self);
 
 extern thread_local struct context* context_current;

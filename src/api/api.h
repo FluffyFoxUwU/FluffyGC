@@ -16,7 +16,8 @@ void api_cleanup();
   fh_object*: (struct root_ref*) (c), \
   fh_context*: (struct context*) (c), \
   fh_descriptor*: (struct descriptor*) (c), \
-  fh_array*: (struct root_ref*) (c) \
+  fh_array*: (struct root_ref*) (c), \
+  fh_object_type: *(enum object_type*) (&(c)) \
 )
 
 #define API_EXTERN(c) _Generic ((c), \

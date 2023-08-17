@@ -29,15 +29,26 @@ API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_dma_ptr*), fh_object_map_dma, __FLU
   
   context_block_gc();
   struct object* obj = atomic_load(&INTERN(self)->obj);
-  dma->origPtr = obj->dataPtr;
-  dma->apiPtr.ptr = (void*) obj->dataPtr.ptr + offset;
-  pr_debug("Mapped at %p for object %s", dma->apiPtr.ptr, debug_get_unique_name(self));
+  int ret = api_mod_dma_common_init_dma_data(dma, obj, (void*) obj->dataPtr.ptr + offset);
   context_unblock_gc();
+  
+  if (ret < 0) {
+    soc_dealloc_explicit(api_mod_dma_dma_ptr_cache, chunk, dma);
+    return NULL;
+  }
+  
+  pr_debug("Mapped at %p for object %s (DMA ptr#%ld)", dma->apiPtr.ptr, debug_get_unique_name(self), dma->foreverUniqueID);
   return &dma->apiPtr;
 }
 
 API_FUNCTION_DEFINE_VOID(fh_object_unmap_dma, __FLUFFYHEAP_NONNULL(fh_object*), self, __FLUFFYHEAP_NONNULL(fh_dma_ptr*), dma) {
   struct dma_data* dmaPtr = container_of(dma, struct dma_data, apiPtr);
+  
+  context_block_gc();
+  struct object* obj = atomic_load(&INTERN(self)->obj);
+  api_mod_dma_common_cleanup_dma_data(dmaPtr, obj);
+  context_unblock_gc();
+  
   pr_debug("Umapped %p for object %s", dmaPtr->apiPtr.ptr, debug_get_unique_name(self));
   soc_dealloc_explicit(api_mod_dma_dma_ptr_cache, dmaPtr->chunk, dmaPtr);
 }

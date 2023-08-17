@@ -26,7 +26,7 @@ void debug_cleanup(struct api_mod_state* self);
 
 bool debug_can_panic_on_warn();
 bool debug_can_do_check();
-bool debug_can_do_api_verbose();
+bool debug_can_do_api_tracing();
 
 ATTRIBUTE_PRINTF(1, 2)
 void debug_info(const char* fmt, ...);

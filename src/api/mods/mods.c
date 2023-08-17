@@ -122,3 +122,15 @@ API_FUNCTION_DEFINE_VOID(fh_disable_mod, fh_mod, mod) {
   currentModStates[mod].enabled = false;
 }
 
+const char* api_mods_tostring(fh_mod mod) {
+  switch (mod) {
+    case FH_MOD_DMA:
+      return "FH_MOD_DMA";
+    case FH_MOD_DEBUG:
+      return "FH_MOD_DEBUG";
+    case FH_MOD_COUNT:
+    case FH_MOD_UNKNOWN:
+      break;
+  }
+  return NULL;
+}

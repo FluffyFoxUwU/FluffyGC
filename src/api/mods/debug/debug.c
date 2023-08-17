@@ -24,7 +24,11 @@ bool debug_can_do_check() {
   return managed_heap_current->api.state->modManager.modStates[FH_MOD_DEBUG].data.debugMod.verbosity > MOD_DEBUG_SILENT;
 }
 
-bool debug_can_do_api_verbose() {
+bool debug_can_do_api_tracing() {
+  // TODO: Make this configurable by app
+  if (!managed_heap_current)
+    return true;
+  
   return managed_heap_current->api.state->modManager.modStates[FH_MOD_DEBUG].data.debugMod.verbosity >= MOD_DEBUG_ULTRA_VERBOSE;
 }
 

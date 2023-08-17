@@ -1,5 +1,7 @@
 #include <errno.h>
 #include <pthread.h>
+#include <stdatomic.h>
+#include <stdint.h>
 
 #include "mutex.h"
 #include "bug.h"
@@ -49,15 +51,29 @@ int mutex_lock2(struct mutex* self, int flags, const struct timespec* abstime) {
       panic("Why are ENOTRECOVERABLE even exists for pthread_mutex_*lock()");
   }
   
-  atomic_store(&self->owner, (uintptr_t) &currentThreadIJustWannaTakeTheAddressUwU);
+  mutex_mark_as_owner_by_current(self);
   return 0;
 }
 
 void mutex_unlock(struct mutex* self) {
-  atomic_store(&self->owner, (uintptr_t) 0);
+  mutex_unmark_as_owner_by_current(self);
   pthread_mutex_unlock(&self->mutex);
 }
 
 bool mutex_is_owned_by_current(struct mutex* self) {
   return atomic_load(&self->owner) == (uintptr_t) &currentThreadIJustWannaTakeTheAddressUwU;
+}
+
+void mutex_mark_as_owner_by_current(struct mutex* self) {
+  //atomic_store(&self->owner, (uintptr_t) &currentThreadIJustWannaTakeTheAddressUwU);
+  uintptr_t expected = 0;
+  if (!atomic_compare_exchange_strong(&self->owner, &expected, (uintptr_t) &currentThreadIJustWannaTakeTheAddressUwU))
+    BUG();
+}
+
+void mutex_unmark_as_owner_by_current(struct mutex* self) {
+  //atomic_store(&self->owner, (uintptr_t) 0);
+  uintptr_t expected = (uintptr_t) &currentThreadIJustWannaTakeTheAddressUwU;
+  if (!atomic_compare_exchange_strong(&self->owner, &expected, 0))
+    BUG();
 }

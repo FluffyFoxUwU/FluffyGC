@@ -264,35 +264,51 @@ void util_sleep(unsigned int secs) {
   util_msleep(secs * 1000);
 }
 
-static float commonGetTimeFromClock(clockid_t clock) {
-  float result;
-  struct timespec ts;
+static double commonGetTimeFromClock(clockid_t clock) {
+  double result;
+  struct timespec ts = {};
   if (clock_gettime(clock, &ts) < 0)
     BUG();
-  result = ts.tv_sec;
-  result += (float) ts.tv_nsec / (float) 1'000'000'000;
+  result = (double) ts.tv_sec;
+  result += (double) ts.tv_nsec / (double) 1'000'000'000;
   return result;
 }
 
-float util_get_realtime_time() {
+double util_get_realtime_time() {
   return commonGetTimeFromClock(CLOCK_REALTIME);
 }
 
-float util_get_total_cpu_time() {
+double util_get_total_cpu_time() {
   return commonGetTimeFromClock(CLOCK_PROCESS_CPUTIME_ID);
 }
 
-float util_get_thread_cpu_time() {
+double util_get_thread_cpu_time() {
   return commonGetTimeFromClock(CLOCK_THREAD_CPUTIME_ID);
 }
 
-float util_get_monotonic_time() {
-  return commonGetTimeFromClock(CLOCK_MONOTONIC);
+double util_get_monotonic_time() {
+  // Lets conditionally use CLOCK_MONOTONIC_RAW to cope with
+  // system with broken CLOCK_MONOTONIC, like it cost barely
+  // anything to add this ifdef statement
+  // https://stackoverflow.com/questions/3657289/linux-clock-gettimeclock-monotonic-strange-non-monotonic-behavior
+  clockid_t clk = CLOCK_MONOTONIC;
+#if !IS_ENABLED(CONFIG_STRICTLY_POSIX)
+#ifdef CLOCK_MONOTONIC_RAW
+  clk = CLOCK_MONOTONIC_RAW;
+#endif
+#endif
+  return commonGetTimeFromClock(clk);
 }
 
 int util_sleep_until(struct timespec* ts) {
   int ret;
-  while ((ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, ts, NULL)) == EINTR)
+  clockid_t clk = CLOCK_MONOTONIC;
+#if !IS_ENABLED(CONFIG_STRICTLY_POSIX)
+#ifdef CLOCK_MONOTONIC_RAW
+  clk = CLOCK_MONOTONIC_RAW;
+#endif
+#endif
+  while ((ret = clock_nanosleep(clk, TIMER_ABSTIME, ts, NULL)) == EINTR)
     ;
   
   BUG_ON(ret == ENOTSUP);
@@ -301,7 +317,7 @@ int util_sleep_until(struct timespec* ts) {
   return ret;
 }
 
-void util_add_timespec(struct timespec* ts, float offset) {
+void util_add_timespec(struct timespec* ts, double offset) {
   time_t secsDelta = floor(offset + 0.5f);
   long nanosecsDelta = fmod(offset, 1) * 1'000'000'000;
   
@@ -318,11 +334,11 @@ void util_add_timespec(struct timespec* ts, float offset) {
   }
 }
 
-float util_timespec_to_float(struct timespec* ts) {
-  return (float) ts->tv_sec + (float) ts->tv_nsec / (float) 1'000'000'000;
+double util_timespec_to_float(struct timespec* ts) {
+  return (double) ts->tv_sec + (double) ts->tv_nsec / (double) 1'000'000'000;
 }
 
-struct timespec util_relative_to_abs(clockid_t clock, float offset) {
+struct timespec util_relative_to_abs(clockid_t clock, double offset) {
   struct timespec abs;
   clock_gettime(clock, &abs);
   util_add_timespec(&abs, offset);

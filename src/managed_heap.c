@@ -16,6 +16,7 @@
 #include "memory/heap.h"
 #include "object/descriptor.h"
 #include "object/object.h"
+#include "util/id_generator.h"
 #include "util/list_head.h"
 
 thread_local struct managed_heap* managed_heap_current;
@@ -60,7 +61,13 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
     return NULL;
   
   *self = (struct managed_heap) {
-    .generationCount = 0
+    .generationCount = 0,
+    .idGenerators = {
+      .object = ID_GENERATOR_INIT,
+      .context = ID_GENERATOR_INIT,
+      .dmaPtr = ID_GENERATOR_INIT,
+      .descriptor = ID_GENERATOR_INIT
+    }
   };
   
   for (int i = 0; i < CONTEXT_STATE_COUNT; i++)
@@ -96,6 +103,8 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
   if (!self->gcState)
     goto failure;
   
+  static struct id_generator_state generator = ID_GENERATOR_INIT;
+  self->foreverUniqueID = id_generator_get(&generator);
   return self;
 failure:
   managed_heap_free(self);
@@ -334,12 +343,11 @@ int managed_heap_swap_context(struct context* new) {
 struct context* managed_heap_new_context(struct managed_heap* self) {
   struct context* ctx;
   managed_heap_push_states(self, NULL);
-  ctx = context_new();
+  ctx = context_new(self);
   managed_heap_pop_states();
   if (!ctx)
     goto failure;
   
-  ctx->managedHeap = self;
   ctx->state = CONTEXT_INACTIVE;
   
   mutex_lock(&self->contextTrackerLock);
@@ -373,62 +381,26 @@ void managed_heap_free_context(struct managed_heap* self, struct context* ctx) {
   managed_heap_pop_states();
 }
 
-/*
-M0 = Hook list read lock
-M1 = Block GC
+uint64_t managed_heap_generate_object_id() {
+  if (managed_heap_current)
+    return id_generator_get(&managed_heap_current->idGenerators.object);
+  return 1;
+}
 
-WARNING: ThreadSanitizer: lock-order-inversion (potential deadlock) (pid=16774)
-  Cycle in lock order graph: M0 (0x555b26277ef0) => M1 (0x7b3000000010) => M0
+uint64_t managed_heap_generate_context_id() {
+  if (managed_heap_current)
+    return id_generator_get(&managed_heap_current->idGenerators.context);
+  return 1;
+}
 
-  Mutex M1 acquired here while holding mutex M0 in main thread:
-    #0 pthread_rwlock_rdlock <null> (Executable+0xe4a7b) (BuildId: fc7254bf1024d329)
-    #1 rwlock_rdlock /home/fox/FluffyGC/src/concurrency/rwlock.h:34:3 (Executable+0x168e6b) (BuildId: fc7254bf1024d329)
-    #2 rwulock_rdlock /home/fox/FluffyGC/src/concurrency/rwulock.h:32:3 (Executable+0x16a031) (BuildId: fc7254bf1024d329)
-    #3 context__block_gc /home/fox/FluffyGC/src/context.c:52:5 (Executable+0x169fbf) (BuildId: fc7254bf1024d329)
-    #4 checkIfArray /home/fox/FluffyGC/src/api/mods/debug/hooks/arrays.c:15:3 (Executable+0x1c4375) (BuildId: fc7254bf1024d329)
-    #5 debug_hook_fh_array_calc_offset_head /home/fox/FluffyGC/src/api/mods/debug/hooks/arrays.c:49:8 (Executable+0x1c4fe3) (BuildId: fc7254bf1024d329)
-    #6 ____hook_handler_debug_hook_fh_array_calc_offset_head /home/fox/FluffyGC/src/api/mods/debug/hooks/arrays.c:39:1 (Executable+0x1c4beb) (BuildId: fc7254bf1024d329)
-    #7 runHandlers /home/fox/FluffyGC/src/hook/hook.c:172:9 (Executable+0x1c7e35) (BuildId: fc7254bf1024d329)
-    #8 hook_run_head /home/fox/FluffyGC/src/hook/hook.c:185:14 (Executable+0x1c7783) (BuildId: fc7254bf1024d329)
-    #9 fh_array_calc_offset /home/fox/FluffyGC/src/api/array.c:19:1 (Executable+0x1aca9a) (BuildId: fc7254bf1024d329)
-    #10 ____hook_func_fh_array_set_element_real /home/fox/FluffyGC/src/api/array.c:32:48 (Executable+0x1acfdd) (BuildId: fc7254bf1024d329)
-    #11 fh_array_set_element /home/fox/FluffyGC/src/api/array.c:31:1 (Executable+0x1acf53) (BuildId: fc7254bf1024d329)
-    #12 main2 /home/fox/FluffyGC/src/main.c:125:5 (Executable+0x16853b) (BuildId: fc7254bf1024d329)
-    #13 testWorker /home/fox/FluffyGC/src/premain.c:19:16 (Executable+0x167eee) (BuildId: fc7254bf1024d329)
-    #14 main /home/fox/FluffyGC/src/premain.c:34:5 (Executable+0x167d8f) (BuildId: fc7254bf1024d329)
+uint64_t managed_heap_generate_dma_ptr_id() {
+  if (managed_heap_current)
+    return id_generator_get(&managed_heap_current->idGenerators.dmaPtr);
+  return 1;
+}
 
-  Mutex M0 previously acquired by the same thread here:
-    #0 pthread_rwlock_rdlock <null> (Executable+0xe4a7b) (BuildId: fc7254bf1024d329)
-    #1 runHandlers /home/fox/FluffyGC/src/hook/hook.c:154:3 (Executable+0x1c784a) (BuildId: fc7254bf1024d329)
-    #2 hook_run_head /home/fox/FluffyGC/src/hook/hook.c:185:14 (Executable+0x1c7783) (BuildId: fc7254bf1024d329)
-    #3 fh_array_calc_offset /home/fox/FluffyGC/src/api/array.c:19:1 (Executable+0x1aca9a) (BuildId: fc7254bf1024d329)
-    #4 ____hook_func_fh_array_set_element_real /home/fox/FluffyGC/src/api/array.c:32:48 (Executable+0x1acfdd) (BuildId: fc7254bf1024d329)
-    #5 fh_array_set_element /home/fox/FluffyGC/src/api/array.c:31:1 (Executable+0x1acf53) (BuildId: fc7254bf1024d329)
-    #6 main2 /home/fox/FluffyGC/src/main.c:125:5 (Executable+0x16853b) (BuildId: fc7254bf1024d329)
-    #7 testWorker /home/fox/FluffyGC/src/premain.c:19:16 (Executable+0x167eee) (BuildId: fc7254bf1024d329)
-    #8 main /home/fox/FluffyGC/src/premain.c:34:5 (Executable+0x167d8f) (BuildId: fc7254bf1024d329)
-
-  Mutex M0 acquired here while holding mutex M1 in main thread:
-    #0 pthread_rwlock_rdlock <null> (Executable+0xe4a7b) (BuildId: fc7254bf1024d329)
-    #1 runHandlers /home/fox/FluffyGC/src/hook/hook.c:154:3 (Executable+0x1c784a) (BuildId: fc7254bf1024d329)
-    #2 hook_run_tail /home/fox/FluffyGC/src/hook/hook.c:193:14 (Executable+0x1c8027) (BuildId: fc7254bf1024d329)
-    #3 fh_attach_thread /home/fox/FluffyGC/src/api/heap_api.c:42:1 (Executable+0x19e9c9) (BuildId: fc7254bf1024d329)
-    #4 main2 /home/fox/FluffyGC/src/main.c:66:3 (Executable+0x168206) (BuildId: fc7254bf1024d329)
-    #5 testWorker /home/fox/FluffyGC/src/premain.c:19:16 (Executable+0x167eee) (BuildId: fc7254bf1024d329)
-    #6 main /home/fox/FluffyGC/src/premain.c:34:5 (Executable+0x167d8f) (BuildId: fc7254bf1024d329)
-
-  Mutex M1 previously acquired by the same thread here:
-    #0 pthread_rwlock_rdlock <null> (Executable+0xe4a7b) (BuildId: fc7254bf1024d329)
-    #1 rwlock_rdlock /home/fox/FluffyGC/src/concurrency/rwlock.h:34:3 (Executable+0x1701eb) (BuildId: fc7254bf1024d329)
-    #2 rwulock_rdlock /home/fox/FluffyGC/src/concurrency/rwulock.h:32:3 (Executable+0x1748b1) (BuildId: fc7254bf1024d329)
-    #3 managed_heap_attach_thread /home/fox/FluffyGC/src/managed_heap.c:285:5 (Executable+0x174ed1) (BuildId: fc7254bf1024d329)
-    #4 ____hook_func_fh_attach_thread_real /home/fox/FluffyGC/src/api/heap_api.c:43:13 (Executable+0x19ea2d) (BuildId: fc7254bf1024d329)
-    #5 fh_attach_thread /home/fox/FluffyGC/src/api/heap_api.c:42:1 (Executable+0x19e9ab) (BuildId: fc7254bf1024d329)
-    #6 main2 /home/fox/FluffyGC/src/main.c:66:3 (Executable+0x168206) (BuildId: fc7254bf1024d329)
-    #7 testWorker /home/fox/FluffyGC/src/premain.c:19:16 (Executable+0x167eee) (BuildId: fc7254bf1024d329)
-    #8 main /home/fox/FluffyGC/src/premain.c:34:5 (Executable+0x167d8f) (BuildId: fc7254bf1024d329)
-
-SUMMARY: ThreadSanitizer: lock-order-inversion (potential deadlock) (/home/fox/FluffyGC/build/Executable+0xe4a7b) (BuildId: fc7254bf1024d329) in pthread_rwlock_rdlock
-==================
-
-*/
+uint64_t managed_heap_generate_descriptor_id() {
+  if (managed_heap_current)
+    return id_generator_get(&managed_heap_current->idGenerators.descriptor);
+  return 1;
+}

@@ -42,7 +42,7 @@ enum debug_argument_type {
 };
 
 void debug_helper_print_api_call(const char* source, enum debug_argument_type* argTypes, size_t argCount, ...);
-void debug_helper_process_return(const char* source, enum debug_argument_type type, void* ret);
+void debug_helper_process_return(const char* source, enum debug_argument_type type, ...);
 
 # define ____debug_try_print_api_call_entry(x, ...) \
   _Generic(x, \
@@ -85,7 +85,7 @@ void debug_helper_process_return(const char* source, enum debug_argument_type ty
     static enum debug_argument_type args[] = {MACRO_FOR_EACH(____debug_try_print_api_call_entry __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__))}; \
     debug_helper_print_api_call(#name, args, ARRAY_SIZE(args) __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__)); \
     ret2 returnVal = _____debug_api_tracepoint__real_ ## name(MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__)); \
-    debug_helper_process_return(#name, ____debug_try_print_api_call_entry(typeof(ret2)), &returnVal); \
+    debug_helper_process_return(#name, ____debug_try_print_api_call_entry(typeof(ret2)), returnVal); \
     return returnVal; \
   } \
   static inline ret2 _____debug_api_tracepoint__real_ ## name( ____DEBUG_MOD_API_MAKE_ARGS(__VA_ARGS__))
@@ -95,7 +95,7 @@ void debug_helper_process_return(const char* source, enum debug_argument_type ty
     static enum debug_argument_type args[] = {MACRO_FOR_EACH(____debug_try_print_api_call_entry __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__))}; \
     debug_helper_print_api_call(#name, args, ARRAY_SIZE(args) __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__)); \
     _____debug_api_tracepoint__real_ ## name(MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__)); \
-    debug_helper_process_return(#name, DEBUG_TYPE_VOID, NULL); \
+    debug_helper_process_return(#name, DEBUG_TYPE_VOID); \
   } \
   static inline void _____debug_api_tracepoint__real_ ## name(____DEBUG_MOD_API_MAKE_ARGS(__VA_ARGS__))
 #else

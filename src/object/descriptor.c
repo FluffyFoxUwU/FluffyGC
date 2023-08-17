@@ -7,6 +7,7 @@
 #include "object/object.h"
 #include "descriptor.h"
 #include "util/counter.h"
+#include "managed_heap.h"
 
 int descriptor_init(struct descriptor* self, enum object_type type, struct descriptor_ops* ops, fh_type_info* typeInfo) {
   *self = (struct descriptor) {
@@ -16,6 +17,7 @@ int descriptor_init(struct descriptor* self, enum object_type type, struct descr
   counter_init(&self->directUsageCounter);
   atomic_init(&self->api.skipAcquire, false);
   self->type = type;
+  self->foreverUniqueID = managed_heap_generate_descriptor_id();
   return 0;
 }
 
@@ -82,4 +84,16 @@ void descriptor_run_finalizer_on(struct descriptor* self, struct object* obj) {
 
 ssize_t descriptor_calc_offset(struct descriptor* self, size_t index) {
   return self->ops->calcOffset(self, index);
+}
+
+const char* descriptor_object_type_tostring(enum object_type type) {
+  switch (type) {
+    case OBJECT_NORMAL:
+      return "normal";
+    case OBJECT_ARRAY:
+      return "array";
+    case OBJECT_UNMAKEABLE:
+      return "unmakeable";
+  }
+  return NULL;
 }

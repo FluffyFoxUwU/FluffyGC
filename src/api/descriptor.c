@@ -182,7 +182,7 @@ failure:;
     } else {
       object_descriptor_init(current);
       list_add(&current->super.list, &managed_heap_current->descriptorList);
-      pr_info("Descriptor '%s' was loade", current->name);
+      pr_info("Descriptor '%s' was loaded", current->name);
     }
   }
   

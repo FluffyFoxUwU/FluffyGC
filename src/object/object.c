@@ -16,7 +16,6 @@
 #include "object.h"
 #include "context.h"
 #include "panic.h"
-#include "util/id_generator.h"
 #include "util/list_head.h"
 #include "util/util.h"
 #include "descriptor.h"
@@ -158,7 +157,7 @@ static void commonInit(struct object* self, struct descriptor* desc, void addres
 
 void object_init(struct object* self, struct descriptor* desc, void address_heap* data) {
   commonInit(self, desc, data);
-  self->movePreserve.foreverUniqueID = id_generator_get();
+  self->movePreserve.foreverUniqueID = managed_heap_generate_object_id();
 }
 
 void object_fix_pointers(struct object* self) {

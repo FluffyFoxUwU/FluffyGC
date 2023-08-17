@@ -102,8 +102,10 @@ void logger_doPrintk_va(struct logger* logger, enum logger_loglevel level, const
   };
   
   mutex_lock(&buffer.writeLock);
+  mutex_lock(&buffer.lock);
   circular_buffer_write(&buffer, CIRCULAR_BUFFER_NO_LOCK, &header, sizeof(header), NULL);
   circular_buffer_write(&buffer, CIRCULAR_BUFFER_NO_LOCK, outputBuffer, header.len, NULL);
+  mutex_unlock(&buffer.lock);
   mutex_unlock(&buffer.writeLock);
 }
 
@@ -119,7 +121,7 @@ int logger_flush(struct timespec* abstimeout) {
   pr_info("Flushing logs...");
   pr_info("Flushing logs... (Duplicate is normal as to ensure previous one has flushed)");
   int ret = 0;
-  if ((ret = circular_buffer_flush(&buffer, CIRCULAR_BUFFER_WITH_TIMEOUT, abstimeout)) < 0) {
+  if ((ret = circular_buffer_flush(&buffer, abstimeout ? CIRCULAR_BUFFER_WITH_TIMEOUT : 0, abstimeout)) < 0) {
     if (ret < 0)
       pr_error("Timed out flushing log");
     else

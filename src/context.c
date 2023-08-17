@@ -2,9 +2,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <threads.h>
-#include <limits.h>
 #include <pthread.h>
-#include <errno.h>
 
 #include "memory/heap.h"
 #include "memory/soc.h"
@@ -19,11 +17,14 @@ thread_local struct context* context_current = NULL;
 
 SOC_DEFINE(listNodeCache, SOC_DEFAULT_CHUNK_SIZE, struct root_ref);
 
-struct context* context_new() {
+struct context* context_new(struct managed_heap* heap) {
   struct context* self = malloc(sizeof(*self)); 
   if (!self)
     return NULL;
-  *self = (struct context) {};
+  *self = (struct context) {
+    .foreverUniqueID = managed_heap_generate_context_id(),
+    .managedHeap = heap
+  };
   
   list_head_init(&self->root);
   

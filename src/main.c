@@ -13,7 +13,6 @@
 #include "attributes.h"
 #include "bug.h"
 #include "hook/hook.h"
-#include "mods/debug.h"
 #include "mods/dma.h"
 #include "util/circular_buffer.h"
 #include "util/util.h"
@@ -199,7 +198,7 @@ static void doTestNormal2() {
   doTestNormal();
   
   hook_unregister(fh_new, HOOK_HEAD, hookTest);
-  doTestNormal();
+  // doTestNormal();
 }
 
 struct an_rcu_using_struct {
@@ -484,13 +483,50 @@ static void doTestSleep() {
   }
 }
 
+ATTRIBUTE_USED()
+static void doTestMonotonic() {
+  double prev = util_get_monotonic_time();
+  double current = util_get_monotonic_time();
+  
+  while (true) {
+    fprintf(stderr, "Delta %lf", current - prev);
+    
+    prev = current;
+    current = util_get_monotonic_time();
+  }
+}
+
 // Runs forever
 static void* loggerFunc(void*) {
+  util_set_thread_name("Logger Thread");
+  
+  const char* logFilename = "./latest.log"; 
+  FILE* logFile = fopen(logFilename, "a");
+  if (!logFile)
+    pr_alert("Error opening '%s' log file, logs will not be logged", logFilename);
+  pr_info("Logging into %s", logFilename);
+  
+  bool isLogBuffered = false;
+  if (logFile && setvbuf(logFile, NULL, _IONBF, 0) < 0) {
+    pr_error("Error setting log buffering, relying on explicit fflush");
+    isLogBuffered = true;
+  }
+  
   while (1) {
     struct logger_entry entry;
     logger_get_entry(&entry);
-    fprintf(stderr, "%s\n", entry.message);
+    fputs(entry.message, stderr);
+    fputs("\n", stderr);
+    if (logFile) {
+      fputs(entry.message, logFile);
+      fputs("\n", logFile);
+    }
+    
+    if (isLogBuffered)
+      fflush(logFile);
   }
+  
+  fclose(logFile);
   return NULL;
 }
 
@@ -501,11 +537,12 @@ int main2() {
   pthread_t loggerThread;
   int ret = 0;
   if ((ret = -pthread_create(&loggerThread, NULL, loggerFunc, NULL)) < 0)
-    BUG();
+    hard_panic("Logger thread can't start: %d", ret);
   
   ret = hook_init();
   BUG_ON(ret < 0 && ret != -ENOSYS);
   
+  // doTestMonotonic();
   // doTestSleep();
   // doTestCircularBuffer();
   doTestNormal2();

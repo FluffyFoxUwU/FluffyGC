@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <pthread.h>
 
+#include "bug.h"
 #include "mutex.h"
 #include "condition.h"
 #include "panic.h"
@@ -38,10 +39,12 @@ int condition_wait2(struct condition* self, struct mutex* mutex, int flags, cons
   
   int ret;
 retry:
+  mutex_unmark_as_owner_by_current(mutex);
   if (flags & CONDITION_WAIT_TIMED)
     ret = pthread_cond_timedwait(&self->cond, &mutex->mutex, abstimeout);
   else
     ret = pthread_cond_wait(&self->cond, &mutex->mutex);
+  mutex_mark_as_owner_by_current(mutex);
   
   switch (ret) {
     case EINVAL:
@@ -56,6 +59,9 @@ retry:
     case ENOTRECOVERABLE:
       panic("Why are ENOTRECOVERABLE even exists for pthread_cond_timedwait()");
   }
+  
+  if (!mutex_is_owned_by_current(mutex))
+    hard_panic("FUWA: %d res %d", flags, ret);
   
   // If only checker is enabled and checker says retry
   // jump to retry

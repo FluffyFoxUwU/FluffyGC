@@ -99,14 +99,14 @@ void util_nanosleep(unsigned long nanosecs);
 
 int util_sleep_until(struct timespec* ts);
 
-float util_get_realtime_time();
-float util_get_monotonic_time();
-float util_get_total_cpu_time();
-float util_get_thread_cpu_time();
+double util_get_realtime_time();
+double util_get_monotonic_time();
+double util_get_total_cpu_time();
+double util_get_thread_cpu_time();
 
-void util_add_timespec(struct timespec* ts, float offset);
-float util_timespec_to_float(struct timespec* ts);
-struct timespec util_relative_to_abs(clockid_t clock, float offset);
+void util_add_timespec(struct timespec* ts, double offset);
+double util_timespec_to_float(struct timespec* ts);
+struct timespec util_relative_to_abs(clockid_t clock, double offset);
 
 #define __stringify_1(x...)	#x
 #define stringify(x...)	__stringify_1(x)

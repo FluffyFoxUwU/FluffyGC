@@ -270,6 +270,12 @@ failed_waiting_to_have_data:
 }
 
 int circular_buffer_read(struct circular_buffer* self, int flags, void* data, size_t size, const struct timespec* abstimeout) {
+  if (flags & CIRCULAR_BUFFER_NO_LOCK) {
+    // Lock not properly locked by caller
+    BUG_ON(!mutex_is_owned_by_current(&self->readLock));
+    BUG_ON(!mutex_is_owned_by_current(&self->lock));
+  }
+  
   int ret = 0;
   if ((ret = lockMutex(&self->readLock, flags, abstimeout)) < 0)
     goto failure_getting_writelock;
@@ -291,6 +297,12 @@ failure_getting_writelock:
 }
 
 int circular_buffer_write(struct circular_buffer* self, int flags, const void* data, size_t size, const struct timespec* abstimeout) {
+  if (flags & CIRCULAR_BUFFER_NO_LOCK) {
+    // Lock not properly locked by caller
+    BUG_ON(!mutex_is_owned_by_current(&self->writeLock));
+    BUG_ON(!mutex_is_owned_by_current(&self->lock));
+  }
+  
   int ret = 0;
   if ((ret = lockMutex(&self->writeLock, flags, abstimeout)) < 0)
     goto failure_getting_writelock;
