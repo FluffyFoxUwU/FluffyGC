@@ -3,7 +3,6 @@
 
 #include "FluffyHeap.h"
 #include "api/mods/mods.h"
-#include "hook/hook.h"
 #include "api/mods/debug/helper.h"
 
 struct api_mod_state;
@@ -11,13 +10,16 @@ struct api_mod_state;
 int api_init();
 void api_cleanup();
 
+const char* api_fh_gc_hint_tostring(fh_gc_hint hint);
+
 #define API_INTERN(c) _Generic ((c), \
   fluffyheap*: (struct managed_heap*) (c), \
   fh_object*: (struct root_ref*) (c), \
   fh_context*: (struct context*) (c), \
   fh_descriptor*: (struct descriptor*) (c), \
   fh_array*: (struct root_ref*) (c), \
-  fh_object_type: *(enum object_type*) (&(c)) \
+  fh_object_type: *(enum object_type*) (&(c)), \
+  fh_reference_strength: *(enum reference_strength*) (&(c)) \
 )
 
 #define API_EXTERN(c) _Generic ((c), \

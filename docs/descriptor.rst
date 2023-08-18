@@ -22,8 +22,6 @@ The definition is
      size_t size;
      size_t alignment;
      
-     fh_descriptor_field fields*;
-     
      // Called somewhere in the future after
      // losing last reference.
      // objData is given as direct access
@@ -32,6 +30,8 @@ The definition is
      // complexities to ensure its valid
      @Nullable
      fh_finalizer finalizer;
+     
+     fh_descriptor_field fields*;
    } fh_descriptor_param;
 
 For convenience following macro must present

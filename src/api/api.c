@@ -43,3 +43,18 @@ void api_cleanup() {
     calls[state->initCounts - 1].cleanup(managed_heap_current);
   free(managed_heap_current->api.state);
 }
+
+
+const char* api_fh_gc_hint_tostring(fh_gc_hint hint) {
+  switch (hint) {
+    case FH_GC_BALANCED:
+      return "FH_GC_BALANCED";
+    case FH_GC_LOW_LATENCY:
+      return "FH_GC_LOW_LATENCY";
+    case FH_GC_HIGH_THROUGHPUT:
+      return "FH_GC_HIGH_THROUGHPUT";
+    case FH_GC_COUNT:
+      return NULL;
+  }
+  return NULL;
+}

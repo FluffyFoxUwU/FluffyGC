@@ -25,6 +25,9 @@ DEFINE_LOGGER_STATIC(logger, "API Call Tracer");
 #undef LOGGER_DEFAULT
 #define LOGGER_DEFAULT (&logger)
 
+static const int HELPER_MAX_STRING_LENGTH = 48;
+static const size_t HELPER_MAX_ARRAY_COUNT = 5;
+
 static struct thread_local_struct outputBufferKey;
 
 static void cleanOutputBufferKey(void* buff) {
@@ -68,6 +71,15 @@ static int initOutput() {
   return 0;
 }
 
+static int commonPrintString(buffer_t* outputBuffer, const char* val) {
+  size_t len = strlen(val);
+  int ret;
+  ret = buffer_appendf(outputBuffer, "\"%.*s\"", HELPER_MAX_STRING_LENGTH, val);
+  if (len > HELPER_MAX_STRING_LENGTH && ret >= 0)
+    ret = buffer_appendf(outputBuffer, " (truncated to %d from %zu)", HELPER_MAX_STRING_LENGTH, len);
+  return ret;
+}
+
 static int convertAndAppend(buffer_t* outputBuffer, const char* seperator, size_t count, enum debug_argument_type* types, va_list args) {
   int ret = 0;
   for (size_t i = 0; i < count; i++) {
@@ -91,6 +103,34 @@ static int convertAndAppend(buffer_t* outputBuffer, const char* seperator, size_
       }
       case DEBUG_TYPE_FH_PARAM: {
         fh_param* val = va_arg(args, fh_param*);
+        if ((appendfRet = buffer_append(outputBuffer, "(struct fh_param) {.hint = ")) < 0)
+          break;
+        
+        const char* fhGCHintStringified = api_fh_gc_hint_tostring(val->hint);
+        if (fhGCHintStringified)
+          appendfRet = buffer_appendf(outputBuffer, "%s (0x%08x), ", fhGCHintStringified, val->hint);
+        else
+          appendfRet = buffer_appendf(outputBuffer, "Unknown (0x%08x), ", val->hint);
+        
+        if (appendfRet < 0)
+          break;
+        
+        if ((appendfRet = buffer_appendf(outputBuffer, ".flags = 0x%0*lx, .generationCount = %zu, .generationSizes[%zu] = {", (int) sizeof(val->flags) * 2, val->flags, val->generationCount, val->generationCount)) < 0)
+          break;
+        
+        size_t printCount = MIN(HELPER_MAX_ARRAY_COUNT, val->generationCount);
+        for (size_t i = 0; i < printCount; i++) {
+          if (i + 1 < printCount)
+            appendfRet = buffer_appendf(outputBuffer, "%zu, ", val->generationSizes[i]);
+          else
+            appendfRet = buffer_appendf(outputBuffer, "%zu", val->generationSizes[i]);
+          if (appendfRet < 0)
+            break;
+        }
+        
+        if (appendfRet < 0)
+          break;
+        appendfRet = buffer_append(outputBuffer, "}}");
         break;
       }
       case DEBUG_TYPE_FH_DMA_PTR: {
@@ -117,6 +157,31 @@ static int convertAndAppend(buffer_t* outputBuffer, const char* seperator, size_
       case DEBUG_TYPE_FH_DESCRIPTOR_PARAM:
       case DEBUG_TYPE_FH_DESCRIPTOR_PARAM_READONLY: {
         const fh_descriptor_param* val = va_arg(args, const fh_descriptor_param*);
+        size_t fieldCount = 0;
+        for (; val->fields[fieldCount].name; fieldCount++) {
+          if (fieldCount >= HELPER_MAX_ARRAY_COUNT)
+            break;
+        }
+        appendfRet = buffer_appendf(outputBuffer, "(struct fh_descriptor_param) {.size = %zu, .alignment = %zu, .fields[%zu] = {", val->size, val->alignment, fieldCount);
+        for (size_t i = 0; i < fieldCount; i++) {
+          fh_descriptor_field* field = &val->fields[i];
+          
+          appendfRet = buffer_append(outputBuffer, "{.name = ");
+          appendfRet = commonPrintString(outputBuffer, field->name);
+          appendfRet = buffer_appendf(outputBuffer, ", .offset = %zu, .dataType = ", field->offset);
+          appendfRet = commonPrintString(outputBuffer, field->dataType);
+          const char* strength = object_ref_strength_tostring(API_INTERN(field->strength));
+          if (strength)
+            appendfRet = buffer_appendf(outputBuffer, ", .strength = FH_%s (0x%08x)", strength, field->strength);
+          else
+            appendfRet = buffer_appendf(outputBuffer, ", .strength = Unknown (0x%08x)", field->strength);
+          
+          if (i + 1 < fieldCount)
+            appendfRet = buffer_append(outputBuffer, "}, ");
+          else
+            appendfRet = buffer_append(outputBuffer, "}");
+        }
+        appendfRet = buffer_append(outputBuffer, "}");
         break;
       }
       case DEBUG_TYPE_FH_OBJECT_TYPE: {
@@ -179,13 +244,7 @@ static int convertAndAppend(buffer_t* outputBuffer, const char* seperator, size_
       }
       case DEBUG_TYPE_CSTRING: {
         const char* val = va_arg(args, const char*);
-        size_t len = strlen(val);
-        
-        // TODO: Make this configurable
-        int maxLength = 48;
-        appendfRet = buffer_appendf(outputBuffer, "\"%.*s\"", maxLength, val);
-        if (len > maxLength && appendfRet >= 0)
-          appendfRet = buffer_appendf(outputBuffer, " (truncated to %d from %zu)", maxLength, len);
+        appendfRet = commonPrintString(outputBuffer, val);
         break;
       }
       case DEBUG_TYPE_BOOL: {

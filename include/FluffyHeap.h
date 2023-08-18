@@ -85,8 +85,8 @@ struct fh_f39dbb2f_d8d1_4687_8486_a196de7712a3 {
   size_t size;
   size_t alignment;
   
-  __FLUFFYHEAP_NULLABLE(fh_descriptor_field*) fields;
   __FLUFFYHEAP_NULLABLE(fh_finalizer) finalizer;
+  __FLUFFYHEAP_NULLABLE(fh_descriptor_field*) fields;
 };
 
 #define FH_FIELD(type, member, _dataType, refStrength) \

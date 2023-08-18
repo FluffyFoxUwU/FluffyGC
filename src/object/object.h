@@ -16,8 +16,13 @@ struct mutex;
 struct condition;
 
 enum reference_strength {
-  REFERENCE_STRONG
+  REF_STRONG,
+  REF_SOFT,
+  REF_WEAK,
+  REF_PHANTOM
 };
+
+const char* object_ref_strength_tostring(enum reference_strength strength);
 
 // Use this for pointers which points to user data
 // equivalent to fh_dma_ptr (the ptr must be the first entry)

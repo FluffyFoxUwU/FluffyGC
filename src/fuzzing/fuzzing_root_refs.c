@@ -18,7 +18,7 @@ int fuzzing_root_refs(const void* data, size_t size) {
   
   gc_current = gc_new(GC_NOP_GC, 0);
   
-  struct context* context = context_new();
+  struct context* context = context_new(NULL);
   context_current = context;
   struct root_ref** refLookup = calloc(refLookupCount, sizeof(*refLookup));
   

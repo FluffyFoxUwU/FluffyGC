@@ -203,3 +203,17 @@ const char* object_get_unique_name(struct object* self) {
   snprintf(buffer, sizeof(buffer), "%s#%" PRIu64, descriptor_get_name(self->movePreserve.descriptor), self->movePreserve.foreverUniqueID);
   return buffer;
 }
+
+const char* object_ref_strength_tostring(enum reference_strength strength) {
+  switch (strength) {
+    case REF_STRONG:
+      return "REF_STRONG";
+    case REF_SOFT:
+      return "REF_SOFT";
+    case REF_WEAK:
+      return "REF_WEAK";
+    case REF_PHANTOM:
+      return "REF_PHANTOM";
+  }
+  return NULL;
+}

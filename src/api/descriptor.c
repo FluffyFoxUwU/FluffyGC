@@ -94,10 +94,10 @@ static int process(struct descriptor_loader_context* loader, struct object_descr
   current->objectSize = param->size;
   
   static enum reference_strength strengthMapping[FH_REF_COUNT] = {
-    [FH_REF_STRONG] = REFERENCE_STRONG,
-    [FH_REF_PHANTOM] = -1,
-    [FH_REF_WEAK] = -1,
-    [FH_REF_SOFT] = -1,
+    [FH_REF_STRONG] = REF_STRONG,
+    [FH_REF_PHANTOM] = REF_PHANTOM,
+    [FH_REF_WEAK] = REF_WEAK,
+    [FH_REF_SOFT] = REF_SOFT,
   };
   
   for (int i = 0; param->fields[i].name; i++) {
