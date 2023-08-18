@@ -496,12 +496,17 @@ static void doTestMonotonic() {
   }
 }
 
+ATTRIBUTE_USED()
+static void doTestBTree() {
+  
+}
+
 // Runs forever
 static void* loggerFunc(void*) {
   util_set_thread_name("Logger Thread");
   
   const char* logFilename = "./latest.log"; 
-  FILE* logFile = fopen(logFilename, "a");
+  FILE* logFile = NULL; //fopen(logFilename, "a");
   if (!logFile)
     pr_alert("Error opening '%s' log file, logs will not be logged", logFilename);
   pr_info("Logging into %s", logFilename);
@@ -542,6 +547,7 @@ int main2() {
   ret = hook_init();
   BUG_ON(ret < 0 && ret != -ENOSYS);
   
+  // doTestBTree();
   // doTestMonotonic();
   // doTestSleep();
   // doTestCircularBuffer();

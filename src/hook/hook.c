@@ -86,15 +86,25 @@ static int compareHookFunc(const void* _a, const void* _b) {
 }
 
 static int compareTarget(const void* _a, const void* _b) {
-  const struct target_entry* a = *(const struct target_entry**) _a;
-  const struct target_entry* b = *(const struct target_entry**) _b;
+  struct target_entry_rcu* a = *(struct target_entry_rcu* const*) _a;
+  struct target_entry_rcu* b = *(struct target_entry_rcu* const*) _b;
   
-  if (a->target > b->target)
-    return 1;
-  else if (a->target < b->target)
-    return -1;
+  struct rcu_head* const rcuTmpA = rcu_read_lock(rcu_generic_type_get_rcu(a));
+  struct target_entry_rcu_readonly_container aContainer = rcu_generic_type_get(a);
+  struct rcu_head* const rcuTmpB = rcu_read_lock(rcu_generic_type_get_rcu(b));
+  struct target_entry_rcu_readonly_container bContainer = rcu_generic_type_get(b);
+  
+  int ret;
+  if ((uintptr_t) aContainer.data->target == (uintptr_t) bContainer.data->target)
+    ret = 0;
+  else if ((uintptr_t) aContainer.data->target > (uintptr_t) bContainer.data->target)
+    ret = 1;
   else
-    return 0;
+    ret = -1;
+  
+  rcu_read_unlock(rcu_generic_type_get_rcu(b), rcuTmpB);
+  rcu_read_unlock(rcu_generic_type_get_rcu(a), rcuTmpA);
+  return ret;
 }
 
 static int addHookTarget(struct target_entry_list_rcu_writeable_container* list, void* target) {
@@ -135,6 +145,10 @@ static int addHookTarget(struct target_entry_list_rcu_writeable_container* list,
     goto insert_failure;
   }
   
+  // Sort so bsearch works
+  typeof(list->data->array)* vecList = &list->data->array;
+  qsort(vecList->data, vecList->length, sizeof(*vecList->data), compareTarget);
+  
   // The list copy was created by this function
   // so write back the result
   if (!list)
@@ -148,45 +162,63 @@ preparation_failure:
   return ret;
 }
 
-// RCU read lock on the list must be acquired by the reader
+// RCU read lock on the target list must be acquired by the reader
 static struct target_entry_rcu* getTarget(void* func) {
-  struct rcu_head* const targetListRcuTmp = rcu_read_lock(rcu_generic_type_get_rcu(&targetsList));
   struct target_entry_list_rcu_readonly_container list = rcu_generic_type_get(&targetsList);
   
-  // TODO: Turn this into bsearch
+  //////////////////////////////////////////////////////////
+  // TODO: convert this to use actual bsearch from stdlib //
+  //////////////////////////////////////////////////////////
+  // Fromhttps://www.programiz.com/dsa/binary-search
+  //
+  // Repeat until the pointers low and high meet each other
+  int low = 0;
+  int high = list.data->array.length - 1;
+  
+  struct target_entry_rcu** array = list.data->array.data;
   struct target_entry_rcu* result = NULL;
-  struct target_entry_rcu* current = NULL;
-  int i = 0;
-  vec_foreach(&list.data->array, current, i) {
+  while (low <= high) {
+    int mid = low + (high - low) / 2;
+    struct target_entry_rcu* current = array[mid];
+    uintptr_t currentTargetAddr = 0;
+    
     struct rcu_head* const entryRcuTmp = rcu_read_lock(rcu_generic_type_get_rcu(current));
     struct target_entry_rcu_readonly_container currentContainer = rcu_generic_type_get(current);
-    
-    if (currentContainer.data->target == func) {
-      result = current;
-      rcu_read_unlock(rcu_generic_type_get_rcu(current), entryRcuTmp);
-      goto found_result;
-    }
-    
+    currentTargetAddr = (uintptr_t) currentContainer.data->target;
     rcu_read_unlock(rcu_generic_type_get_rcu(current), entryRcuTmp);
+    
+    if (currentTargetAddr == (uintptr_t) func) {
+      result = array[mid];
+      pr_info("Found");
+      goto found_result;
+    } else if (currentTargetAddr < (uintptr_t) func) {
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
   }
+  //////////////////////////////////////////////////////////
   
+  pr_info("Not found");
 found_result:
-  rcu_read_unlock(rcu_generic_type_get_rcu(&targetsList), targetListRcuTmp);
   return result;
 }
 
 static int hookRegister(void* target, enum hook_location location, hook_func func) {
+  struct rcu_head* const targetListRcuTmp = rcu_read_lock(rcu_generic_type_get_rcu(&targetsList));
   struct target_entry_rcu* targetEntry = getTarget(target);
   int ret = 0;
   
   if (!targetEntry) {
     pr_error("Hook target %p not found while adding %p hook function (forget to append to src/hook/hook_list.h?)", target, func);
     ret = -ENODEV;
+    rcu_read_unlock(rcu_generic_type_get_rcu(&targetsList), targetListRcuTmp);
     goto target_not_found;
   }
   
   struct rcu_head* const targetEntryRcuTmp = rcu_read_lock(rcu_generic_type_get_rcu(targetEntry));
   struct target_entry_rcu_readonly_container targetEntryReadonly = rcu_generic_type_get(targetEntry);
+  rcu_read_unlock(rcu_generic_type_get_rcu(&targetsList), targetListRcuTmp);
   
   if (location == HOOK_INVOKE && targetEntryReadonly.data->hooksLocations[location].length == 1) {
     rcu_read_unlock(rcu_generic_type_get_rcu(targetEntry), targetEntryRcuTmp);
@@ -310,10 +342,6 @@ int hook_init() {
     goto registering_target_failed;
   rcu_generic_type_write(&targetsList, &list);
   
-  // Sort so bsearch works
-  typeof(list.data->array)* vecList = &list.data->array;
-  qsort(vecList->data, vecList->length, sizeof(*vecList->data), compareTarget);
-  
   list = rcu_generic_type_copy(&targetsList);
   if (!list.data) {
     ret = -ENOMEM;
@@ -400,11 +428,13 @@ bool hook__run_invoke(struct hook_internal_state* state, void* ret, ...) {
 
 void hook__enter_function(void* func, struct hook_internal_state* state) {
   state->func = func;
+  struct rcu_head* const targetListRcuTmp = rcu_read_lock(rcu_generic_type_get_rcu(&targetsList));
   struct target_entry_rcu* targetRcu = getTarget(func);
   if (!targetRcu)
     panic("Target %p not found while entering the function", func);
   state->targetRcu = targetRcu;
   state->targetEntryRcuTemp = rcu_read_lock(rcu_generic_type_get_rcu(targetRcu));
+  rcu_read_unlock(rcu_generic_type_get_rcu(&targetsList), targetListRcuTmp);
 }
 
 void hook__exit_function(struct hook_internal_state* state) {
@@ -416,10 +446,13 @@ int hook__register(void* target, enum hook_location location, hook_func func) {
 }
 
 void hook__unregister(void* target, enum hook_location location, hook_func func) {
+  struct rcu_head* const targetListRcuTmp = rcu_read_lock(rcu_generic_type_get_rcu(&targetsList));
   struct target_entry_rcu* targetEntryRcu = getTarget(target);
   BUG_ON(!targetEntryRcu);
   
   struct rcu_head* rcuTmp = rcu_read_lock(rcu_generic_type_get_rcu(targetEntryRcu));
+  rcu_read_unlock(rcu_generic_type_get_rcu(&targetsList), targetListRcuTmp);
+  
   struct target_entry_rcu_readonly_container targetEntry = rcu_generic_type_get(targetEntryRcu);
   hook_func** hookFuncLocation = findHookFunc(targetEntry.data, location, func);
   if (!hookFuncLocation) { 
