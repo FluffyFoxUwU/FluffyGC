@@ -189,7 +189,6 @@ static struct target_entry_rcu* getTarget(void* func) {
     
     if (currentTargetAddr == (uintptr_t) func) {
       result = array[mid];
-      pr_info("Found");
       goto found_result;
     } else if (currentTargetAddr < (uintptr_t) func) {
       low = mid + 1;
@@ -198,8 +197,6 @@ static struct target_entry_rcu* getTarget(void* func) {
     }
   }
   //////////////////////////////////////////////////////////
-  
-  pr_info("Not found");
 found_result:
   return result;
 }
