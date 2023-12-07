@@ -1,8 +1,7 @@
 #ifndef header_1655953188_config_h_in
 #define header_1655953188_config_h_in
 
-#include "compiler_config.h"
-#include "kconfig.h"
+#include "generated/kconfig_config.h"
 
 // From https://elixir.bootlin.com/linux/v5.16/source/include/linux/kconfig.h#L51
 #define __ARG_PLACEHOLDER_1 0,

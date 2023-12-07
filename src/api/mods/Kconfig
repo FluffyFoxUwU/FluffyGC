@@ -4,7 +4,7 @@ menu "Mods"
     default n
   
   if MOD_DMA
-    source "src/api/mods/Kconfig.dma"
+    source "Kconfig.dma"
   endif
   
   config MOD_DEBUG
@@ -13,6 +13,6 @@ menu "Mods"
     select HOOK
   
   if MOD_DEBUG
-    source "src/api/mods/debug/Kconfig.debug"
+    source "debug/Kconfig"
   endif
 endmenu

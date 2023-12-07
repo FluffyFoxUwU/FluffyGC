@@ -1,5 +1,5 @@
 mainmenu "FluffyGC project Configuration"
-source "buildsystem/Kconfig"
+#source "buildsystem/Kconfig"
 
 config PLACEHOLDER_FOR_STATIC_STUFF_UWU
   def_bool y
@@ -64,7 +64,4 @@ config HOOK
 config DONT_START_SEPERATE_MAIN_THREAD
   bool "Don't start seperate main thread"
   default n
-  
-config API_ENABLE_V2
-  bool "Enable version 2 API"
-  default y
+ 

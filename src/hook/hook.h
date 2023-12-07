@@ -117,13 +117,13 @@ void hook__exit_function(struct hook_internal_state* ci);
   spec ____HOOK_DECLARE(void, name, NULLABLE(void*), ignored, NONNULLABLE(struct hook_call_info*), ci __VA_OPT__(,) __VA_ARGS__)
 
 #if IS_ENABLED(CONFIG_HOOK)
-#define HOOK_TARGET(ret, name, ...) \
+#define HOOK_TARGET(spec, ret, name, ...) \
   /* Declare faked foo */ \
-  ____HOOK_DECLARE(ret, name __VA_OPT__(,) __VA_ARGS__); \
+  spec ____HOOK_DECLARE(ret, name __VA_OPT__(,) __VA_ARGS__); \
   /* Declare real foo */ \
   static inline ____HOOK_DECLARE(ret, ____HOOK_TO_REAL(name) __VA_OPT__(,) __VA_ARGS__); \
   /* Define faked foo */ \
-  ____HOOK_DECLARE(ret, name, __VA_ARGS__) { \
+  spec ____HOOK_DECLARE(ret, name, __VA_ARGS__) { \
     ret retVal; \
     ret realRetVal; \
     struct hook_internal_state internal = { \
@@ -148,13 +148,13 @@ quit_function: \
   } \
   /* Define real foo */ \
   static inline ____HOOK_DECLARE(ret, ____HOOK_TO_REAL(name) __VA_OPT__(,) __VA_ARGS__)
-#define HOOK_TARGET_VOID(name, ...) \
+#define HOOK_TARGET_VOID(spec, name, ...) \
   /* Declare faked foo */ \
-  ____HOOK_DECLARE(void, name __VA_OPT__(,) __VA_ARGS__); \
+  spec ____HOOK_DECLARE(void, name __VA_OPT__(,) __VA_ARGS__); \
   /* Declare real foo */ \
   static inline ____HOOK_DECLARE(void, ____HOOK_TO_REAL(name) __VA_OPT__(,) __VA_ARGS__); \
   /* Define faked foo */ \
-  ____HOOK_DECLARE(void, name, __VA_ARGS__) { \
+  spec ____HOOK_DECLARE(void, name, __VA_ARGS__) { \
     struct hook_internal_state internal = { \
       .funcName = __func__ \
     }; \
@@ -171,8 +171,8 @@ quit_function: \
   /* Define real foo */ \
   static inline ____HOOK_DECLARE(void, ____HOOK_TO_REAL(name) __VA_OPT__(,) __VA_ARGS__)
 #else
-#define HOOK_TARGET(ret, name, ...) ____HOOK_DECLARE(ret, name, __VA_ARGS__)
-#define HOOK_TARGET_VOID(name, ...) ____HOOK_DECLARE(void, name, __VA_ARGS__)
+#define HOOK_TARGET(spec, ret, name, ...) ____HOOK_DECLARE(ret, name __VA_OPT__(,) __VA_ARGS__)
+#define HOOK_TARGET_VOID(spec, name, ...) ____HOOK_DECLARE(void, name __VA_OPT__(,) __VA_ARGS__)
 #endif
 
 /*

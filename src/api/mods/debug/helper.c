@@ -369,7 +369,7 @@ void debug_helper_process_return(const char* source, enum debug_argument_type ty
   }
   
   va_list arg;
-  va_start(arg, argCount);
+  va_start(arg, type);
   res = convertAndAppend(outputBuffer, "", 1, &type, arg);
   va_end(arg);
   if (res < 0)
@@ -386,3 +386,5 @@ failure:
     BUG();
   return;
 }
+
+

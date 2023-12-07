@@ -81,7 +81,7 @@ void debug_helper_process_return(const char* source, enum debug_argument_type ty
 #if IS_ENABLED(CONFIG_MOD_DEBUG)
 # define DEBUG_API_TRACEPOINT(spec, ret2, name, ...) \
   static inline ret2 _____debug_api_tracepoint__real_ ## name(____DEBUG_MOD_API_MAKE_ARGS(__VA_ARGS__)); \
-  spec HOOK_TARGET(ret2, name __VA_OPT__(,) __VA_ARGS__) { \
+  HOOK_TARGET(spec, ret2, name __VA_OPT__(,) __VA_ARGS__) { \
     static enum debug_argument_type args[] = {MACRO_FOR_EACH(____debug_try_print_api_call_entry __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__))}; \
     debug_helper_print_api_call(#name, args, ARRAY_SIZE(args) __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__)); \
     ret2 returnVal = _____debug_api_tracepoint__real_ ## name(MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__)); \
@@ -91,7 +91,7 @@ void debug_helper_process_return(const char* source, enum debug_argument_type ty
   static inline ret2 _____debug_api_tracepoint__real_ ## name( ____DEBUG_MOD_API_MAKE_ARGS(__VA_ARGS__))
 # define DEBUG_API_TRACEPOINT_VOID(spec, name, ...) \
   static inline void _____debug_api_tracepoint__real_ ## name(____DEBUG_MOD_API_MAKE_ARGS(__VA_ARGS__)); \
-  spec HOOK_TARGET_VOID(name __VA_OPT__(,) __VA_ARGS__) { \
+  HOOK_TARGET_VOID(spec, name __VA_OPT__(,) __VA_ARGS__) { \
     static enum debug_argument_type args[] = {MACRO_FOR_EACH(____debug_try_print_api_call_entry __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__))}; \
     debug_helper_print_api_call(#name, args, ARRAY_SIZE(args) __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__)); \
     _____debug_api_tracepoint__real_ ## name(MACRO_FOR_EACH_STRIDE2(____DEBUG_MOD_API_IGNORE, ____DEBUG_MOD_API_PASSTHROUGHB __VA_OPT__(,) __VA_ARGS__)); \
@@ -99,8 +99,8 @@ void debug_helper_process_return(const char* source, enum debug_argument_type ty
   } \
   static inline void _____debug_api_tracepoint__real_ ## name(____DEBUG_MOD_API_MAKE_ARGS(__VA_ARGS__))
 #else
-# define DEBUG_API_TRACEPOINT_VOID(spec, name, ...) HOOK_FUNCTION_VOID(spec, name, __VA_ARGS__)
-# define DEBUG_API_TRACEPOINT(spec, name, ...) HOOK_FUNCTION(spec, name, __VA_ARGS__)
+# define DEBUG_API_TRACEPOINT_VOID(spec, name, ...) HOOK_TARGET_VOID(spec, name __VA_OPT__(,) __VA_ARGS__)
+# define DEBUG_API_TRACEPOINT(spec, ret, name, ...) HOOK_TARGET(spec, ret, name __VA_OPT__(,) __VA_ARGS__)
 #endif
 
 
