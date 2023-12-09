@@ -5,3 +5,5 @@ UwUMaker-c-sources-y += api.c \
 
 UwUMaker-dirs-y += mods
 
+UwUMaker-c-flags-y += -include $(CURRENT_DIR)/pre_code.h
+

@@ -12,7 +12,9 @@
 #define EXTERN(c) API_EXTERN(c)
 
 // Arrays need explicit cast (and also checks whether
-// its appropriately fh_object* to ensure safe cast)
+// its appropriately fh_object* to ensure safe cast
+// but caller must ensure its compatible from generic 
+// fh_object)
 #define CAST_TO_ARRAY(c) _Generic ((c), \
   fh_object*: (fh_array*) (c) \
 )

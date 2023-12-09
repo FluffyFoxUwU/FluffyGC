@@ -1,7 +1,5 @@
 #include <errno.h>
 
-#include "pre_code.h"
-
 #include "api/api.h"
 #include "context.h"
 #include "gc/gc.h"

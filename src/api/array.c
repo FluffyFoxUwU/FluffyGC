@@ -1,5 +1,3 @@
-#include "pre_code.h"
-
 #include "api.h"
 #include "object/descriptor/array.h"
 #include "context.h"

@@ -5,14 +5,12 @@
 #include <stddef.h>
 #include <time.h>
 
-#ifdef __GNUC__
-# ifndef __FLUFFYHEAP_EXPORT
-#   define __FLUFFYHEAP_EXPORT __attribute__((visibility("default"))) extern
-# endif
-#endif
-
 #ifndef __FLUFFYHEAP_EXPORT
-# define __FLUFFYHEAP_EXPORT extern
+# ifdef __GNUC__
+#   define __FLUFFYHEAP_EXPORT __attribute__((visibility("default"))) extern
+# else
+#   define __FLUFFYHEAP_EXPORT extern
+# endif
 #endif
 
 #if __clang__
@@ -21,6 +19,9 @@
 #elif __GNUC__
 # define __FLUFFYHEAP_NONNULL(t) t __attribute__((nonnull))
 # define __FLUFFYHEAP_NULLABLE(t) t
+#else
+# define __FLUFFYHEAP_NONNULL(t) f
+# define __FLUFFYHEAP_NULLABLE(t) f
 #endif
 
 // Types
