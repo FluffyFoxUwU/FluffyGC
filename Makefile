@@ -1,16 +1,11 @@
-UwUMaker-dirs-y += src
+UwUMaker-name = FluffyGC
+UwUMaker-is-executable := m
 
-UwUMaker-is-executable = m
-
-# Deps
-UwUMaker-c-sources-y += deps/list/list_node.c \
-	deps/list/list.c \
-	deps/list/list_iterator.c \
-	deps/vec/vec.c \
-	deps/buffer/buffer.c \
-	deps/templated-hashmap/hashmap.c
-
-UwUMaker-c-flags-y += -std=c2x \
+UwUMaker-c-flags-y += -std=c2x -g \
+	-Wall -Wshadow -Wpointer-arith \
+	-Wmissing-prototypes \
+	-fPIC \
+	-fblocks -Wextra \
 	-D_POSIX_C_SOURCE=200809L \
 	-I$(PROJECT_DIR)/deps/list \
 	-I$(PROJECT_DIR)/deps/buffer \
@@ -20,5 +15,9 @@ UwUMaker-c-flags-y += -std=c2x \
 	-I$(PROJECT_DIR)/include \
 	-fblocks -fvisibility=hidden -fno-common
 UwUMaker-linker-flags-y += -lm \
-	-fvisibility=hidden -fno-common
+	-lBlocksRuntime 
+
+UwUMaker-dirs-y += src deps
+
+
 

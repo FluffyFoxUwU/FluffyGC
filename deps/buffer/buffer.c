@@ -246,14 +246,14 @@ buffer_t *
 buffer_slice(buffer_t *buf, size_t from, ssize_t to) {
   size_t len = strlen(buf->data);
 
-  // bad range
-  if (to < from) return NULL;
-
   // relative to end
-  if (to < 0) to = len - ~to;
+  if (to < 0) to = len + to;
+  
+  // bad range
+  if ((size_t) to < from) return NULL;
 
   // cap end
-  if (to > len) to = len;
+  if ((size_t) to > len) to = len;
 
   size_t n = to - from;
   buffer_t *self = buffer_new_with_size(n);
@@ -340,7 +340,7 @@ buffer_clear(buffer_t *self) {
 
 void
 buffer_print(buffer_t *self) {
-  int i;
+  size_t i;
   size_t len = self->len;
 
   printf("\n ");

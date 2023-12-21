@@ -24,7 +24,7 @@
 SOC_DEFINE(syncStructureCache, SOC_DEFAULT_CHUNK_SIZE, struct object_sync_structure);
 
 static _Atomic(struct object*)* getAtomicPtrToReference(struct object* self, size_t offset) {
-  return (_Atomic(struct object*)*) (self->dataPtr.ptr + offset);
+  return (_Atomic(struct object*)*) ((char*) self->dataPtr.ptr + offset);
 }
 
 struct object* object_resolve_forwarding(struct object* self) {
@@ -64,6 +64,7 @@ obj_is_null:
 }
 
 static bool isEligibleForRememberedSet(struct object* parent, struct object* child) {
+  // Add parent into child's generation's remembered set
   return child &&  parent->movePreserve.generationID != child->movePreserve.generationID && !list_is_valid(&parent->rememberedSetNode[child->movePreserve.generationID]);
 }
 

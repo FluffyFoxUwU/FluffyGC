@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -136,7 +137,7 @@ static int internalWrite(struct circular_buffer* self, int flags, const void** d
           *  then, copy only 1 section
           */
         
-        memcpy(self->buf + self->r, *data, writeSize);
+        memcpy((char*) self->buf + self->r, *data, writeSize);
         self->r += writeSize;
         self->r %= self->bufferSize;
       } else {
@@ -148,13 +149,13 @@ static int internalWrite(struct circular_buffer* self, int flags, const void** d
 
         /* 1st section copy (r to end-of-buffer part) */
         size_t firstWriteSize = self->bufferSize - self->r;
-        memcpy(self->buf + self->r, *data, firstWriteSize);
-        *data += firstWriteSize;
+        memcpy((char*) self->buf + self->r, *data, firstWriteSize);
+        *(char**) data += firstWriteSize;
         
         /* 2nd section copy (wrapping part) */
-        if (writeSize + self->r - self->bufferSize <= self->f) {
+        if ((intptr_t) (writeSize + self->r - self->bufferSize) <= self->f) {
           // No overwritten occur
-          memcpy(self->buf, *data, writeSize + self->r - self->bufferSize);
+          memcpy((char*) self->buf, *data, writeSize + self->r - self->bufferSize);
           self->r += writeSize;
           self->r %= self->bufferSize;
         } else {
@@ -164,12 +165,12 @@ static int internalWrite(struct circular_buffer* self, int flags, const void** d
       }
       break;
     case BUF_STATE_R_LESS_THAN_F:     //rear < front
-      if (self->r + writeSize <= self->f) {
+      if ((intptr_t) self->r + writeSize <= self->f) {
         /**  memcpy() between buffer and enqueue data
           *  start from rear:r to r + enqueueSize
           *  when r + enqueueSize is not exceed front : f   (Overwritten do not occur)
           */
-        memcpy(self->buf + self->r, *data, writeSize);
+        memcpy((char*) self->buf + self->r, *data, writeSize);
         self->r += writeSize;
         self->r %= self->bufferSize;
       } else {
@@ -179,7 +180,7 @@ static int internalWrite(struct circular_buffer* self, int flags, const void** d
       break;
   }
   
-  *data += writeSize;
+  *(char**) data += writeSize;
   *size -= writeSize;
   self->dataInBuffer += writeSize;
   
@@ -212,7 +213,7 @@ static int internalRead(struct circular_buffer* self, int flags, void** data, si
           *  start from front:f to f + dequeueSize
           *  when f + dequeueSize does not exceed r
           */
-        memcpy(*data, self->buf + self->f, readSize);
+        memcpy((char*) *data, (char*) self->buf + self->f, readSize);
         self->f += readSize;
         self->f %= self->bufferSize;
       } else {
@@ -229,7 +230,7 @@ static int internalRead(struct circular_buffer* self, int flags, void** data, si
           */
         
         if (data)
-          memcpy(*data, self->buf + self->f, readSize);
+          memcpy((char*) *data, (char*) self->buf + self->f, readSize);
         self->f += readSize;
         self->f %= self->bufferSize;
       } else {
@@ -240,13 +241,13 @@ static int internalRead(struct circular_buffer* self, int flags, void** data, si
           */
         /* 1st section copy */
         if (data)
-          memcpy(data, self->buf + self->f, self->bufferSize - self->f);
+          memcpy((char*) data, (char*) self->buf + self->f, self->bufferSize - self->f);
         
         /* 2nd section copy (wrapping part) */
         // No overwritten occur
-        if(readSize + self->f - self->bufferSize <= self->r) {
+        if((intptr_t) (readSize + self->f - self->bufferSize) <= self->r) {
           if (data)
-            memcpy(*data + self->bufferSize - self->f, self->buf, readSize + self->f - self->bufferSize);
+            memcpy((char*) *data + self->bufferSize - self->f, self->buf, readSize + self->f - self->bufferSize);
           self->f += readSize;
           self->f %= self->bufferSize;
         } else {

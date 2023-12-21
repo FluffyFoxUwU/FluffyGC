@@ -173,7 +173,7 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
       mutex_unlock(&self->gcCompleted.lock);
       
       // This thread is the winner
-      // and this thread got first attempt to allocate
+      // and this thread got exclusive attempt to allocate
       
       gc_start(self->gcState, gen);
       block = allocFunc(gen->fromHeap, descriptor_get_alignment(desc), descriptor_get_object_size(desc));

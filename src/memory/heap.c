@@ -80,15 +80,15 @@ static void tryMergeFreeBlock(struct heap* self, struct heap_block* block) {
   struct list_head* current;
   struct list_head* next;
   list_for_each_safe(current, next, &self->recentFreeBlocks) {
-    struct heap_block* block = list_entry(current, struct heap_block, node);
-    BUG_ON(!block->isFree);
+    struct heap_block* curBlock = list_entry(current, struct heap_block, node);
+    BUG_ON(!curBlock->isFree);
     // Free blocks isnt consecutive
-    if (((void*) block) + block->blockSize != current)
+    if (((char*) block) + block->blockSize != (char*) current)
       break;
     
     // Merge two blocks
     list_del(current);
-    block->blockSize += block->blockSize;
+    curBlock->blockSize += curBlock->blockSize;
   }
 }
 
@@ -159,7 +159,7 @@ static struct heap_block* splitFreeBlocks(struct heap* self, struct heap_block* 
     return block;
   
   struct heap_block* blockA = block;
-  struct heap_block* blockB = ((void*) block) + size;
+  struct heap_block* blockB = (struct heap_block*) ((char*) block + size);
   
   // Re-align
   blockB = fixAlignment(blockB);

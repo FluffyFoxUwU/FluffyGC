@@ -5,7 +5,7 @@
 #include "gc/gc.h"
 #include "gc/gc_flags.h"
 #include "gc/generic/generic.h"
-#include "gc/nop/nop.h"
+#include "gc/serial/serial.h"
 #include "util/util.h"
 
 static void freeHook(struct gc_ops* self) {

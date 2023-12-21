@@ -2,8 +2,9 @@
 #define _headers_1686662453_FluffyGC_pre_code
 
 #include "attributes.h"
+#include "public.h"
 
-#define __FLUFFYHEAP_EXPORT ATTRIBUTE_USED() ATTRIBUTE((visibility("default"))) extern
+#define __FLUFFYHEAP_EXPORT PUBLIC
 
 #include "api.h"
 

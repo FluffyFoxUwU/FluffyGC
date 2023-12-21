@@ -62,7 +62,7 @@ static void selfRestart(char** argv) {
   hard_panic("Can't reached here!!!");
 }
 
-void special_premain(int argc, char** argv) {
+void special_premain(int _argc, char** argv) {
   if (!IS_ENABLED(CONFIG_BUILD_LLVM_XRAY))
     return;
 

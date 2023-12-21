@@ -19,14 +19,3 @@ void rwlock_cleanup(struct rwlock* self) {
     panic();
 }
 
-void rwlock__rdlock(struct rwlock* self) {
-  pthread_rwlock_rdlock(&self->rwlock);
-}
-
-void rwlock__wrlock(struct rwlock* self) {
-  pthread_rwlock_wrlock(&self->rwlock);
-}
-
-void rwlock__unlock(struct rwlock* self) {
-  pthread_rwlock_unlock(&self->rwlock);
-}

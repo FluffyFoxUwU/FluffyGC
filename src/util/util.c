@@ -19,7 +19,7 @@
 #include "util.h"
 #include "bug.h"
 
-// TODO: In <bits/posix_opt.h> it is written that it
+// TODO: In Glibc's <bits/posix_opt.h> it is written that it
 // should be checked at runtime and there wasn't any
 // indication from the https://pubs.opengroup.org/onlinepubs/9699919799/functions/V2_chap02.html
 // that it should be checked
@@ -144,7 +144,7 @@ size_t util_get_pagesize() {
   return result;
 }
 
-void* util_mmap_anonymous(size_t size, int protection) {
+void* util_mmap_anonymous(size_t _size, int _protection) {
 # if IS_ENABLED(CONFIG_ALLOW_USAGE_OF_ANONYMOUS_MMAP)
   void* addr = mmap(NULL, size, protection, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
   if (addr == MAP_FAILED) {
@@ -195,7 +195,7 @@ void* util_realloc(void* ptr, size_t oldSize, size_t newSize, unsigned long flag
     return NULL;
   
   if ((flags & UTIL_MEM_ZERO) && newSize > oldSize)
-    memset(ptr + oldSize, 0, newSize - oldSize);
+    memset((char*) ptr + oldSize, 0, newSize - oldSize);
   
   return ptr;
 }
@@ -228,7 +228,7 @@ const uintptr_t* util_find_smallest_but_larger_or_equal_than(const uintptr_t* ar
 }
 
 void util_shift_array(void* start, size_t offset, size_t size) {
-  memmove(start + (offset * size), start, size);
+  memmove((char*) start + (offset * size), start, size);
 }
 
 void* util_aligned_alloc(size_t alignment, size_t size) {

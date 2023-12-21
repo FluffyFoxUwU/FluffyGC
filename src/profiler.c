@@ -20,11 +20,11 @@ static void freeSection(struct profiler_section* section) {
   }
   hashmap_cleanup(&section->subsections);
   
-  free((char*) section->name);
+  free((void*) section->name);
   free(section);
 }
 
-static struct profiler_section* newSection(struct profiler* self, const char* name) {
+static struct profiler_section* newSection(const char* name) {
   struct profiler_section* section = malloc(sizeof(*section));
   if (!section)
     goto failure;
@@ -107,7 +107,7 @@ struct profiler* profiler_new() {
   if (!self->stack)
     goto failure;
 
-  self->root = newSection(self, "root");
+  self->root = newSection("root");
   if (!self->root)
     goto failure;
   self->root->parent = self->root;
@@ -159,7 +159,7 @@ void profiler_begin(struct profiler* self, const char* sectionName) {
   struct profiler_section* current = self->stack->tail->val; 
   struct profiler_section* existing = hashmap_get(&current->subsections, sectionName);
   if (!existing) {
-    existing = newSection(self, sectionName);
+    existing = newSection(sectionName);
     existing->parent = current;
     hashmap_put(&current->subsections, existing->name, existing);
     
@@ -211,7 +211,7 @@ void profiler_reset(struct profiler* self) {
     panic();
   freeSection(self->root);
   
-  self->root = newSection(self, "root");
+  self->root = newSection("root");
   if (!self->root)
     panic();
   self->root->parent = self->root;

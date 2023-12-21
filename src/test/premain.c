@@ -5,6 +5,7 @@
 #include "specials.h"
 #include "config.h"
 #include "bug.h"
+#include "public.h"
 
 // Pre-main
 int main2(int argc, char** argv);
@@ -21,7 +22,7 @@ static void* testWorker(void* _args) {
   return NULL;
 }
 
-int main(int argc, char** argv) {
+PUBLIC int fluffygc_main(int argc, char** argv) {
   special_premain(argc, argv);
 
   int res = 0;
@@ -35,7 +36,7 @@ int main(int argc, char** argv) {
     testWorker(&args);
   } else {
     pthread_t tmp;
-    int res = pthread_create(&tmp, NULL, testWorker, &args);
+    res = pthread_create(&tmp, NULL, testWorker, &args);
     BUG_ON(res != 0);
     pthread_join(tmp, NULL);
   }

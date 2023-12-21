@@ -1,4 +1,8 @@
 
+config ENABLE_STACKTRACE
+  bool "Enable stacktrace support"
+  depends on !STRICTLY_POSIX
+
 menu "Stacktrace options"
   choice
     prompt "Stacktrace provider"
@@ -12,3 +16,4 @@ menu "Stacktrace options"
     bool "Use dladdr to get function name if debug info unavailable"
     depends on ENABLE_STACKTRACE && !STRICTLY_POSIX
 endmenu
+

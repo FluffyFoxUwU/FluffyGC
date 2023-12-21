@@ -54,7 +54,7 @@ static void dumpStacktrace(void (^printMsg)(const char* fmt, ...)) {
   printMsg("%s", snip2);
 }
 
-void _hard_panic_va(const char* fmt, va_list list) {
+void _hard_panic_va(const char* panicFmt, va_list list) {
   pthread_once(&hardPanicControl, hardPanicOccured);
   
   // Double panic, sleep forever
@@ -64,7 +64,7 @@ void _hard_panic_va(const char* fmt, va_list list) {
   // Using static buffer as panic might occur on OOM scenario
   static char panicBuffer[512 * 1024] = {0};
   
-  size_t panicMsgLen = vsnprintf(panicBuffer, sizeof(panicBuffer), fmt, list);
+  size_t panicMsgLen = vsnprintf(panicBuffer, sizeof(panicBuffer), panicFmt, list);
   fprintf(stderr, "Program HARD panic (log not flushed): %s\n", panicBuffer);
   if (panicMsgLen >= sizeof(panicBuffer)) 
     fprintf(stderr, "Panic message was truncated! (%zu bytes to %zu bytes)\n", panicMsgLen, sizeof(panicBuffer) - 1); 
@@ -88,14 +88,14 @@ void _hard_panic(const char* fmt, ...) {
   va_end(args);
 }
 
-void _panic_va(const char* fmt, va_list args) {
+void _panic_va(const char* panicFmt, va_list panicArgs) {
   pthread_once(&panicControl, panicOccured);
   
   // Double panic, sleep forever
   while (atomic_exchange(&hasHardPanic, true) == true)
     sleep(1000);
   
-  printk_va(LOG_FATAL, fmt, args);
+  printk_va(LOG_FATAL, panicFmt, panicArgs);
   dumpStacktrace(^(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);

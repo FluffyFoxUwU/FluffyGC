@@ -27,7 +27,7 @@ int api_init() {
     return -ENOMEM;
   managed_heap_current->api.state = state;
   
-  for (; state->initCounts < ARRAY_SIZE(calls); state->initCounts++)
+  for (; state->initCounts < (int) ARRAY_SIZE(calls); state->initCounts++)
     if ((ret = calls[state->initCounts].init(managed_heap_current)) < 0)
       goto failure;
 failure:

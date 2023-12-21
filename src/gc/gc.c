@@ -81,7 +81,8 @@ static void* mainGCThread(void* _self) {
     resp.cookie = msg.cookie;
     atomic_thread_fence(memory_order_seq_cst);
     channel_send(self->responseChannel, &resp);
-    
+
+    // If receive shutdown message exits
     if (msg.identifier == GC_OP_SHUTDOWN)
       break;
   }
@@ -224,3 +225,6 @@ void gc_for_each_root_entry(struct gc_struct* self, void (^iterator)(struct root
     }
   }
 }
+
+
+

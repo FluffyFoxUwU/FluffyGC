@@ -25,7 +25,7 @@ API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fluffyheap*), fh_new, __FLUFFYHEAP_NON
   
   struct mapping mapping = gcMapping[incomingParams->hint];
   struct generation_params params[incomingParams->generationCount] = {};
-  for (int i = 0; i < incomingParams->generationCount; i++) {
+  for (size_t i = 0; i < incomingParams->generationCount; i++) {
     params[i].promotionAge = gc_preferred_promotion_age(mapping.algo, mapping.flags, i);
     params[i].earlyPromoteSize = gc_preferred_promotion_size(mapping.algo, mapping.flags, i);
     params[i].size = incomingParams->generationSizes[i];

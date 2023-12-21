@@ -26,7 +26,7 @@
 
 
 struct hashmap_entry {
-    void *key;
+    const void *key;
     void *data;
 };
 
@@ -74,13 +74,13 @@ static inline size_t hashmap_calc_index(const struct hashmap_base *hb, const voi
  * Return the next populated entry, starting with the specified one.
  * Returns NULL if there are no more valid entries.
  */
-static struct hashmap_entry *hashmap_entry_get_populated(const struct hashmap_base *hb,
+static const struct hashmap_entry *hashmap_entry_get_populated(const struct hashmap_base *hb,
         const struct hashmap_entry *entry)
 {
     if (hb->size > 0) {
         for (; entry < &hb->table[hb->table_size]; ++entry) {
             if (entry->key) {
-                return (struct hashmap_entry *)entry;
+                return entry;
             }
         }
     }
@@ -132,7 +132,7 @@ static void hashmap_entry_remove(struct hashmap_base *hb, struct hashmap_entry *
 
     /* Free the key */
     if (hb->key_free) {
-        hb->key_free(removed_entry->key);
+        hb->key_free((void *)removed_entry->key);
     }
     --hb->size;
 
@@ -217,7 +217,7 @@ static void hashmap_free_keys(struct hashmap_base *hb)
     }
     for (entry = hb->table; entry < &hb->table[hb->table_size]; ++entry) {
         if (entry->key) {
-            hb->key_free(entry->key);
+            hb->key_free((void*) entry->key);
         }
     }
 }
@@ -340,7 +340,7 @@ int hashmap_base_put(struct hashmap_base *hb, const void *key, void *data)
             return -ENOMEM;
         }
     } else {
-        entry->key = (void *)key;
+        entry->key = key;
     }
     entry->data = data;
     ++hb->size;
@@ -424,7 +424,7 @@ void hashmap_base_reset(struct hashmap_base *hb)
  * Hashmap iterators are INVALID after a put or remove operation is performed.
  * hashmap_iter_remove() allows safe removal during iteration.
  */
-struct hashmap_entry *hashmap_base_iter(const struct hashmap_base *hb,
+const struct hashmap_entry *hashmap_base_iter(const struct hashmap_base *hb,
         const struct hashmap_entry *pos)
 {
     if (!pos) {
@@ -445,7 +445,7 @@ bool hashmap_base_iter_valid(const struct hashmap_base *hb, const struct hashmap
  * Advance an iterator to the next hashmap entry.
  * Returns false if there are no more entries.
  */
-bool hashmap_base_iter_next(const struct hashmap_base *hb, struct hashmap_entry **iter)
+bool hashmap_base_iter_next(const struct hashmap_base *hb, const struct hashmap_entry **iter)
 {
     if (!*iter) {
         return false;
@@ -458,14 +458,14 @@ bool hashmap_base_iter_next(const struct hashmap_base *hb, struct hashmap_entry 
  * iterator to the next entry.
  * Returns true if the iterator is valid after the operation.
  */
-bool hashmap_base_iter_remove(struct hashmap_base *hb, struct hashmap_entry **iter)
+bool hashmap_base_iter_remove(struct hashmap_base *hb, const struct hashmap_entry **iter)
 {
     if (!*iter) {
         return false;
     }
     if ((*iter)->key) {
         /* Remove entry if iterator is valid */
-        hashmap_entry_remove(hb, *iter);
+        hashmap_entry_remove(hb, (struct hashmap_entry*) *iter);
     }
     return (*iter = hashmap_entry_get_populated(hb, *iter)) != NULL;
 }

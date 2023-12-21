@@ -100,7 +100,7 @@ static void impl_postInitObject(struct descriptor* super, struct object* obj) {
 
 static ssize_t impl_calcOffset(struct descriptor* super, size_t index) {
   struct object_descriptor* self = container_of(super, struct object_descriptor, super);
-  if (index >= self->fields.length)
+  if (index >= (size_t) self->fields.length)
     return -1;
   return self->fields.data[index].offset;
 }

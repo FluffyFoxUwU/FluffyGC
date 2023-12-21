@@ -59,7 +59,7 @@ void channel_send(struct channel* self, struct channel_message* msg) {
   size_t size = sizeof(*msg);
   ssize_t res = 0;
   
-  while (size > 0 && (res = write(self->writeFD, buf, size)) != size) {
+  while (size > 0 && (res = write(self->writeFD, buf, size)) != (ssize_t) size) {
     if(res < 0 && errno == EINTR) 
       continue;
     
@@ -67,7 +67,7 @@ void channel_send(struct channel* self, struct channel_message* msg) {
       panic();
     
     size -= res;
-    buf += res;
+    *(char**) &buf += res;
   }
 }
 
@@ -78,7 +78,7 @@ void channel_recv(struct channel* self, struct channel_message* msg) {
   size_t size = sizeof(*msg);
   ssize_t res = 0;
   
-  while (size > 0 && (res = read(self->readFD, buf, size)) != size) {
+  while (size > 0 && (res = read(self->readFD, buf, size)) != (ssize_t) size) {
     if(res < 0 && errno == EINTR) 
       continue;
     
@@ -86,6 +86,6 @@ void channel_recv(struct channel* self, struct channel_message* msg) {
       panic();
     
     size -= res;
-    buf += res;
+    *(char**) &buf += res;
   }
 }

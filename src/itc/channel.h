@@ -2,6 +2,7 @@
 #define _headers_1685763386_FluffyGC_channel
 
 #include <stdint.h>
+#include <stddef.h>
 
 // Single direction
 // Multiple writer may has some trouble
@@ -19,12 +20,12 @@ union channel_message_arg {
 };
 
 struct channel_message {
-  uint64_t identifier;
   uintptr_t cookie;
+  uint64_t identifier;
   union channel_message_arg args[5];
 };
 
-#define CHANNEL_MESSAGE(...) ((struct channel_message) {__VA_ARGS__})
+#define CHANNEL_MESSAGE(...) ((struct channel_message) {.cookie = 0 __VA_OPT__(,) __VA_ARGS__})
 
 struct channel* channel_new();
 void channel_free(struct channel* self);

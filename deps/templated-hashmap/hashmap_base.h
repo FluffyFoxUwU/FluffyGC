@@ -36,11 +36,11 @@ void *hashmap_base_remove(struct hashmap_base *hb, const void *key);
 void hashmap_base_clear(struct hashmap_base *hb);
 void hashmap_base_reset(struct hashmap_base *hb);
 
-struct hashmap_entry *hashmap_base_iter(const struct hashmap_base *hb,
+const struct hashmap_entry *hashmap_base_iter(const struct hashmap_base *hb,
         const struct hashmap_entry *pos);
 bool hashmap_base_iter_valid(const struct hashmap_base *hb, const struct hashmap_entry *iter);
-bool hashmap_base_iter_next(const struct hashmap_base *hb, struct hashmap_entry **iter);
-bool hashmap_base_iter_remove(struct hashmap_base *hb, struct hashmap_entry **iter);
+bool hashmap_base_iter_next(const struct hashmap_base *hb, const struct hashmap_entry **iter);
+bool hashmap_base_iter_remove(struct hashmap_base *hb, const struct hashmap_entry **iter);
 const void *hashmap_base_iter_get_key(const struct hashmap_entry *iter);
 void *hashmap_base_iter_get_data(const struct hashmap_entry *iter);
 int hashmap_base_iter_set_data(struct hashmap_entry *iter, void *data);

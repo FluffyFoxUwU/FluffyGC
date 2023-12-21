@@ -28,7 +28,7 @@ API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_dma_ptr*), fh_object_map_dma, __FLU
   
   context_block_gc();
   struct object* obj = atomic_load(&INTERN(self)->obj);
-  int ret = api_mod_dma_common_init_dma_data(dma, obj, (void*) obj->dataPtr.ptr + offset);
+  int ret = api_mod_dma_common_init_dma_data(dma, obj, (char*) obj->dataPtr.ptr + offset);
   context_unblock_gc();
   
   if (ret < 0) {

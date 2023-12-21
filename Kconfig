@@ -1,14 +1,4 @@
 mainmenu "FluffyGC project Configuration"
-#source "buildsystem/Kconfig"
-
-config PLACEHOLDER_FOR_STATIC_STUFF_UWU
-  def_bool y
-  #select BUILD_HAS_EXECUTABLE
-  select BUILD_IS_LIBRARY
-  #select BUILD_IS_KERNEL
-
-config MAIN_DISABLED
-  bool
 
 menu General
   config VERSION_MAJOR
@@ -50,13 +40,7 @@ source "src/fuzzing/Kconfig"
 source "src/gc/Kconfig"
 source "src/api/mods/Kconfig"
 
-config ENABLE_STACKTRACE
-  bool "Enable stacktrace support"
-  depends on !STRICTLY_POSIX
-
-if ENABLE_STACKTRACE
-  source "src/stacktrace/Kconfig"
-endif
+source "src/stacktrace/Kconfig"
 
 config HOOK
   def_bool n
@@ -64,4 +48,12 @@ config HOOK
 config DONT_START_SEPERATE_MAIN_THREAD
   bool "Don't start seperate main thread"
   default n
- 
+
+config ENABLE_MAIN
+  bool "Create seperate main executable to call main"
+
+
+
+
+
+

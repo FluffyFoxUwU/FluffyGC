@@ -59,7 +59,7 @@ void descriptor_release(struct descriptor* self) {
 
 void descriptor_init_object(struct descriptor* self, struct object* obj) {
   self->ops->forEachOffset(self, obj, ^int (size_t offset) {
-    atomic_init((_Atomic(struct object*)*) (obj->dataPtr.ptr + offset), NULL);
+    atomic_init((_Atomic(struct object*)*) ((char*) obj->dataPtr.ptr + offset), NULL);
     return 0;
   });
   

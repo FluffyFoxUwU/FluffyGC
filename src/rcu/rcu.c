@@ -125,8 +125,8 @@ void rcu_memcpy(struct rcu_head* restrict dest, const struct rcu_head* restrict 
   
   // Copy the after rcu_head
   size_t skipSize = rcuHeadOffset + sizeof(struct rcu_head);
-  sourceRaw += skipSize;
-  destRaw += skipSize;
+  *(char*) &sourceRaw += skipSize;
+  *(char*) &destRaw += skipSize;
   size -= skipSize;
   memcpy(destRaw, sourceRaw, size);
   

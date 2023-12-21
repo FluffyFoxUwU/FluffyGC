@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+#include "attributes.h"
 #include "config.h"
 #include "rcu/rcu.h"
 #include "util/macro_magics.h"

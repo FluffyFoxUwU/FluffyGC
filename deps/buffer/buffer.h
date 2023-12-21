@@ -99,6 +99,9 @@ buffer_trim(buffer_t *self);
 void
 buffer_print(buffer_t *self);
 
+int
+buffer_resize(buffer_t *self, size_t n);
+
 #define buffer_string(self) (self->data)
 
 #endif

@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <string.h>
 #include <time.h>
+#include <inttypes.h>
 #include <unistd.h>
 
 #include "FluffyHeap.h"
@@ -214,7 +215,7 @@ static void* worker(void*) {
   while (1) {
     struct rcu_head* currentRcu = rcu_read_lock(&rcuProtected);
     struct an_rcu_using_struct* result = container_of(rcu_read(&rcuProtected), struct an_rcu_using_struct, rcuHead);
-    fprintf(stderr, "Reader: %d -> %20ld (Thread: %20ld)\r", result->uwu, iteration, selfThread);
+    fprintf(stderr, "Reader: %d -> %20" PRIu64 " (Thread: %20jx:)\r", result->uwu, iteration, (uintmax_t) selfThread);
     rcu_read_unlock(&rcuProtected,currentRcu);
     
     pthread_testcancel();
@@ -289,7 +290,7 @@ static void* worker2(void*) {
     
     struct rcu_head* currentRcu = rcu_read_lock(&rcuProtected2.generic.rcu);
     struct some_data_uwu_rcu_readonly_container instance = rcu_generic_type_get(&rcuProtected2);
-    fprintf(stderr, "Reader: %d -> %20ld (Thread: %20ld)\r", instance.data->UwU, iteration, selfThread);
+    fprintf(stderr, "Reader: %d -> %20" PRIu64 " (Thread: %20jx)\r", instance.data->UwU, iteration, (uintmax_t) selfThread);
     rcu_read_unlock(&rcuProtected2.generic.rcu, currentRcu);
     
     pthread_testcancel();

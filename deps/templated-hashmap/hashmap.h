@@ -29,31 +29,31 @@ extern "C" {
 #define __HASHMAP_MAKE_UNIQUE(prefix)   __HASHMAP_CONCAT(__HASHMAP_CONCAT(prefix, __COUNTER__), _)
 #define __HASHMAP_UNIQUE(unique, name)  __HASHMAP_CONCAT(unique, name)
 #define __HASHMAP_FOREACH(x, key, data, h)                              \
-    for (HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
+    for (const HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
         ((key) = hashmap_iter_get_key(&__HASHMAP_UNIQUE(x, it))) &&     \
             ((data) = hashmap_iter_get_data(&__HASHMAP_UNIQUE(x, it))); \
         hashmap_iter_next(&__HASHMAP_UNIQUE(x, it)))
 #define __HASHMAP_FOREACH_SAFE(x, key, data, h, temp_ptr)               \
-    for (HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
+    for (const HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
         ((temp_ptr) = (void *)((key) = hashmap_iter_get_key(&__HASHMAP_UNIQUE(x, it)))) && \
             ((data) = hashmap_iter_get_data(&__HASHMAP_UNIQUE(x, it))); \
         ((temp_ptr) == (void *)hashmap_iter_get_key(&__HASHMAP_UNIQUE(x, it))) ? \
             hashmap_iter_next(&__HASHMAP_UNIQUE(x, it)) : __HASHMAP_ITER_RESET(&__HASHMAP_UNIQUE(x, it)))
 #define __HASHMAP_FOREACH_KEY(x, key, h)                                \
-    for (HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
+    for (const HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
         (key = hashmap_iter_get_key(&__HASHMAP_UNIQUE(x, it)));         \
         hashmap_iter_next(&__HASHMAP_UNIQUE(x, it)))
 #define __HASHMAP_FOREACH_KEY_SAFE(x, key, h, temp_ptr)                 \
-    for (HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
+    for (const HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
         ((temp_ptr) = (void *)((key) = hashmap_iter_get_key(&__HASHMAP_UNIQUE(x, it)))); \
         ((temp_ptr) == (void *)hashmap_iter_get_key(&__HASHMAP_UNIQUE(x, it))) ? \
             hashmap_iter_next(&__HASHMAP_UNIQUE(x, it)) : __HASHMAP_ITER_RESET(&__HASHMAP_UNIQUE(x, it)))
 #define __HASHMAP_FOREACH_DATA(x, data, h)                              \
-    for (HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
+    for (const HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
         (data = hashmap_iter_get_data(&__HASHMAP_UNIQUE(x, it)));       \
         hashmap_iter_next(&__HASHMAP_UNIQUE(x, it)))
 #define __HASHMAP_FOREACH_DATA_SAFE(x, data, h, temp_ptr)               \
-    for (HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
+    for (const HASHMAP_ITER(*(h)) __HASHMAP_UNIQUE(x, it) = hashmap_iter(h);  \
         ((temp_ptr) = (void *)hashmap_iter_get_key(&__HASHMAP_UNIQUE(x, it))) && \
             ((data) = hashmap_iter_get_data(&__HASHMAP_UNIQUE(x, it))); \
         ((temp_ptr) == (void *)hashmap_iter_get_key(&__HASHMAP_UNIQUE(x, it))) ? \
@@ -249,7 +249,7 @@ extern "C" {
  *   HASHMAP(<key_type>, <data_type>) *h - hashmap pointer
  */
 #define hashmap_iter(h)                                                 \
-    ((HASHMAP_ITER(*(h))){ &(h)->map_base, hashmap_base_iter(&(h)->map_base, NULL) })
+    ((const HASHMAP_ITER(*(h))){ &(h)->map_base, hashmap_base_iter(&(h)->map_base, NULL) })
 
 /*
  * Return true if an iterator is valid and safe to use.

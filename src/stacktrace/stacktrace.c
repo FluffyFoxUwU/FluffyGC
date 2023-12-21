@@ -50,8 +50,8 @@ int stacktrace_walk_through_stack(stacktrace_walker_block walker) {
       current.count++;
       return 0;
     } else if (current.count >= 1) {
-      int res = walker(&current);
-      if (res < 0)
+      int walkerRes = walker(&current);
+      if (walkerRes < 0)
         return res;
     }
     

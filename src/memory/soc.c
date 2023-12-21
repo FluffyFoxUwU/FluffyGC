@@ -37,7 +37,7 @@ static void* chunkAllocObject(struct soc_chunk* self) {
 // TODO: Better way than this
 static struct soc_chunk* getOwningChunk(void* ptr) {
   panic();
-  return *(void**) (ptr - ((uintptr_t) ptr % 1));
+  return *(void**) ((uintptr_t) ptr - ((uintptr_t) ptr % 1));
 }
 
 void* soc_alloc(struct small_object_cache* self) {
@@ -78,12 +78,12 @@ static struct soc_chunk* newChunk(struct small_object_cache* owner) {
   
   // Init free lists
   struct soc_free_node* prev = NULL;
-  for (void* current = self->pool; current < self->pool + owner->chunkSize; current += owner->objectSize) {
+  for (char* current = self->pool; current < (char*) self->pool + owner->chunkSize; current += owner->objectSize) {
     // NOTE: no PTR_ALIGN because objectSize already alignment adjusted
     // so multiple of objectSize statisfies the requirement
     if (prev)
-      prev->next = current;
-    prev = current;
+      prev->next = (struct soc_free_node*) current;
+    prev = (struct soc_free_node*) current;
   }
   self->firstFreeNode = self->pool;
   return self;

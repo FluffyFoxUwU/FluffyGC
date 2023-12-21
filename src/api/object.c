@@ -18,14 +18,14 @@ API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_object*), fh_alloc_object, __FLUFFY
 API_FUNCTION_DEFINE_VOID(fh_object_read_data, __FLUFFYHEAP_NONNULL(fh_object*), self, __FLUFFYHEAP_NONNULL(void*), buffer, size_t, offset, size_t, size) {
   context_block_gc();
   struct object* obj = atomic_load(&INTERN(self)->obj);
-  memcpy(buffer, obj->dataPtr.ptr + offset, size);
+  memcpy(buffer, (char*) obj->dataPtr.ptr + offset, size);
   context_unblock_gc();
 }
 
 API_FUNCTION_DEFINE_VOID(fh_object_write_data, __FLUFFYHEAP_NONNULL(fh_object*), self, __FLUFFYHEAP_NONNULL(const void*), buffer, size_t, offset, size_t, size) {
   context_block_gc();
   struct object* obj = atomic_load(&INTERN(self)->obj);
-  memcpy(obj->dataPtr.ptr + offset, buffer, size);
+  memcpy((char*) obj->dataPtr.ptr + offset, buffer, size);
   context_unblock_gc();
 }
 
