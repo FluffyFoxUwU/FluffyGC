@@ -21,8 +21,6 @@ static bool checkIfArray(fh_object* self, const char* src) {
 }
 
 HOOK_FUNCTION(, size_t, debug_hook_fh_array_get_length_head, __FLUFFYHEAP_NONNULL(fh_array*), self) {
-  ci->action = HOOK_CONTINUE;
-    
   if (!debug_can_do_check())
     return;
   
@@ -30,12 +28,7 @@ HOOK_FUNCTION(, size_t, debug_hook_fh_array_get_length_head, __FLUFFYHEAP_NONNUL
   return;
 }
 
-HOOK_FUNCTION(, size_t, debug_hook_fh_array_get_length_tail, __FLUFFYHEAP_NONNULL(fh_array*), self) {
-  ci->action = HOOK_CONTINUE;
-}
-
 HOOK_FUNCTION(, ssize_t, debug_hook_fh_array_calc_offset_head, __FLUFFYHEAP_NONNULL(fh_array*), self, size_t, index) {
-  ci->action = HOOK_CONTINUE;
   if (!debug_can_do_check())
     return;
   
@@ -54,6 +47,3 @@ not_array:
   context_unblock_gc();
 }
 
-HOOK_FUNCTION(, ssize_t, debug_hook_fh_array_calc_offset_tail, __FLUFFYHEAP_NONNULL(fh_array*), self, size_t, index) {
-  ci->action = HOOK_CONTINUE;
-}

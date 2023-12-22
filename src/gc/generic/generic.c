@@ -3,6 +3,7 @@
 #include <strings.h>
 #include <threads.h>
 
+#include "macros.h"
 #include "generic.h"
 #include "context.h"
 #include "gc/gc.h"
@@ -38,7 +39,7 @@ static thread_local struct list_head promotedList;
 static void postCollect(struct generation* gen) {
   struct list_head* current;
   struct list_head* next;
-  
+
 # define doGenerationStart() \
   for (int i = 0; i < managed_heap_current->generationCount; i++) { \
     struct generation* innerGen = gen; \
@@ -50,14 +51,15 @@ static void postCollect(struct generation* gen) {
   }
   
   doGenerationStart()
-  // Update so that no forward pointers exists in fromHeap
+  // Update so that no forward pointers exists to fromHeap
   list_for_each(current, &innerGen->toHeap->allocatedBlocks) {
     struct heap_block* objBlock = list_entry(current, struct heap_block, node);
     object_fix_pointers(&objBlock->objMetadata);
   }
   doGenerationEnd()
   
-  gc_for_each_root_entry(gc_current, ^(struct root_ref* ref) {
+  // Fix pointer in root too
+  gc_for_each_root_entry(^(struct root_ref* ref) {
     struct object* new;
     struct object* old = atomic_load(&ref->obj);
     
@@ -67,29 +69,35 @@ static void postCollect(struct generation* gen) {
     atomic_store(&ref->obj, new);
   });
   
+  // Fix pointers in remembered sets
   doGenerationStart()
   list_for_each(current, &innerGen->rememberedSet) {
     struct object* obj = list_entry(current, struct object, rememberedSetNode[innerGen->genID]);
     object_fix_pointers(obj);
   }
   doGenerationEnd()
-  
+ 
+  // Update forwarded pointers
   list_for_each_safe(current, next, &promotedList) {
     struct object* obj = list_entry(current, struct object, inPromotionList);
     object_fix_pointers(obj);
   }
   
   doGenerationStart()
+  // Then recompute remembered set of objects in toHeap
   list_for_each(current, &innerGen->toHeap->allocatedBlocks) {
     struct heap_block* objBlock = list_entry(current, struct heap_block, node);
     recomputeRememberedSet(&objBlock->objMetadata);
   }
   doGenerationEnd()
   
-  gc_for_each_root_entry(gc_current, ^(struct root_ref* ref) {
+  // Then recompute remembered set in root
+  gc_for_each_root_entry(^(struct root_ref* ref) {
     recomputeRememberedSet(atomic_load(&ref->obj));
   });
   
+  // And recompute remembered set in promoted set
+  // and delete from promoted list
   list_for_each_safe(current, next, &promotedList) {
     struct object* obj = list_entry(current, struct object, inPromotionList);
     recomputeRememberedSet(obj);
@@ -97,6 +105,8 @@ static void postCollect(struct generation* gen) {
   }
   
   doGenerationStart()
+  // Recompute once again on current generation
+  // remembered set
   list_for_each_safe(current, next, &innerGen->rememberedSet) {
     struct object* obj = list_entry(current, struct object, rememberedSetNode[innerGen->genID]);
     recomputeRememberedSet(obj);
@@ -104,6 +114,7 @@ static void postCollect(struct generation* gen) {
   doGenerationEnd()
   
   doGenerationStart()
+  // Clear generation and swap both
   heap_clear(innerGen->fromHeap);
   swap(innerGen->fromHeap, innerGen->toHeap);
   doGenerationEnd()
@@ -127,7 +138,8 @@ static size_t collectGeneration(struct generation* gen, struct generation** prom
   if (nextGenID < managedHeap->generationCount)
     promoteTo = gen + 1;
   
-  // Where promotion has failed
+  // Which generation can't no longer
+  // receive promoted objects
   struct generation* promoteTargetFailure = NULL;
   
   list_for_each(current, &gen->fromHeap->allocatedBlocks) {
@@ -145,12 +157,14 @@ static size_t collectGeneration(struct generation* gen, struct generation** prom
       continue;
     }
     
-    // Promote if there next generation
+    // Promote if there next generation and if didn't failed
     if (obj->age + 1 >= gen->param.promotionAge && promoteTargetFailure == NULL && promoteTo && !fullGC) {
       struct object* newLocation;
       
       if (!(newLocation = object_move(obj, promoteTo->fromHeap))) {
         promoteTargetFailure = promoteTo;
+        // Object stop getting older
+        // because gave up trying to promote
         ageDelta = 0;
         goto object_is_alive;
       }
@@ -224,7 +238,7 @@ int gc_generic_mark(struct generation* gen) {
   }
   
   int targetGenID = gen ? gen->genID : -1;
-  gc_for_each_root_entry(gc_current, ^(struct root_ref* ref) {
+  gc_for_each_root_entry(^(struct root_ref* ref) {
     struct object* obj = atomic_load(&ref->obj);
     if (!isEligibleForScanning(obj, targetGenID))
       return;
@@ -268,11 +282,14 @@ static size_t doCollectAndMark(struct generation* gen) {
     if (promoteTargetFailure) {
       if (gc_generic_mark(promoteTargetFailure) < 0)
         goto mark_failure;
+      
+      // Recurse collect to failing generation
       reclaimedSize += doCollectAndMark(promoteTargetFailure);
       promoteTargetFailure = NULL;
     }
     
-    // Bail out if there more than enough space
+    // Bail out if reclaimed more space than earlyPromoteSize
+    // TODO: rename earlyPromoteSize to minReclaimSize?
     if (thisGenerationReclaimedSizeTotal >= gen->param.earlyPromoteSize)
       break;
   }
@@ -301,4 +318,7 @@ mark_failure:
 }
 
 void gc_generic_compact(struct generation* gen) {
+  UNUSED(gen);
 }
+
+

@@ -6,6 +6,7 @@
 #include "config.h"
 #include "bug.h"
 #include "public.h"
+#include "premain.h" // IWYU pragma: keep
 
 // Pre-main
 int main2(int argc, char** argv);

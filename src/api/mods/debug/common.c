@@ -1,10 +1,15 @@
+#include <stdbool.h>
+
 #include "common.h"
 #include "api/mods/debug/debug.h"
 #include "context.h"
 #include "api/api.h"
 #include "object/object.h"
+#include "macros.h"
 
 bool debug_check_access(fh_object* obj, size_t offset, size_t size, enum debug_access access) {
+  UNUSED(access);
+
   context_block_gc();
   struct object* internObj = atomic_load(&API_INTERN(obj)->obj);
   bool valid = offset + size < internObj->objectSize ? true : false;

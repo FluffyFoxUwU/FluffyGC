@@ -18,6 +18,7 @@
 
 #include "util.h"
 #include "bug.h"
+#include "macros.h"
 
 // TODO: In Glibc's <bits/posix_opt.h> it is written that it
 // should be checked at runtime and there wasn't any
@@ -144,7 +145,7 @@ size_t util_get_pagesize() {
   return result;
 }
 
-void* util_mmap_anonymous(size_t _size, int _protection) {
+void* util_mmap_anonymous(size_t size, int protection) {
 # if IS_ENABLED(CONFIG_ALLOW_USAGE_OF_ANONYMOUS_MMAP)
   void* addr = mmap(NULL, size, protection, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
   if (addr == MAP_FAILED) {
@@ -160,6 +161,8 @@ void* util_mmap_anonymous(size_t _size, int _protection) {
   }
   return addr == MAP_FAILED ? NULL : addr;
 # else
+  UNUSED(size);
+  UNUSED(protection);
   errno = ENOSYS;
   return NULL;
 # endif

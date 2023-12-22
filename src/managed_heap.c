@@ -21,7 +21,7 @@
 
 thread_local struct managed_heap* managed_heap_current;
 
-static void freeGeneration(struct managed_heap* self, struct generation* gen) {
+static void freeGeneration(struct generation* gen) {
   struct list_head* current;
   struct list_head* next;
   list_for_each_safe(current, next, &gen->rememberedSet)
@@ -31,7 +31,7 @@ static void freeGeneration(struct managed_heap* self, struct generation* gen) {
   heap_free(gen->toHeap);
 }
 
-static int initGeneration(struct managed_heap* self, struct generation* gen, struct generation_params* param, bool useFastOnly) {
+static int initGeneration(struct generation* gen, struct generation_params* param, bool useFastOnly) {
   if (mutex_init(&gen->rememberedSetLock) < 0)
     goto failure;
   if (!(gen->fromHeap = heap_new(param->size / 2)))
@@ -44,7 +44,7 @@ static int initGeneration(struct managed_heap* self, struct generation* gen, str
   gen->useFastOnly = useFastOnly;
   return 0;
 failure:
-  freeGeneration(self, gen);
+  freeGeneration(gen);
   return -ENOMEM;
 }
 
@@ -89,7 +89,7 @@ struct managed_heap* managed_heap_new(enum gc_algorithm algo, int generationCoun
     goto failure;
   
   for (int i = 0; i < generationCount; i++) {
-    if (initGeneration(self, &self->generations[i], &genParam[i], gc_use_fast_on_gen(algo, gcFlags, i)) < 0)
+    if (initGeneration(&self->generations[i], &genParam[i], gc_use_fast_on_gen(algo, gcFlags, i)) < 0)
       goto failure;
     self->generations[i].genID = i;
     self->generationCount++;
@@ -127,7 +127,7 @@ void managed_heap_free(struct managed_heap* self) {
   gc_free(self->gcState);
   
   for (int i = 0; i < self->generationCount; i++)
-    freeGeneration(self, &self->generations[i]);
+    freeGeneration(&self->generations[i]);
   
   struct list_head* current;
   struct list_head* next;

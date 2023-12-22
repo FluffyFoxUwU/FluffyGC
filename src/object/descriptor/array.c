@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "macros.h"
 #include "FluffyHeap.h"
 #include "api/api.h"
 #include "array.h"
@@ -13,6 +14,7 @@
 static_assert(sizeof(struct object*) == alignof(struct object*), "This destroys the offset calculation if this fails");
 
 static int impl_forEachOffset(struct descriptor* super, struct object* object, int (^iterator)(size_t offset)) {
+  UNUSED(object);
   int ret = 0;
   struct array_descriptor* self = container_of(super, struct array_descriptor, super);
   for (size_t i = 0; i < self->arrayInfo.length; i++)
@@ -27,7 +29,8 @@ static size_t impl_getObjectSize(struct descriptor* super) {
 }
 
 static size_t impl_getAlignment(struct descriptor* super) {
-  return alignof(struct object*);
+  UNUSED(super);
+  return alignof(void*);
 }
 
 static const char* impl_getName(struct descriptor* super) {
@@ -35,7 +38,7 @@ static const char* impl_getName(struct descriptor* super) {
   static thread_local char buffer[64 * 1024];
   char* localBuffer = malloc(sizeof(buffer));
   if (!localBuffer) {
-    snprintf(buffer, sizeof(buffer), "<Array type insufficient memory for type name>[%zu]", self->arrayInfo.length);
+    snprintf(buffer, sizeof(buffer), "<Array type, insufficient memory for type name>[%zu]", self->arrayInfo.length);
     return buffer;
   }
   
@@ -50,9 +53,12 @@ static const char* impl_getName(struct descriptor* super) {
 }
 
 static void impl_runFinalizer(struct descriptor* super, struct object* obj) {
+  UNUSED(super);
+  UNUSED(obj);
 }
 
 static void impl_free(struct descriptor* super) {
+  UNUSED(super);
   panic("Array descriptors are by value, free call is invalid");
 }
 
@@ -67,6 +73,7 @@ static bool impl_isCompatible(struct descriptor* _a, struct descriptor* _b) {
 }
 
 static struct descriptor* impl_getDescriptorAt(struct descriptor* super, size_t offset) {
+  UNUSED(offset);
   struct array_descriptor* self = container_of(super, struct array_descriptor, super);
   return self->arrayInfo.elementDescriptor;
 }
@@ -115,3 +122,5 @@ int array_descriptor_init(struct array_descriptor* self, struct descriptor* desc
   typeInfo.info.refArray = &self->api.refArrayInfo;
   return descriptor_init(&self->super, OBJECT_ARRAY, &ops, &typeInfo);
 }
+
+

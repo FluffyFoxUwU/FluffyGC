@@ -7,8 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
-#include <errno.h>
 
+#include "macros.h"
 #include "address_spaces.h"
 #include "concurrency/thread_local.h"
 #include "heap.h"
@@ -103,7 +103,7 @@ void heap_merge_free_blocks(struct heap* self) {
   mutex_unlock(&self->lock);
 }
 
-static void initFreeBlock(struct heap* self, struct heap_block* block, size_t blockSize) {
+static void initFreeBlock(struct heap_block* block, size_t blockSize) {
   *block = (struct heap_block) {
     .isFree = true,
     .blockSize = blockSize,
@@ -128,7 +128,7 @@ static void heapDeallocNoLock(struct heap* self, struct heap_block* block) {
   list_del(&block->node);
   
   postFreeHook(self, block);
-  initFreeBlock(self, block, block->blockSize);
+  initFreeBlock(block, block->blockSize);
   
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
     free(block);
@@ -148,7 +148,7 @@ static inline struct heap_block* fixAlignment(struct heap_block* block) {
   return PTR_ALIGN(block, alignof(struct heap_block));
 }
 
-static struct heap_block* splitFreeBlocks(struct heap* self, struct heap_block* block, size_t size) {
+static struct heap_block* splitFreeBlocks(struct heap_block* block, size_t size) {
   if (block->blockSize == size)
     return block;
   BUG_ON(size > block->blockSize);
@@ -165,7 +165,7 @@ static struct heap_block* splitFreeBlocks(struct heap* self, struct heap_block* 
   blockB = fixAlignment(blockB);
   size = (uintptr_t) blockB - (uintptr_t) blockA;
   
-  initFreeBlock(self, blockB, block->blockSize - size);
+  initFreeBlock(blockB, block->blockSize - size);
   
   list_add(&blockB->node, &blockA->node);
   return block;
@@ -197,7 +197,7 @@ static inline struct local_heap_uwu* getLocalHeap(struct heap* self) {
   return localHeap;
 }
 
-static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* block, size_t dataAlignment, size_t blockSize, size_t objectSize, bool isSlowAlloc) {
+static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* block, size_t dataAlignment, size_t blockSize, size_t objectSize) {
   if (!IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
     block = fixAlignment(block);
   
@@ -279,7 +279,7 @@ struct heap_block* heap_alloc_fast(struct heap* self, size_t dataAlignment, size
   block = (struct heap_block*) localHeap->bumpPointer;
   localHeap->bumpPointer += size;
 alloc_sucess:;
-  struct heap_block* computedBlock = commonBlockInit(self, block, dataAlignment, size, objectSize, false);
+  struct heap_block* computedBlock = commonBlockInit(self, block, dataAlignment, size, objectSize);
   if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC) && computedBlock == NULL)
     free(block);
   block = computedBlock;
@@ -307,7 +307,7 @@ struct heap_block* heap_alloc(struct heap* self, size_t dataAlignment, size_t ob
   if (!block) 
     goto alloc_failed;
   
-  block = splitFreeBlocks(self, block, size);
+  block = splitFreeBlocks(block, size);
   
   // Remove from free block list
   list_del(&block->node);
@@ -315,7 +315,7 @@ struct heap_block* heap_alloc(struct heap* self, size_t dataAlignment, size_t ob
 alloc_failed:
   mutex_unlock(&self->lock);
   if (block)
-    block = commonBlockInit(self, block, dataAlignment, size, objectSize, true);
+    block = commonBlockInit(self, block, dataAlignment, size, objectSize);
   return block;
 }
 

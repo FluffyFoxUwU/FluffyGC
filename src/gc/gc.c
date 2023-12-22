@@ -8,6 +8,7 @@
 #include "concurrency/rwulock.h"
 #include "context.h"
 #include "gc.h"
+#include "macros.h"
 #include "itc/channel.h"
 #include "managed_heap.h"
 #include "bug.h"
@@ -215,7 +216,7 @@ bool gc_upgrade_to_gc_mode(struct gc_struct* self) {
   return rwulock_try_upgrade(&self->gcLock);
 }
 
-void gc_for_each_root_entry(struct gc_struct* self, void (^iterator)(struct root_ref*)) {
+void gc_for_each_root_entry(void (^iterator)(struct root_ref*)) {
   for (int i = 0; i < CONTEXT_STATE_COUNT; i++) {
     struct list_head* currentContext;
     list_for_each(currentContext, &managed_heap_current->contextStates[i]) {

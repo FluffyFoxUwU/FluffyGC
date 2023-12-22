@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include "rcu_generic.h"
 #include "rcu/rcu.h"
@@ -60,9 +61,11 @@ struct rcu_generic_container* rcu_generic_copy(struct rcu_generic* self) {
   rcu_read_unlock(&self->rcu, currentRcu);
   
   struct rcu_generic_container* copy = rcu_generic_alloc_container(size);
-  if (!copy)
+  if (!copy) {
+    ret = -ENOMEM;
     goto failure;
-  
+  }
+
   currentRcu = rcu_read_lock(&self->rcu);
   currentContainer = GENERIC_CONTAINER(rcu_read(&self->rcu));
   // Do the copy
@@ -74,7 +77,7 @@ struct rcu_generic_container* rcu_generic_copy(struct rcu_generic* self) {
 
 failure:
   // If copy operation failed, deallocate
-  if (ret < 0 && copy)
+  if (ret < 0)
     rcu_generic_dealloc_container(copy);
   return copy;
 }
@@ -86,7 +89,7 @@ struct rcu_generic_container* rcu_generic_alloc_container(size_t size) {
   if (!new)
     return NULL;
   
-  new->data.ptr = (PTR_ALIGN(&new->dataArray, minAlignment));
+  new->data.ptr = PTR_ALIGN(&new->dataArray, minAlignment);
   new->size = size;
   return new;
 }
@@ -94,3 +97,5 @@ struct rcu_generic_container* rcu_generic_alloc_container(size_t size) {
 void rcu_generic_dealloc_container(struct rcu_generic_container* container) {
   free(container);
 }
+
+

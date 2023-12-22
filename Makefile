@@ -4,7 +4,7 @@ UwUMaker-is-executable := m
 UwUMaker-c-flags-y += -std=c2x -g \
 	-Wall -Wshadow -Wpointer-arith \
 	-Wmissing-prototypes \
-	-fPIC \
+	-fpic \
 	-fblocks -Wextra \
 	-D_POSIX_C_SOURCE=200809L \
 	-I$(PROJECT_DIR)/deps/list \
@@ -19,5 +19,7 @@ UwUMaker-linker-flags-y += -lm \
 
 UwUMaker-dirs-y += src deps
 
+# Stacktrace options
+UwUMaker-linker-flags-$(CONFIG_STACKTRACE_PROVIDER_LIBBACKTRACE) += -lbacktrace
 
 

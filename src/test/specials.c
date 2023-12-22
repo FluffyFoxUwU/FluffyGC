@@ -10,6 +10,8 @@
 
 #include "logger/logger.h"
 #include "panic.h"
+#include "specials.h"
+#include "macros.h"
 
 #if IS_ENABLED(CONFIG_BUILD_ASAN)
 const char* __asan_default_options() {
@@ -62,7 +64,9 @@ static void selfRestart(char** argv) {
   hard_panic("Can't reached here!!!");
 }
 
-void special_premain(int _argc, char** argv) {
+void special_premain(int argc, char** argv) {
+  UNUSED(argc);
+
   if (!IS_ENABLED(CONFIG_BUILD_LLVM_XRAY))
     return;
 

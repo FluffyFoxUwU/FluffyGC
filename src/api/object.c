@@ -55,7 +55,7 @@ API_FUNCTION_DEFINE_VOID(fh_object_wait, __FLUFFYHEAP_NONNULL(fh_object*), self,
   context_unblock_gc();
   
   managed_heap_set_context_state(context_current, CONTEXT_SLEEPING);
-  condition_wait2(&syncStructure->cond, &syncStructure->lock, CONDITION_WAIT_NO_CHECKER, NULL, NULL);
+  condition_wait2(&syncStructure->cond, &syncStructure->lock, CONDITION_WAIT_NO_CHECKER, timeout, NULL);
   managed_heap_set_context_state(context_current, CONTEXT_RUNNING);
 }
 

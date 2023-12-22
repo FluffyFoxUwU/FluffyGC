@@ -274,11 +274,10 @@ static int registerFunctions(enum register_type registerType, struct target_entr
 } while (0)
 
 // Do the thing
-# include "hook_list.h"
+# include "hook_list.h" // IWYU pragma: keep
 
 # undef ADD_HOOK_FUNC
 # undef ADD_HOOK_TARGET
-  UWU_SO_THAT_UNUSED_COMPLAIN_SHUT_UP;
 add_target_failure:
 add_hook_failure:
   return ret;
@@ -470,3 +469,8 @@ void hook__unregister(void* target, enum hook_location location, hook_func func)
   qsort(hookArray->data, hookArray->length, sizeof(*hookArray->data), compareHookFunc);
   rcu_generic_type_write(targetEntryRcu, &targetEntryCopy);
 }
+
+
+
+
+

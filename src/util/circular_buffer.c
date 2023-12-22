@@ -165,7 +165,7 @@ static int internalWrite(struct circular_buffer* self, int flags, const void** d
       }
       break;
     case BUF_STATE_R_LESS_THAN_F:     //rear < front
-      if ((intptr_t) self->r + writeSize <= self->f) {
+      if ((intptr_t) (self->r + writeSize) <= self->f) {
         /**  memcpy() between buffer and enqueue data
           *  start from rear:r to r + enqueueSize
           *  when r + enqueueSize is not exceed front : f   (Overwritten do not occur)
@@ -208,7 +208,7 @@ static int internalRead(struct circular_buffer* self, int flags, void** data, si
   
   switch (bufferState) {
     case BUF_STATE_R_MORE_THAN_F: //rear > front
-      if (readSize <= (self->r - self->f)) {
+      if ((intptr_t) readSize <= self->r - self->f) {
         /**  memcpy() between buffer and dequeue data
           *  start from front:f to f + dequeueSize
           *  when f + dequeueSize does not exceed r
@@ -261,7 +261,7 @@ static int internalRead(struct circular_buffer* self, int flags, void** data, si
   }
   
   if (data)
-    *data += readSize;
+    *(char**) data += readSize;
   *size -= readSize;
   self->dataInBuffer -= readSize;
   

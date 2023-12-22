@@ -167,7 +167,7 @@ void gc_start(struct gc_struct* self, struct generation* generation);
 bool gc_upgrade_to_gc_mode(struct gc_struct* self);
 void gc_downgrade_from_gc_mode(struct gc_struct* self);
 
-void gc_for_each_root_entry(struct gc_struct* self, void (^iterator)(struct root_ref*));
+void gc_for_each_root_entry(void (^iterator)(struct root_ref*));
 
 #endif
 

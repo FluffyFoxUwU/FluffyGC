@@ -11,6 +11,7 @@
 #include "bug.h"
 #include "util/list_head.h"
 #include "util/util.h"
+#include "macros.h"
 
 static void freeChunk(struct soc_chunk* self) {
   if (!self)
@@ -213,6 +214,7 @@ void* soc_alloc_explicit(struct small_object_cache* self, struct soc_chunk** chu
 }
 
 void soc_dealloc_explicit(struct small_object_cache* self, struct soc_chunk* chunk, void* ptr) {
+  UNUSED(self);
   if (IS_ENABLED(CONFIG_SOC_USE_MALLOC))
     return free(ptr);
   

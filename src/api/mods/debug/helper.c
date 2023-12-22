@@ -1,5 +1,4 @@
 #include <pthread.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <stdarg.h>
@@ -119,11 +118,11 @@ static int convertAndAppend(buffer_t* outputBuffer, const char* seperator, size_
           break;
         
         size_t printCount = MIN(HELPER_MAX_ARRAY_COUNT, val->generationCount);
-        for (size_t i = 0; i < printCount; i++) {
+        for (size_t genIndex = 0; genIndex < printCount; genIndex++) {
           if (i + 1 < printCount)
-            appendfRet = buffer_appendf(outputBuffer, "%zu, ", val->generationSizes[i]);
+            appendfRet = buffer_appendf(outputBuffer, "%zu, ", val->generationSizes[genIndex]);
           else
-            appendfRet = buffer_appendf(outputBuffer, "%zu", val->generationSizes[i]);
+            appendfRet = buffer_appendf(outputBuffer, "%zu", val->generationSizes[genIndex]);
           if (appendfRet < 0)
             break;
         }
@@ -163,8 +162,8 @@ static int convertAndAppend(buffer_t* outputBuffer, const char* seperator, size_
             break;
         }
         appendfRet = buffer_appendf(outputBuffer, "(struct fh_descriptor_param) {.size = %zu, .alignment = %zu, .fields[%zu] = {", val->size, val->alignment, fieldCount);
-        for (size_t i = 0; i < fieldCount; i++) {
-          fh_descriptor_field* field = &val->fields[i];
+        for (size_t fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++) {
+          fh_descriptor_field* field = &val->fields[fieldIndex];
           
           appendfRet = buffer_append(outputBuffer, "{.name = ");
           appendfRet = commonPrintString(outputBuffer, field->name);
@@ -176,7 +175,8 @@ static int convertAndAppend(buffer_t* outputBuffer, const char* seperator, size_
           else
             appendfRet = buffer_appendf(outputBuffer, ", .strength = Unknown (0x%08x)", field->strength);
           
-          if (i + 1 < fieldCount)
+          // If not last field add a comma
+          if (fieldIndex + 1 < fieldCount)
             appendfRet = buffer_append(outputBuffer, "}, ");
           else
             appendfRet = buffer_append(outputBuffer, "}");

@@ -11,6 +11,7 @@
 #include "object/object.h"
 #include "util/util.h"
 #include "dma_common.h"
+#include "macros.h"
 
 #include "api/mods/debug/common.h"
 
@@ -20,6 +21,10 @@ DEFINE_LOGGER_STATIC(logger, "DMA Mod (Native)");
 #define LOGGER_DEFAULT (&logger)
 
 API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_dma_ptr*), fh_object_map_dma, __FLUFFYHEAP_NONNULL(fh_object*), self, size_t, offset, size_t, size, unsigned long, mapFlags, unsigned long, usage) {
+  UNUSED(size);
+  UNUSED(mapFlags);
+  UNUSED(usage);
+
   struct soc_chunk* chunk;
   struct dma_data* dma = soc_alloc_explicit(api_mod_dma_dma_ptr_cache, &chunk);
   if (!dma)
@@ -36,7 +41,8 @@ API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_dma_ptr*), fh_object_map_dma, __FLU
     return NULL;
   }
   
-  pr_debug("Mapped at %p for object %s (DMA ptr#%ld)", dma->apiPtr.ptr, debug_get_unique_name(self), dma->foreverUniqueID);
+  pr_debug("Mapped at %p for object %s (DMA ptr#%ld offsetted by %zu)", dma->apiPtr.ptr, debug_get_unique_name(self), dma->foreverUniqueID, offset);
+  
   return &dma->apiPtr;
 }
 
@@ -48,22 +54,27 @@ API_FUNCTION_DEFINE_VOID(fh_object_unmap_dma, __FLUFFYHEAP_NONNULL(fh_object*), 
   api_mod_dma_common_cleanup_dma_data(dmaPtr, obj);
   context_unblock_gc();
   
-  pr_debug("Umapped %p for object %s", dmaPtr->apiPtr.ptr, debug_get_unique_name(self));
+  pr_debug("Umapped %p for object %s (DMA ptr#%ld)", dmaPtr->apiPtr.ptr, debug_get_unique_name(self), dmaPtr->foreverUniqueID);
   soc_dealloc_explicit(api_mod_dma_dma_ptr_cache, dmaPtr->chunk, dmaPtr);
 }
 
 API_FUNCTION_DEFINE_VOID(fh_object_sync_dma, __FLUFFYHEAP_NONNULL(fh_object*), self, __FLUFFYHEAP_NONNULL(fh_dma_ptr*), dma) {
+  UNUSED(self);
+  UNUSED(dma);
   atomic_thread_fence(memory_order_seq_cst);
 }
 
 int api_mod_dma_check_flags(uint32_t flags) {
+  UNUSED(flags);
   return 0;
 }
 
 int api_mod_dma_init(struct api_mod_state* self) {
+  UNUSED(self);
   return 0;
 }
 
 void api_mod_dma_cleanup(struct api_mod_state* self) {
+  UNUSED(self);
   return;
 }

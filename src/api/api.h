@@ -2,7 +2,9 @@
 #define _headers_1687155697_FluffyGC_api
 
 #include "public.h"
-#define __FLUFFYHEAP_EXPORT PUBLIC
+#ifndef __FLUFFYHEAP_EXPORT
+# define __FLUFFYHEAP_EXPORT PUBLIC
+#endif
 
 #include "FluffyHeap.h"
 #include "api/mods/mods.h"

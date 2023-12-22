@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <errno.h>
 
+#include "macros.h"
 #include "stacktrace/stacktrace.h"
 #include "logger/logger.h"
 #include "stacktrace/provider/libbacktrace.h"
@@ -68,7 +69,7 @@ int stacktrace_walk_through_stack(stacktrace_walker_block walker) {
   stacktrace_libbacktrace_walk_through_stack(walkerBlock);
 # else
   res = -ENOSYS;
-  (void) walkerBlock;
+  UNUSED(walkerBlock);
 # endif
   return res;
 }

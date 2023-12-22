@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include "macros.h"
 #include "FluffyHeap.h"
 #include "api/api.h"
 #include "api/hooks.h"
@@ -50,6 +51,7 @@ static int getIndexFromOffset(struct object_descriptor* self, size_t offset) {
 }
 
 static int impl_forEachOffset(struct descriptor* super, struct object* object, int (^iterator)(size_t offset)) {
+  UNUSED(object);
   struct object_descriptor* self = container_of(super, struct object_descriptor, super);
   int i;
   struct object_descriptor_field* field;

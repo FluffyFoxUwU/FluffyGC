@@ -17,6 +17,7 @@
 #include "mods/dma.h"
 #include "util/circular_buffer.h"
 #include "util/util.h"
+#include "macros.h"
 
 #include "rcu/rcu.h"
 #include "rcu/rcu_generic.h"
@@ -48,6 +49,7 @@ fh_descriptor_param descParam2 = {
 };
 
 static int loader(const char* name, void* udata, fh_descriptor_param* param) {
+  UNUSED(udata);
   if (strcmp(name, "fox.fluffygc.Test2") == 0) {
     *param = descParam2;
     return 0;
@@ -56,7 +58,7 @@ static int loader(const char* name, void* udata, fh_descriptor_param* param) {
   return -ESRCH;
 }
 
-ATTRIBUTE_USED()
+[[maybe_unused]]
 static void doTestNormal() {
   size_t sizes[] = {
     64 * 1024 * 1024
@@ -120,10 +122,10 @@ static void doTestNormal() {
   //fh_define_descriptor("fox.fluffygc.Test2", &descParam2, false);
   fh_descriptor* fluffDesc = fh_get_descriptor("fox.fluffygc.Fluff", false);
   
-  fh_object* obj = fh_alloc_object(fluffDesc);
-  
   // Object test
   {
+    fh_object* obj = fh_alloc_object(fluffDesc);
+  
     struct fluff data;
     fh_object_read_data(obj, &data, 0, sizeof(data));
     data.a = "C string test UwU";
@@ -137,6 +139,7 @@ static void doTestNormal() {
     fh_object* readVal = fh_object_read_ref(obj, offsetof(struct fluff, fox));
     pr_alert("Object is %ssame object", fh_object_is_alias(obj, readVal) ? "" : "not ");
     fh_del_ref(readVal);
+    fh_del_ref(obj);
   }
   
   // Array test
@@ -163,7 +166,6 @@ static void doTestNormal() {
     fh_del_ref((fh_object*) obj);
   }
   
-  fh_del_ref(obj);
   fh_release_descriptor(fluffDesc);
   
   // DMA Test
@@ -187,6 +189,7 @@ static void doTestNormal() {
 }
 
 HOOK_FUNCTION(static, __FLUFFYHEAP_NULLABLE(fluffyheap*), hookTest, __FLUFFYHEAP_NONNULL(fh_param*), incomingParams) {
+  UNUSED(incomingParams);
   ci->action = HOOK_CONTINUE;
   pr_alert("Testing runtime adding");
   return;
@@ -347,8 +350,8 @@ static struct vec_hi_rcu rcuProtected3;
 static void* worker3(void*) {
   uint64_t iteration = 0;
   pthread_t selfThread = pthread_self();
-  (void) iteration;
-  (void) selfThread;
+  UNUSED(iteration);
+  UNUSED(selfThread);
   
   while (1) {
     struct rcu_head* currentRcu = rcu_read_lock(&rcuProtected3.generic.rcu);
@@ -535,8 +538,8 @@ static void* loggerFunc(void*) {
   fclose(logFile);
   return NULL;
 }
-
-int main2() {
+[[maybe_unused]]
+static int main2() {
   util_set_thread_name("Main Thread");
   logger_init();
   

@@ -7,6 +7,7 @@
 #include "context.h"
 #include "FluffyHeap.h"
 #include "managed_heap.h"
+#include "macros.h"
 
 #include "mods/debug.h"
 
@@ -17,6 +18,7 @@ DEFINE_LOGGER(debug_logger, "Debug Mod");
 #define LOGGER_DEFAULT (&debug_logger)
 
 int debug_check_flags(uint32_t flags) {
+  UNUSED(flags);
   return 0;
 }
 
@@ -41,9 +43,12 @@ int debug_init(struct api_mod_state* self) {
 }
 
 void debug_cleanup(struct api_mod_state* self) {
+  UNUSED(self);
   return;
 }
 
 bool debug_can_panic_on_warn() {
   return managed_heap_current->api.state->modManager.modStates[FH_MOD_DEBUG].data.debugMod.panicOnError;
 }
+
+

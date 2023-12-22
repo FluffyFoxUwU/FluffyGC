@@ -3,6 +3,7 @@
 
 #include "FluffyHeap.h"
 #include "attributes.h"
+#include "macros.h"
 #include "hook/hook.h"
 
 #include "config.h"
@@ -10,13 +11,9 @@
 
 #include "api/mods/debug/hooks/dma.h"
 
-// Just to let include cleaner shut up
-#ifdef __FLUFFYHEAP_EXPORT
-#endif
-
 #ifndef ADD_HOOK_TARGET
 # define STANDALONE
-# define ADD_HOOK_TARGET(target) (void) target
+# define ADD_HOOK_TARGET(target) UNUSED(target)
 # define ADD_HOOK_FUNC(target, location, func) hook_register(target, location, func)
 #endif
 
@@ -52,8 +49,6 @@ ADD_HOOK_TARGET(fh_object_unmap_dma);
 #ifdef STANDALONE
 };
 #endif
-
-#define UWU_SO_THAT_UNUSED_COMPLAIN_SHUT_UP
 
 #endif
 
