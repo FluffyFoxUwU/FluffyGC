@@ -18,6 +18,7 @@
 #include "util/circular_buffer.h"
 #include "util/util.h"
 #include "macros.h"
+#include "main.h"
 
 #include "rcu/rcu.h"
 #include "rcu/rcu_generic.h"
@@ -422,10 +423,13 @@ static struct circular_buffer* buffer;
 static void* worker4(void*) {
   float deadline = util_get_monotonic_time() + 1.0f;
   struct timespec sleepUntil;
+  
+  float writeSpeed = 1000.0f;
+  float writePeriod = 1.0f / writeSpeed;
   int prev = 0;
   clock_gettime(CLOCK_MONOTONIC, &sleepUntil);
   for (int i = 0;; i++) {
-    util_add_timespec(&sleepUntil, 0.001);
+    util_add_timespec(&sleepUntil, writePeriod);
     
     int result = rand();
     circular_buffer_write(buffer, 0, &result, sizeof(result), NULL);
@@ -448,12 +452,15 @@ static void doTestCircularBuffer() {
   pthread_t worker;
   pthread_create(&worker, NULL, worker4, NULL);
   
+  float readSpeed = 1.0f;
+  float readPeriod = 1.0f / readSpeed;
+
   float deadline = util_get_monotonic_time() + 1.0f;
   struct timespec sleepUntil;
   int prev = 0;
   clock_gettime(CLOCK_MONOTONIC, &sleepUntil);
   for (int i = 0;; i++) {
-    util_add_timespec(&sleepUntil, 0.5);
+    util_add_timespec(&sleepUntil, readPeriod);
     
     int result;
     circular_buffer_read(buffer, 0, &result, sizeof(result), NULL);
@@ -473,16 +480,19 @@ static void doTestCircularBuffer() {
 
 ATTRIBUTE_USED()
 static void doTestSleep() {
-  struct timespec time;
+  double prevTime;
   struct timespec sleepUntil;
-  clock_gettime(CLOCK_MONOTONIC, &sleepUntil);
-  
+  util_get_monotonic_timespec(&sleepUntil);
+  prevTime = util_timespec_to_double(&sleepUntil);
+
+  double sleepTime = 1.0f;
   while (1) {
-    util_add_timespec(&sleepUntil, 1.0f);
+    util_add_timespec(&sleepUntil, sleepTime);
     
-    clock_gettime(CLOCK_REALTIME, &time);
-    pr_alert("Time %lf", (double) time.tv_sec + ((double) time.tv_nsec / (double) 1'000'000'000));
+    double currentTime = util_get_realtime_time();
+    pr_alert("Time %lf diff in time: %lf", currentTime, currentTime - prevTime - sleepTime);
     
+    prevTime = currentTime;
     util_sleep_until(&sleepUntil);
   }
 }
@@ -493,7 +503,7 @@ static void doTestMonotonic() {
   double current = util_get_monotonic_time();
   
   while (true) {
-    fprintf(stderr, "Delta %lf", current - prev);
+    pr_info("Delta %lf", current - prev);
     
     prev = current;
     current = util_get_monotonic_time();
@@ -538,8 +548,11 @@ static void* loggerFunc(void*) {
   fclose(logFile);
   return NULL;
 }
-[[maybe_unused]]
-static int main2() {
+
+int main2(int argc, const char** argv) {
+  UNUSED(argc);
+  UNUSED(argv);
+
   util_set_thread_name("Main Thread");
   logger_init();
   

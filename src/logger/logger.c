@@ -97,7 +97,7 @@ void logger_doPrintk_va(struct logger* logger, enum logger_loglevel level, const
   struct logger_entry header = {
     .len = messageLen,
     .logLevel = level,
-    .time = util_timespec_to_float(&currentTime),
+    .time = util_timespec_to_double(&currentTime),
     .message = NULL
   };
   

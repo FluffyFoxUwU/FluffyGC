@@ -19,6 +19,12 @@
 #include "util.h"
 #include "bug.h"
 #include "macros.h"
+#include "concurrency/mutex.h"
+#include "logger/logger.h"
+
+DEFINE_LOGGER_STATIC(logger, "Util")
+#undef LOGGER_DEFAULT
+#define LOGGER_DEFAULT (&logger)
 
 // TODO: In Glibc's <bits/posix_opt.h> it is written that it
 // should be checked at runtime and there wasn't any
@@ -239,7 +245,6 @@ void* util_aligned_alloc(size_t alignment, size_t size) {
   int ret = 0;
   if ((ret = posix_memalign(&res, alignment, size)) < 0)
     res = NULL;
-  BUG_ON(ret == -EINVAL);
   return res;
 }
 
@@ -267,14 +272,70 @@ void util_sleep(unsigned int secs) {
   util_msleep(secs * 1000);
 }
 
+// Choose either CLOCK_MONOTONIC or CLOCK_MONOTONIC_RAW
+static clockid_t getMonotonicClock() {
+  // Lets conditionally use CLOCK_MONOTONIC_RAW to cope with
+  // system with broken CLOCK_MONOTONIC, like it cost barely
+  // anything to add this ifdef statement
+  // https://stackoverflow.com/questions/3657289/linux-clock-gettimeclock-monotonic-strange-non-monotonic-behavior
+  clockid_t clk = CLOCK_MONOTONIC;
+  
+  if (IS_ENABLED(CONFIG_STRICTLY_POSIX))
+    return clk;
+
+// If strictly POSIX just alias monotonic raw
+// with CLOCK_MONOTONIC so next code cause no
+// syntax error but will never ran
+#if IS_ENABLED(CONFIG_STRICTLY_POSIX)
+#ifndef CLOCK_MONOTONIC_RAW
+# define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC
+#endif
+#endif
+  static atomic_bool monotonicRawWorking = false;
+  static atomic_bool monotonicRawChecked = false;
+  static struct mutex checkMutex = MUTEX_INITIALIZER;
+
+  if (atomic_load(&monotonicRawChecked) == false) {
+    mutex_lock(&checkMutex);
+    if (atomic_load(&monotonicRawChecked) == true)
+      goto already_checked;
+    
+    struct timespec ts = {};
+    // Check if monotonic raw clock available
+    int ret;
+    while ((ret = clock_nanosleep(CLOCK_MONOTONIC_RAW, TIMER_ABSTIME, &ts, NULL)) == EINTR)
+      ;
+
+    if (ret == 0) {
+      atomic_store(&monotonicRawWorking, true);
+      pr_info("CLOCK_MONOTONIC_RAW available using it");
+    } else if (ret == ENOTSUP) {
+      pr_info("CLOCK_MONOTONIC_RAW unavailable using CLOCK_MONOTONIC");
+    } else {
+      pr_alert("clock_nanosleep implementation returns %d please report this", ret);
+      pr_alert("treating as if CLOCK_MONOTONIC_RAW unavailable");
+    }
+    atomic_store(&monotonicRawChecked, true);
+    mutex_unlock(&checkMutex);
+  }
+  
+already_checked:
+  // If monotonic raw working at runtime use it
+  if (atomic_load(&monotonicRawWorking) == true)
+    clk = CLOCK_MONOTONIC_RAW;
+
+  return clk;
+}
+
+static void commonGetTimespecFromClock(clockid_t clock, struct timespec* ts) {
+  if (clock_gettime(clock, ts) < 0)
+    panic("Unknown clock");
+}
+
 static double commonGetTimeFromClock(clockid_t clock) {
-  double result;
   struct timespec ts = {};
-  if (clock_gettime(clock, &ts) < 0)
-    BUG();
-  result = (double) ts.tv_sec;
-  result += (double) ts.tv_nsec / (double) 1'000'000'000;
-  return result;
+  commonGetTimespecFromClock(clock, &ts);
+  return util_timespec_to_double(&ts);
 }
 
 double util_get_realtime_time() {
@@ -290,31 +351,33 @@ double util_get_thread_cpu_time() {
 }
 
 double util_get_monotonic_time() {
-  // Lets conditionally use CLOCK_MONOTONIC_RAW to cope with
-  // system with broken CLOCK_MONOTONIC, like it cost barely
-  // anything to add this ifdef statement
-  // https://stackoverflow.com/questions/3657289/linux-clock-gettimeclock-monotonic-strange-non-monotonic-behavior
-  clockid_t clk = CLOCK_MONOTONIC;
-#if !IS_ENABLED(CONFIG_STRICTLY_POSIX)
-#ifdef CLOCK_MONOTONIC_RAW
-  clk = CLOCK_MONOTONIC_RAW;
-#endif
-#endif
-  return commonGetTimeFromClock(clk);
+  return commonGetTimeFromClock(getMonotonicClock());
+}
+
+void util_get_realtime_timespec(struct timespec* ts) {
+  commonGetTimespecFromClock(CLOCK_REALTIME, ts);
+}
+
+void util_get_total_cpu_timespec(struct timespec* ts) {
+  commonGetTimespecFromClock(CLOCK_PROCESS_CPUTIME_ID, ts);
+}
+
+void util_get_thread_cpu_timespec(struct timespec* ts) {
+  commonGetTimespecFromClock(CLOCK_THREAD_CPUTIME_ID, ts);
+}
+
+void util_get_monotonic_timespec(struct timespec* ts) {
+  commonGetTimespecFromClock(getMonotonicClock(), ts);
 }
 
 int util_sleep_until(struct timespec* ts) {
   int ret;
-  clockid_t clk = CLOCK_MONOTONIC;
-#if !IS_ENABLED(CONFIG_STRICTLY_POSIX)
-#ifdef CLOCK_MONOTONIC_RAW
-  clk = CLOCK_MONOTONIC_RAW;
-#endif
-#endif
-  while ((ret = clock_nanosleep(clk, TIMER_ABSTIME, ts, NULL)) == EINTR)
+  while ((ret = clock_nanosleep(getMonotonicClock(), TIMER_ABSTIME, ts, NULL)) == EINTR)
     ;
   
-  BUG_ON(ret == ENOTSUP);
+  if (ret == ENOTSUP)
+    panic("No suitable clock to use");
+  
   if (ret > 0)
     ret = -ret;
   return ret;
@@ -337,7 +400,7 @@ void util_add_timespec(struct timespec* ts, double offset) {
   }
 }
 
-double util_timespec_to_float(struct timespec* ts) {
+double util_timespec_to_double(struct timespec* ts) {
   return (double) ts->tv_sec + (double) ts->tv_nsec / (double) 1'000'000'000;
 }
 
@@ -347,3 +410,5 @@ struct timespec util_relative_to_abs(clockid_t clock, double offset) {
   util_add_timespec(&abs, offset);
   return abs;
 }
+
+

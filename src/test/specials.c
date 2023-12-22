@@ -47,7 +47,7 @@ DEFINE_LOGGER_STATIC(logger, "XRay Settings");
 #undef LOGGER_DEFAULT
 #define LOGGER_DEFAULT (&logger)
 
-static void selfRestart(char** argv) {
+static void selfRestart(const char** argv) {
   int err = setenv("XRAY_OPTIONS", xrayOpts, true);
   int errNum = errno;
   if (err < 0) {
@@ -55,7 +55,8 @@ static void selfRestart(char** argv) {
     exit(EXIT_FAILURE);
   }
   
-  err = execvp(argv[0], argv);
+  // Nope, doesnt care casting const char* to char*
+  err = execvp(argv[0], (char**) argv);
   if (err < 0) {
     pr_fatal("Failed to self restart: execvp: %s", strerror(errNum));
     exit(EXIT_FAILURE);
@@ -64,7 +65,7 @@ static void selfRestart(char** argv) {
   hard_panic("Can't reached here!!!");
 }
 
-void special_premain(int argc, char** argv) {
+void special_premain(int argc, const char** argv) {
   UNUSED(argc);
 
   if (!IS_ENABLED(CONFIG_BUILD_LLVM_XRAY))

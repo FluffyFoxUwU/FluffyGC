@@ -7,14 +7,12 @@
 #include "bug.h"
 #include "public.h"
 #include "premain.h" // IWYU pragma: keep
-
-// Pre-main
-int main2(int argc, char** argv);
+#include "main.h"
 
 struct worker_args {
   int* ret;
   int argc;
-  char** argv;
+  const char** argv;
 };
 
 static void* testWorker(void* _args) {
@@ -23,7 +21,7 @@ static void* testWorker(void* _args) {
   return NULL;
 }
 
-PUBLIC int fluffygc_main(int argc, char** argv) {
+PUBLIC int fluffygc_main(int argc, const char** argv) {
   special_premain(argc, argv);
 
   int res = 0;

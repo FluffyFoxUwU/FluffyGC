@@ -104,8 +104,13 @@ double util_get_monotonic_time();
 double util_get_total_cpu_time();
 double util_get_thread_cpu_time();
 
+void util_get_realtime_timespec(struct timespec* ts);
+void util_get_monotonic_timespec(struct timespec* ts);
+void util_get_total_cpu_timespec(struct timespec* ts);
+void util_get_thread_cpu_timespec(struct timespec* ts);
+
 void util_add_timespec(struct timespec* ts, double offset);
-double util_timespec_to_float(struct timespec* ts);
+double util_timespec_to_double(struct timespec* ts);
 struct timespec util_relative_to_abs(clockid_t clock, double offset);
 
 #define __stringify_1(x...)	#x

@@ -3,7 +3,7 @@
 
 #include "public.h"
 
-PUBLIC int fluffygc_main(int argc, char** argv);
+PUBLIC int fluffygc_main(int argc, const char** argv);
 
 #endif
 
