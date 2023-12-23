@@ -71,7 +71,7 @@ static void doTestNormal() {
     .generationSizes = sizes
   };
   
-  int ret = fh_enable_mod(FH_MOD_DMA, FH_MOD_DMA_ATOMIC | FH_MOD_DMA_NONBLOCKING);
+  int ret = fh_enable_mod(FH_MOD_DMA, 0);
   if (ret < 0) {
     errno = -ret;
     perror("fh_enable_mod");
@@ -102,6 +102,7 @@ static void doTestNormal() {
     long has;
     long fluffyTail;
     _Atomic(struct test_type2*) fuwa;
+    // Array not yet implemented into descriptor loader
     // _Atomic(struct fluff**) arrayOfFluffs;
     _Atomic(struct fluff**) any;
   };
@@ -119,9 +120,9 @@ static void doTestNormal() {
     .size = sizeof(struct fluff)
   };
   
-  fh_define_descriptor("fox.fluffygc.Fluff", &descParam, false);
+  fh_descriptor* fluffDesc;
+  fh_define_descriptor(&fluffDesc, "fox.fluffygc.Fluff", &descParam, false);
   //fh_define_descriptor("fox.fluffygc.Test2", &descParam2, false);
-  fh_descriptor* fluffDesc = fh_get_descriptor("fox.fluffygc.Fluff", false);
   
   // Object test
   {

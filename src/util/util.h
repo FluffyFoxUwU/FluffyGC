@@ -26,6 +26,8 @@ bool util_vasprintf(char** result, const char* fmt, va_list arg);
 void util_set_thread_name(const char* name);
 const char* util_get_thread_name();
 
+bool util_is_matched(const char* regex, const char* string);
+
 int util_get_core_count();
 
 // Return 0 on failure and sets errno

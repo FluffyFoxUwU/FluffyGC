@@ -1,4 +1,3 @@
-#include <stdatomic.h>
 #include <stdlib.h>
 #include <errno.h>
 
@@ -43,7 +42,19 @@ static void exitClassLoaderExclusive() {
   exclusiveCount--;
 }
 
+static bool isValidObjectName(const char* name) {
+  if (util_prefixed_by("fox.fluffyheap.marker.", name))
+    return false;
+  
+  if (!util_is_matched("^[a-zA-Z_$][a-zA-Z0-9_$.]*$", name))
+    return false;
+  return true;
+}
+
 static int loadDescriptor(struct descriptor_loader_context* loader, const char* name, struct object_descriptor** result) {
+  if (!isValidObjectName(name))
+    return -EINVAL;
+
   int ret = 0;
   struct object_descriptor* new = NULL;
   // Descriptor for the field haven't created invoke loader
@@ -57,6 +68,8 @@ static int loadDescriptor(struct descriptor_loader_context* loader, const char* 
     goto failure;
   }
   
+  // Program may invokes GC and invokes loader
+  // again recursively
   rwlock_unlock(&managed_heap_current->api.registry->lock);
   context_unblock_gc();
   if (loader->appLoader) {
@@ -69,6 +82,7 @@ static int loadDescriptor(struct descriptor_loader_context* loader, const char* 
   }
   context_block_gc();
   rwlock_wrlock(&managed_heap_current->api.registry->lock);
+  
   if (ret < 0)
     goto failure;
   
@@ -81,6 +95,7 @@ failure:
   return ret;
 }
 
+// Type registry must be locked  when calling this
 static int process(struct descriptor_loader_context* loader, struct object_descriptor* current) {
   fh_descriptor_param* param = &current->api.param;
   int ret = 0;
@@ -128,7 +143,10 @@ failure:
   return ret;
 }
 
-API_FUNCTION_DEFINE(int, fh_define_descriptor, __FLUFFYHEAP_NONNULL(const char*), name, __FLUFFYHEAP_NONNULL(fh_descriptor_param*), parameter, bool, dontInvokeLoader) {
+API_FUNCTION_DEFINE(int, fh_define_descriptor, __FLUFFYHEAP_NONNULL(__FLUFFYHEAP_NULLABLE(fh_descriptor*)*), resultDescriptor, __FLUFFYHEAP_NONNULL(const char*), name, __FLUFFYHEAP_NONNULL(fh_descriptor_param*), parameter, bool, dontInvokeLoader) {
+  if (!isValidObjectName(name))
+    return -EINVAL;
+
   enterClassLoaderExclusive();
   
   descriptor_stack stack = {};
@@ -142,9 +160,9 @@ API_FUNCTION_DEFINE(int, fh_define_descriptor, __FLUFFYHEAP_NONNULL(const char*)
   struct object_descriptor* newDescriptor = object_descriptor_new();
   if (!newDescriptor)
     return -ENOMEM;
-  atomic_store(&newDescriptor->super.api.skipAcquire, true);
   descriptor_acquire(&newDescriptor->super);
   
+  // GC is blocked to prevent it trying to access descriptors
   context_block_gc();
   rwlock_wrlock(&managed_heap_current->api.registry->lock);
   vec_init(&stack);
@@ -193,59 +211,64 @@ failure:;
   
   if (ret < 0)
     pr_info("Failed loading '%s'", name);
+  if (ret >= 0)
+    *resultDescriptor = EXTERN(&newDescriptor->super);
   return ret;
 }
 
-static struct object_descriptor* getDescriptor(const char* name) {
+static struct descriptor* getDescriptor(const char* name) {
+  if (!isValidObjectName(name))
+    return NULL;
+  
   context_block_gc();
   rwlock_rdlock(&managed_heap_current->api.registry->lock);
   
   struct descriptor* desc = type_registry_get_nolock(managed_heap_current->api.registry, name);
   
   // Skip acquire if its first get to the descriptor
-  if (desc && atomic_exchange(&desc->api.skipAcquire, false) == false)
+  if (desc)
     descriptor_acquire(desc);
   
   rwlock_unlock(&managed_heap_current->api.registry->lock);
   context_unblock_gc();
   
   BUG_ON(desc->type != OBJECT_NORMAL);
-  return container_of(desc, struct object_descriptor, super);
+  return desc;
 }
 
 API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_descriptor*), fh_get_descriptor, __FLUFFYHEAP_NONNULL(const char*), name, bool, dontInvokeLoader) {
-  // Those are special and must not be accessed
-  if (util_prefixed_by("fox.fluffyheap.marker.", name))
+  if (!isValidObjectName(name))
     return NULL;
+
+  struct descriptor* desc = getDescriptor(name);
   
-  struct object_descriptor* desc = getDescriptor(name);
+  if (desc || dontInvokeLoader)
+    return desc ? EXTERN(desc) : NULL;
+
+  enterClassLoaderExclusive();
+ 
+  struct descriptor* loadedDesc = NULL;
+  // This thread may have been blocked by another loader which potentially
+  // loads what this thread needs so recheck
+  if ((loadedDesc = getDescriptor(name)) != NULL)
+    goto false_negative;
   
-  if (!desc && !dontInvokeLoader) {
-    enterClassLoaderExclusive();
-    
-    // This thread may have been blocked by loader which potentially
-    // loads what this thread needs so recheck
-    if ((desc = getDescriptor(name)) != NULL) {
-      exitClassLoaderExclusive();
-      goto false_negative;
-    }
-    
-    fh_descriptor_param param;
-    int ret = managed_heap_current->api.descriptorLoader(name, managed_heap_current->api.udata, &param);
-    if (ret >= 0) {
-      ret = fh_define_descriptor(name, &param, dontInvokeLoader);
-      if (ret >= 0)
-        desc = getDescriptor(name);
-    }
-    exitClassLoaderExclusive();
-    
+  fh_descriptor_param param;
+  int ret = managed_heap_current->api.descriptorLoader(name, managed_heap_current->api.udata, &param);
+  if (ret >= 0) {
+    fh_descriptor* tmp = NULL;
+    ret = fh_define_descriptor(&tmp, name, &param, dontInvokeLoader);
     if (ret < 0)
-      goto failure;
+      loadedDesc = INTERN(tmp);
   }
+  
+  if (ret < 0)
+    goto failure;
   
 false_negative:
 failure:
-  return EXTERN(&desc->super);
+  exitClassLoaderExclusive();
+  return EXTERN(loadedDesc);
 }
 
 API_FUNCTION_DEFINE_VOID(fh_release_descriptor, __FLUFFYHEAP_NULLABLE(fh_descriptor*), desc) {
@@ -257,3 +280,6 @@ API_FUNCTION_DEFINE(__FLUFFYHEAP_NONNULL(const fh_descriptor_param*), fh_descrip
   BUG_ON(desc->type != OBJECT_NORMAL);
   return &container_of(desc, struct object_descriptor, super)->api.param;
 }
+
+
+

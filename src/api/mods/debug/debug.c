@@ -23,13 +23,18 @@ int debug_check_flags(uint32_t flags) {
 }
 
 bool debug_can_do_check() {
+  if (!managed_heap_current->api.state->modManager.modStates[FH_MOD_DEBUG].enabled)
+    return false;
+  
   return managed_heap_current->api.state->modManager.modStates[FH_MOD_DEBUG].data.debugMod.verbosity > MOD_DEBUG_SILENT;
 }
 
 bool debug_can_do_api_tracing() {
-  // TODO: Make this configurable by app
   if (!managed_heap_current)
-    return true;
+    return false;
+  
+  if (!managed_heap_current->api.state->modManager.modStates[FH_MOD_DEBUG].enabled)
+    return false;
   
   return managed_heap_current->api.state->modManager.modStates[FH_MOD_DEBUG].data.debugMod.verbosity >= MOD_DEBUG_ULTRA_VERBOSE;
 }

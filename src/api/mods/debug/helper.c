@@ -225,6 +225,11 @@ static int convertAndAppend(buffer_t* outputBuffer, const char* seperator, size_
           appendfRet = buffer_appendf(outputBuffer, "<Unknown mod %d>", val);
         break;
       }
+      case DEBUG_TYPE_PTR_TO_FH_DESCRIPTOR: {
+        void* val = va_arg(args, fh_descriptor**);
+        appendfRet = buffer_appendf(outputBuffer, "(fh_descriptor**) %p", val);
+        break;
+      }
       case DEBUG_TYPE_VOID_PTR_READWRITE: {
         void* val = va_arg(args, void*);
         appendfRet = buffer_appendf(outputBuffer, "(void*) %p", val);

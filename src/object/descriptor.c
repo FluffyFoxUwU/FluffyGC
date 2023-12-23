@@ -15,7 +15,6 @@ int descriptor_init(struct descriptor* self, enum object_type type, struct descr
     .api.typeInfo = *typeInfo
   };
   counter_init(&self->directUsageCounter);
-  atomic_init(&self->api.skipAcquire, false);
   self->type = type;
   self->foreverUniqueID = managed_heap_generate_descriptor_id();
   return 0;

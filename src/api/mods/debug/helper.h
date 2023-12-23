@@ -15,6 +15,7 @@
 enum debug_argument_type {
   DEBUG_TYPE_FH_ARRAY,
   DEBUG_TYPE_FH_DESCRIPTOR,
+  DEBUG_TYPE_PTR_TO_FH_DESCRIPTOR,
   DEBUG_TYPE_FH_OBJECT,
   DEBUG_TYPE_FH_PARAM,
   DEBUG_TYPE_FH_DMA_PTR,
@@ -48,6 +49,7 @@ void debug_helper_process_return(const char* source, enum debug_argument_type ty
   _Generic(x, \
     fh_context*: DEBUG_TYPE_FH_CONTEXT, \
     fh_descriptor*: DEBUG_TYPE_FH_DESCRIPTOR, \
+    fh_descriptor**: DEBUG_TYPE_PTR_TO_FH_DESCRIPTOR, \
     fh_array*: DEBUG_TYPE_FH_ARRAY, \
     fh_object*: DEBUG_TYPE_FH_OBJECT, \
     fh_param*: DEBUG_TYPE_FH_PARAM, \

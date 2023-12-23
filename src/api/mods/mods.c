@@ -16,7 +16,7 @@ static struct api_mod_info mods[FH_MOD_COUNT] = {
 # if IS_ENABLED(CONFIG_MOD_DMA)
   [FH_MOD_DMA] = {
     .available = true,
-    .supportedFlags = FH_MOD_DMA_NONBLOCKING | FH_MOD_DMA_ATOMIC,
+    .supportedFlags = 0,
     .checkFlags = api_mod_dma_check_flags,
     
     .init = api_mod_dma_init,

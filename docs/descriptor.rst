@@ -49,7 +49,7 @@ For convenience following macro must present
 Descriptor Names
 ****************
 Descriptor names (e.g. ``net.hostname.app.Test``) follows Java constructs
-Names under ``fox.fluffyheap.*`` are reserved
+Names under ``fox.fluffyheap.*`` are for API reservation
 
 Ungettable names are ``fox.fluffyheap.marker.*`` these merely serves as marker
 for certain usages and cannot be get via `fh_get_descriptor`_ 
@@ -82,21 +82,21 @@ on the program's structure to be used with fluffy heap)
 This placed to have foundation for whatever implementation
 which need atomic access to fields for their purpose same for
 arrays if implementation implements DMA (each element location
-in reference array is ``_Atomic`` specified which let the program
-to use atomic operations)
+in reference array is ``_Atomic`` specified which let the
+implementations to use atomic operations)
 
 Functions
 #########
 
-+--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+
-| Return value             | Function name                                                                                 | Link                     |
-+==========================+===============================================================================================+==========================+
-| int                      | fh_define_descriptor(const char* name, fh_descriptor_param* parameter, bool dontInvokeLoader) | `fh_define_descriptor`_  |
-+--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+
-| @Nullable fh_descriptor* | fh_get_descriptor(const char* name, bool dontInvokeLoader)                                    | `fh_get_descriptor`_     |
-+--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+
-| void                     | fh_release_descriptor(@Nullable fh_descriptor* desc)                                          | `fh_release_descriptor`_ |
-+--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+
++--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+--------------------------+
+| Return value             | Function name                                                                                 | Link                     | Link                     |
++==========================+===============================================================================================+==========================+==========================+
+| int                      | fh_define_descriptor(fh_descriptor** outDesc, const char* name, fh_descriptor_param* parameter, bool dontInvokeLoader)   | `fh_define_descriptor`_  |
++--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+--------------------------+
+| @Nullable fh_descriptor* | fh_get_descriptor(const char* name, bool dontInvokeLoader)                                                               | `fh_get_descriptor`_     |
++--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+--------------------------+
+| void                     | fh_release_descriptor(@Nullable fh_descriptor* desc)                                                                     | `fh_release_descriptor`_ |
++--------------------------+-----------------------------------------------------------------------------------------------+--------------------------+--------------------------+
 
 ``fh_define_descriptor`` and ``fh_get_descriptor`` only valid for object
 descriptor not array as array differ.
@@ -123,8 +123,7 @@ fh_define_descriptor
    int fh_define_descriptor(const char* name, fh_descriptor_param* parameter, bool dontInvokeLoader)
 
 Define a descriptor named "name" and acquire it (to prevent being GC-ed). Must be
-able handle circular references. The descriptor will stay alive until next get
-descriptor call (which makes it now releaseable)
+able handle circular references.
 
 Since
 =====
@@ -140,6 +139,7 @@ Return
 ======
 0 on success 
 Error:
+  -EINVAL: Invalid name or parameter
   -ENOMEM: Not enough memory
   -EEXIST: Already defined
 
@@ -161,12 +161,14 @@ can recurse forever and its valid so application
 must ensure there no recursing
 
 There few requirements:
-1. Must return non NULL descriptor for markers which must be unusable (serve as checking 
-   whether marker exist or not but cannot be used to create new objects)
-2. Must not call app loader for ``fox.fluffyheap.*`` regardless ``dontInvokeLoader``
+1. Must not call app loader for ``fox.fluffyheap.*`` regardless ``dontInvokeLoader``
    as these reserved by specification and may get added or removed, and may be treated
    differently than normal descriptors thus it don't make any sense for app loader to
    load them
+2. GC still able to run inside app's descriptor loader
+
+And constraints too:
+1. Cannot get array descriptor (returns NULL)
 
 Since
 =====
@@ -179,7 +181,7 @@ Parameters
 
 Return
 ======
-The descriptor
+The descriptor. NULL if name invalid or non-existentent descriptor
 
 Tags
 =====

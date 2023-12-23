@@ -20,6 +20,9 @@ DEFINE_LOGGER_STATIC(logger, "DMA Mod (Native)");
 #undef LOGGER_DEFAULT
 #define LOGGER_DEFAULT (&logger)
 
+// Native DMA is fastest of all by directly providing
+// backing pointer without copy
+
 API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_dma_ptr*), fh_object_map_dma, __FLUFFYHEAP_NONNULL(fh_object*), self, size_t, offset, size_t, size, unsigned long, mapFlags, unsigned long, usage) {
   UNUSED(size);
   UNUSED(mapFlags);
@@ -78,3 +81,5 @@ void api_mod_dma_cleanup(struct api_mod_state* self) {
   UNUSED(self);
   return;
 }
+
+

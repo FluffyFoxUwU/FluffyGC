@@ -3,7 +3,9 @@ UwUMaker-c-sources-y += context.c profiler.c \
 
 UwUMaker-dirs-y += util object gc \
 	memory concurrency itc rcu logger \
-	stacktrace api hook test
+	stacktrace api hook
+
+UwUMaker-dirs-$(CONFIG_ENABLE_MAIN) +=test
 
 UwUMaker-dirs-$(CONFIG_FUZZER) += fuzzing
 

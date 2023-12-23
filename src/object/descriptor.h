@@ -1,7 +1,6 @@
 #ifndef _headers_1644388362_FoxGC_descriptors
 #define _headers_1644388362_FoxGC_descriptors
 
-#include <stddef.h>
 #include <stdint.h>
 
 #include "FluffyHeap.h"
@@ -57,8 +56,6 @@ struct descriptor {
   struct counter directUsageCounter;
   
   struct {
-    atomic_bool skipAcquire;
-    
     // This differ in way each descriptor assign this by themselves
     // instead by codes at src/api/*.c
     fh_type_info typeInfo;

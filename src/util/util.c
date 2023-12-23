@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <string.h>
+#include <regex.h>
 
 #include "util.h"
 #include "bug.h"
@@ -409,6 +410,29 @@ struct timespec util_relative_to_abs(clockid_t clock, double offset) {
   clock_gettime(clock, &abs);
   util_add_timespec(&abs, offset);
   return abs;
+}
+
+// Regex match
+bool util_is_matched(const char* regex, const char* string) {
+  regex_t compiledRegex;
+  int ret;
+
+  if ((ret = regcomp(&compiledRegex, regex, 0)) != 0)
+    goto regex_error;
+
+  if ((ret = regexec(&compiledRegex, string, 0, NULL, 0)) != 0) {
+    if (ret == REG_NOMATCH)
+      return false;
+    goto regex_error;
+  }
+  return true;
+
+// TODO better way than panic
+regex_error:;
+  char regexErrorBuf[1024];
+  regerror(ret, &compiledRegex, regexErrorBuf, sizeof(regexErrorBuf));
+  regfree(&compiledRegex);
+  panic("Regex error: %s", regexErrorBuf);
 }
 
 
