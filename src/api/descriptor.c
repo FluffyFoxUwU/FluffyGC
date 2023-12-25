@@ -12,7 +12,7 @@
 #include "api/type_registry.h"
 #include "object/descriptor.h"
 #include "managed_heap.h"
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "util/list_head.h"
 #include "util/util.h"
 #include "vec.h"

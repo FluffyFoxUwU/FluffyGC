@@ -5,7 +5,7 @@
 #include "gc/gc.h"
 #include "gc/gc_flags.h"
 #include "managed_heap.h"
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "util/util.h"
 
 struct mapping {

@@ -1,7 +1,7 @@
-#include "FluffyHeap.h"
-#include "mods/dma.h"
+#include "FluffyHeap/FluffyHeap.h"
+#include "FluffyHeap/mods/dma.h"
 
-#include "api/mods/debug/hooks/dma.h"
+#include "dma.h"
 #include "macros.h"
 
 // TODO: Add checking for DMA

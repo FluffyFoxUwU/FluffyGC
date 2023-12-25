@@ -1,15 +1,15 @@
 #include <threads.h>
 
+#include "FluffyHeap/FluffyHeap.h"
+#include "FluffyHeap/mods/debug.h"
+
 #include "logger/logger.h"
 #include "api/api.h"
 #include "api/mods/debug/debug.h"
 #include "config.h"
 #include "context.h"
-#include "FluffyHeap.h"
 #include "managed_heap.h"
 #include "macros.h"
-
-#include "mods/debug.h"
 
 // Debug mode
 DEFINE_LOGGER(debug_logger, "Debug Mod");

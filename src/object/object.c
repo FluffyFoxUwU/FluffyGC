@@ -7,6 +7,7 @@
 #include <inttypes.h>
 
 #include "concurrency/mutex.h"
+#include "config.h"
 #include "gc/gc.h"
 #include "managed_heap.h"
 #include "memory/heap.h"
@@ -161,8 +162,12 @@ struct object* object_move(struct object* self, struct heap* dest) {
   struct object* newBlockObj = &newBlock->objMetadata;
   self->forwardingPointer = newBlockObj;
   commonInit(newBlockObj, self->movePreserve.descriptor);
-  memcpy(heap_block_get_ptr(newBlock), object_get_ptr(self), self->objectSize);
-  
+  if (IS_ENABLED(CONFIG_GC_OPTIMIZE_DATA_MOVE)) {
+    swap(object_get_heap_block(self)->allocPtr, object_get_heap_block(newBlockObj)->allocPtr);
+  } else {
+    memcpy(heap_block_get_ptr(newBlock), object_get_ptr(self), self->objectSize);
+  }
+
   newBlockObj->movePreserve = self->movePreserve; 
   return newBlockObj;
 }

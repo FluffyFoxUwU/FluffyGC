@@ -41,6 +41,7 @@ size_t util_get_pagesize();
 // -ENOMEM: No memory available
 void* util_mmap_anonymous(size_t size, int protection);
 
+// Swaps 2 variable
 #define swap(a, b) do { \
   typeof(a) _UwU_Swap_a = (a); \
   typeof(b) _UwU_Swap_b = (b); \

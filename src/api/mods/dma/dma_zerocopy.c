@@ -2,11 +2,12 @@
 
 #include "api/api.h"
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
+#include "FluffyHeap/mods/dma.h"
+
 #include "context.h"
 #include "logger/logger.h"
 #include "memory/soc.h"
-#include "mods/dma.h"
 
 #include "object/object.h"
 #include "util/util.h"
@@ -15,12 +16,12 @@
 
 #include "api/mods/debug/common.h"
 
-DEFINE_LOGGER_STATIC(logger, "DMA Mod (Native)");
+DEFINE_LOGGER_STATIC(logger, "DMA Mod (Zero Copy)");
 
 #undef LOGGER_DEFAULT
 #define LOGGER_DEFAULT (&logger)
 
-// Native DMA is fastest of all by directly providing
+// Zero Copy DMA is fastest of all by directly providing
 // backing pointer without copy
 
 API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_dma_ptr*), fh_object_map_dma, __FLUFFYHEAP_NONNULL(fh_object*), self, size_t, offset, size_t, size, unsigned long, mapFlags, unsigned long, usage) {

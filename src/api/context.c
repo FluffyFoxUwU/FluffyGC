@@ -1,6 +1,6 @@
 #include "api.h"
 #include "managed_heap.h"
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "context.h"
 
 API_FUNCTION_DEFINE(int, fh_set_current, __FLUFFYHEAP_NONNULL(fh_context*), _context) {

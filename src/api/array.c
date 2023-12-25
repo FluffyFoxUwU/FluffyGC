@@ -3,7 +3,7 @@
 #include "context.h"
 #include "object/descriptor.h"
 #include "object/object.h"
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "managed_heap.h"
 #include "util/util.h"
 

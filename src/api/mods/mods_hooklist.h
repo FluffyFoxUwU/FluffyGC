@@ -1,15 +1,16 @@
 #ifndef _headers_1691833872_FluffyGC_mods_hooklist
 #define _headers_1691833872_FluffyGC_mods_hooklist
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h" // IWYU pragma: keep
 #include "attributes.h"
 #include "macros.h"
 #include "hook/hook.h"
 
 #include "config.h"
-#include "mods/dma.h"
+#include "FluffyHeap/mods/dma.h"
 
-#include "api/mods/debug/hooks/dma.h"
+#include "api/mods/debug/hooks/dma.h" // IWYU pragma: keep
+#include "api/mods/debug/hooks/arrays.h" // IWYU pragma: keep
 
 #ifndef ADD_HOOK_TARGET
 # define STANDALONE

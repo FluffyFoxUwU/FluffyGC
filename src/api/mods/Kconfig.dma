@@ -3,16 +3,15 @@ choice
   prompt "DMA Flavour"
   default MOD_DMA_NATIVE if GC_UNMOVEABLE_DATA
   
-  config MOD_DMA_NATIVE
-    bool "Native"
+  config MOD_DMA_ZERO_COPY
+    bool "Zero copy (fastest)"
     depends on GC_UNMOVEABLE_DATA
     help
-      Fastest implementation of DMA mod by actually direct access
-      this should be used in production
-  
+      Fastest mode with zero overhead of copying data
+
   # Unavailable yet
   #config MOD_DMA_EMULATED
-  #  bool "Emulated"
+  #  bool "Emulated (slowest)"
   #  help
   #    Slower implementation of DMA mod by using intermediate
   #    buffer. Works with any configuration

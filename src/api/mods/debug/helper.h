@@ -1,16 +1,16 @@
 #ifndef _headers_1691808714_FluffyGC_helper
 #define _headers_1691808714_FluffyGC_helper
 
-#include <stddef.h>
-#include <stdint.h>
+#include <stddef.h> // IWYU pragma: keep
+#include <stdint.h> // IWYU pragma: keep
 
 #include "config.h"
 
 #include "hook/hook.h"
 #include "util/macro_magics.h"
 
-#include "FluffyHeap.h"
-#include "mods/dma.h"
+#include "FluffyHeap/FluffyHeap.h" // IWYU pragma: keep
+#include "FluffyHeap/mods/dma.h" // IWYU pragma: keep
 
 enum debug_argument_type {
   DEBUG_TYPE_FH_ARRAY,

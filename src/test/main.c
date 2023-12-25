@@ -9,12 +9,13 @@
 #include <inttypes.h>
 #include <unistd.h>
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
+#include "FluffyHeap/mods/dma.h"
+
 #include "logger/logger.h"
 #include "attributes.h"
 #include "bug.h"
 #include "hook/hook.h"
-#include "mods/dma.h"
 #include "util/circular_buffer.h"
 #include "util/util.h"
 #include "macros.h"

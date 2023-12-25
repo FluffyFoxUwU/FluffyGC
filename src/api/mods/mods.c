@@ -2,12 +2,12 @@
 #include <threads.h>
 
 #include "api/mods/debug/debug.h"
-#include "api/mods/dma_common.h"
+#include "api/mods/dma/dma_common.h"
 
-#include "mods/dma.h"
-#include "mods/debug.h"
+#include "FluffyHeap/mods/dma.h"
+#include "FluffyHeap/mods/debug.h"
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "mods.h"
 #include "config.h"
 #include "util/util.h"

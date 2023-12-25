@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "managed_heap.h"
 #include "debug/debug.h"
 

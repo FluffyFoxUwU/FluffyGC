@@ -4,11 +4,10 @@
 // The global state
 // Tracking various things
 
-#include <stdatomic.h>
 #include <stdint.h>
 #include <threads.h>
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "concurrency/completion.h"
 #include "concurrency/mutex.h"
 #include "gc/gc.h"

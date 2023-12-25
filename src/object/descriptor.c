@@ -1,7 +1,7 @@
 #include <stdatomic.h>
 #include <stdio.h>
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "bug.h"
 #include "descriptor.h"
 #include "object/object.h"

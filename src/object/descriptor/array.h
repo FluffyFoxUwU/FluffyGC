@@ -1,7 +1,7 @@
 #ifndef _headers_1687668619_FluffyGC_array
 #define _headers_1687668619_FluffyGC_array
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "object/descriptor.h"
 
 struct array_descriptor {

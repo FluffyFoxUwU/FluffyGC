@@ -2,7 +2,7 @@
 
 #include "api/api.h"
 #include "context.h"
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 
 API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_object*), fh_dup_ref, __FLUFFYHEAP_NULLABLE(fh_object*), ref) {
   if (!ref)

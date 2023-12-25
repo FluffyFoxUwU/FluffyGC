@@ -7,16 +7,17 @@
 #include <time.h>
 #include <inttypes.h>
 
+#include "FluffyHeap/FluffyHeap.h"
+#include "FluffyHeap/mods/dma.h"
+
 #include "helper.h"
-#include "FluffyHeap.h"
 #include "api/mods/debug/common.h"
 #include "api/mods/debug/debug.h"
-#include "api/mods/dma_common.h"
+#include "api/mods/dma/dma_common.h"
 #include "buffer.h"
 #include "concurrency/thread_local.h"
 #include "logger/logger.h"
 #include "api/api.h"
-#include "mods/dma.h"
 #include "panic.h"
 #include "object/descriptor.h"
 #include "object/object.h"

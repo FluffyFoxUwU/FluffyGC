@@ -1,7 +1,7 @@
 menu "GC"
   config GC_UNMOVEABLE_DATA
     def_bool n
-  
+
   config GC_SEPERATE_THREAD
     bool "Seperate GC thread"
     depends on !DISABLE_THREADS
@@ -18,4 +18,17 @@ menu "GC"
     default 200
     help
       Upper bound of recursive mark
+  
+  config GC_OPTIMIZE_DATA_MOVE
+    bool "Optimize move"
+    default y if !MEMORY_DEBUG
+    depends on HEAP_USE_MALLOC
+    select GC_UNMOVEABLE_DATA
+    help
+      Optimize move so that move consist only moving data pointer
+      instead actually do the copy.
+      
+      May hinder debugging if enabled as raw pointer to dead object
+      still points to valid data
 endmenu
+

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "util/counter.h"
 #include "util/list_head.h"
 

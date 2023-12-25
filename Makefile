@@ -14,8 +14,9 @@ UwUMaker-c-flags-y += -std=c2x -g \
 	-I$(PROJECT_DIR)/src \
 	-I$(PROJECT_DIR)/include \
 	-fblocks -fvisibility=hidden -fno-common
-UwUMaker-linker-flags-y += -lm \
-	-lBlocksRuntime 
+
+UwUMaker-linker-flags-y += -lm -lBlocksRuntime 
+UwUMaker-linker-flags-$(CONFIG_STACKTRACE_PROVIDER_LIBBACKTRACE) += -lbacktrace
 
 UwUMaker-dirs-y += src deps
 

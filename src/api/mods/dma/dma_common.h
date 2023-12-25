@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "mods/dma.h"
+#include "FluffyHeap/mods/dma.h"
 #include "memory/soc.h"
 #include "userptr.h"
 

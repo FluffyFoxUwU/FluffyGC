@@ -99,7 +99,6 @@ void hook__exit_function(struct hook_internal_state* ci);
 #define HOOK_FUNCTION(spec, ret, name, ...) \
   typedef ret (*____HOOK_TO_TARGET_TYPE(name))(____HOOK_MAKE_ARGS(__VA_ARGS__)); \
   spec ____HOOK_DECLARE(void, name, NULLABLE(ret*), returnLocation, NONNULLABLE(struct hook_call_info*), ci __VA_OPT__(,) __VA_ARGS__); \
-  spec enum hook_action ____HOOK_TO_HANDLER(name)(NONNULLABLE(struct hook_call_info*) ci, va_list args); \
   spec enum hook_action ____HOOK_TO_HANDLER(name)(NONNULLABLE(struct hook_call_info*) ci, va_list args) { \
     ret retVal; \
     name(&retVal, ci __VA_OPT__(,) MACRO_FOR_EACH_STRIDE2(____HOOK_PROCESS_ARGUMENT, ____HOOK_TARGET_IGNORE, __VA_ARGS__)); \

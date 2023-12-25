@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "macros.h"
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "api/api.h"
 #include "array.h"
 #include "object/descriptor.h"

@@ -3,7 +3,7 @@
 #include "object/descriptor/array.h"
 #include "panic.h"
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "concurrency/condition.h"
 #include "context.h"
 #include "managed_heap.h"

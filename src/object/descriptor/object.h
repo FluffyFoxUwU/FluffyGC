@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "object/descriptor/embedded.h"
 #include "util/list_head.h"
 #include "vec.h"

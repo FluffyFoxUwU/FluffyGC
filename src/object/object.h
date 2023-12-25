@@ -2,7 +2,6 @@
 #define _headers_1673090887_FluffyGC_object
 
 #include <stdatomic.h>
-#include <stddef.h>
 
 #include "object/descriptor/embedded.h"
 #include "util/list_head.h"

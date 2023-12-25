@@ -1,11 +1,13 @@
 #include "api/mods/debug/debug.h"
 #include "hook/hook.h"
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "managed_heap.h"
 #include "object/descriptor.h"
 #include "object/descriptor/array.h"
 #include "object/object.h"
 #include "util/util.h"
+
+#include "arrays.h"
 
 // Array related checks comes here
 

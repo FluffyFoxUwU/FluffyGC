@@ -6,7 +6,7 @@
 #include <errno.h>
 
 #include "macros.h"
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "api/api.h"
 #include "api/hooks.h"
 #include "context.h"
