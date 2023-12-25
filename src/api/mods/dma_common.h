@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 #include "mods/dma.h"
-#include "object/object.h"
 #include "memory/soc.h"
+#include "userptr.h"
 
 struct api_mod_state;
 struct dma_data {

@@ -7,7 +7,6 @@
 #include <threads.h>
 
 #include "util/list_head.h"
-#include "util/refcount.h"
 
 struct heap;
 struct managed_heap;
@@ -20,12 +19,11 @@ enum context_state {
   CONTEXT_RUNNING = 0,
   CONTEXT_INACTIVE, // No thread has this context
   CONTEXT_SLEEPING  // A thread has this context but sleeping right now
-                    // and GC may run even there sleeping contexts
 };
 #define CONTEXT_STATE_COUNT 3
 
 struct context {
-  struct list_head list;
+  struct list_head node;
   uint64_t foreverUniqueID;
   
   struct managed_heap* managedHeap;
@@ -34,7 +32,7 @@ struct context {
   unsigned int blockCount;
  
   struct list_head root;
-  bool gcInitHookCalled;
+  bool perContextInitGCHook;
   enum context_state state;
 };
 
@@ -49,10 +47,11 @@ void context__unblock_gc();
 
 struct root_ref {
   struct list_head node;
-  struct refcount pinCounter;
   _Atomic(struct object*) obj;
   struct soc_chunk* chunk;
 };
+
+struct object* root_ref_get(struct root_ref* obj);
 
 void context_add_pinned_object(struct root_ref* obj);
 void context_remove_pinned_object(struct root_ref* obj);

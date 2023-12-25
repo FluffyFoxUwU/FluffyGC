@@ -66,6 +66,9 @@ bool util_is_power_of_two(size_t size);
 
 #define PTR_ALIGN(ptr, alignment) ((typeof(ptr)) ROUND_UP((uintptr_t) (ptr), (alignment)))
 
+#define IS_MULTIPLE_OF(n, d) (ROUND_DOWN(n, d) == (n))
+#define IS_ALIGN_OF(p, t) IS_MULTIPLE_OF((uintptr_t) (p), (uintptr_t) alignof(t))
+
 #define UTIL_MEM_ZERO BIT (1)
 void* util_realloc(void* ptr, size_t oldSize, size_t newSize, unsigned long flags);
 void* util_malloc(size_t newSize, unsigned long flags);

@@ -6,7 +6,8 @@
 struct generation;
 
 // These are generic and can work with any amount of generations
-// and also these merely just each of 3 full gc blocking stages
+// and also these merely just each of 3 GC blocking stages
+// for per generation.
 void gc_generic_compact(struct generation*);
 size_t gc_generic_collect(struct generation*);
 int gc_generic_mark(struct generation*);

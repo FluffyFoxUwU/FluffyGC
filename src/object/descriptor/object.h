@@ -44,7 +44,6 @@ struct object_descriptor {
   bool isDefined;
 
   size_t objectSize;
-  size_t alignment;
   
   struct {
     struct list_head list;
@@ -57,7 +56,7 @@ struct object_descriptor {
 struct object_descriptor* object_descriptor_new();
 void object_descriptor_free(struct object_descriptor* self);
 
-// Late init few other stuff
+// Actually does the init
 void object_descriptor_init(struct object_descriptor* self);
 
 #endif

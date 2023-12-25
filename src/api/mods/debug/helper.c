@@ -18,6 +18,8 @@
 #include "api/api.h"
 #include "mods/dma.h"
 #include "panic.h"
+#include "object/descriptor.h"
+#include "object/object.h"
 #include "util/util.h"
 
 DEFINE_LOGGER_STATIC(logger, "API Call Tracer");
@@ -42,7 +44,7 @@ static pthread_once_t helperInitControl = PTHREAD_ONCE_INIT;
 static void helperInit() {
   int ret;
   if ((ret = thread_local_init(&outputBufferKey, cleanOutputBufferKey)) < 0) {
-    pr_error("API call tracer disabled due error initializing: %d", ret);
+    pr_error("API call tracer disabled due error creating output buffer thread local var: %d", ret);
     return;
   }
   
@@ -161,7 +163,7 @@ static int convertAndAppend(buffer_t* outputBuffer, const char* seperator, size_
           if (fieldCount >= HELPER_MAX_ARRAY_COUNT)
             break;
         }
-        appendfRet = buffer_appendf(outputBuffer, "(struct fh_descriptor_param) {.size = %zu, .alignment = %zu, .fields[%zu] = {", val->size, val->alignment, fieldCount);
+        appendfRet = buffer_appendf(outputBuffer, "(struct fh_descriptor_param) {.size = %zu, .fields[%zu] = {", val->size, fieldCount);
         for (size_t fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++) {
           fh_descriptor_field* field = &val->fields[fieldIndex];
           

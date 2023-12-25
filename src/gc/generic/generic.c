@@ -3,6 +3,8 @@
 #include <strings.h>
 #include <threads.h>
 
+#include "bug.h"
+#include "config.h"
 #include "macros.h"
 #include "generic.h"
 #include "context.h"
@@ -204,8 +206,7 @@ typedef vec_t(struct object*) mark_state_stack;
 static bool isEligibleForScanning(struct object* obj, int targetGenID) {
   if (!obj)
     return false;
-  if (targetGenID == -1)
-    return true;
+  BUG_ON(targetGenID == -1);
   return obj->movePreserve.generationID == targetGenID;
 }
 
@@ -232,12 +233,12 @@ int gc_generic_mark(struct generation* gen) {
   __block mark_state_stack currentPath;
   int res = 0;
   vec_init(&currentPath);
-  if (vec_reserve(&currentPath, 64) < 0) {
+  if (vec_reserve(&currentPath, CONFIG_GC_MARK_MAX_DEPTH) < 0) {
     res = -ENOMEM;
     goto mark_failure;
   }
   
-  int targetGenID = gen ? gen->genID : -1;
+  int targetGenID = gen->genID;
   gc_for_each_root_entry(^(struct root_ref* ref) {
     struct object* obj = atomic_load(&ref->obj);
     if (!isEligibleForScanning(obj, targetGenID))
@@ -247,18 +248,15 @@ int gc_generic_mark(struct generation* gen) {
     doDFSMark(targetGenID, &currentPath);
   });
   
-  // We don't need scan remembered set when doing FullGC
-  if (targetGenID >= 0) {
-    struct list_head* current;
-    list_for_each(current, &gen->rememberedSet) {
-      struct object* obj = list_entry(current, struct object, rememberedSetNode[targetGenID]);
-      object_for_each_field(obj, ^int (struct object* child, size_t) {
-        if (child)
-          vec_push(&currentPath, child);
-        return 0;
-      });
-      doDFSMark(targetGenID, &currentPath);
-    }
+  struct list_head* current;
+  list_for_each(current, &gen->rememberedSet) {
+    struct object* obj = list_entry(current, struct object, rememberedSetNode[targetGenID]);
+    object_for_each_field(obj, ^int (struct object* child, size_t) {
+      if (child)
+        vec_push(&currentPath, child);
+      return 0;
+    });
+    doDFSMark(targetGenID, &currentPath);
   }
 mark_failure:
   vec_deinit(&currentPath);
@@ -301,20 +299,19 @@ mark_failure:
 size_t gc_generic_collect(struct generation* gen) {
   list_head_init(&promotedList);
   
-  if (!gen) {
-    size_t reclaimedSize = 0;
-    for (int i = 0; i < managed_heap_current->generationCount; i++) {
-      if (gc_generic_mark(&managed_heap_current->generations[i]) < 0)
-        goto mark_failure;
-      reclaimedSize += collectGeneration(&managed_heap_current->generations[i], NULL, true, NULL);
-      postCollect(&managed_heap_current->generations[i]);
-    }
-    
-mark_failure:
-    return reclaimedSize;
+  if (gen) 
+    return doCollectAndMark(gen);
+  
+  size_t reclaimedSize = 0;
+  for (int i = 0; i < managed_heap_current->generationCount; i++) {
+    if (gc_generic_mark(&managed_heap_current->generations[i]) < 0)
+      goto mark_failure;
+    reclaimedSize += collectGeneration(&managed_heap_current->generations[i], NULL, true, NULL);
+    postCollect(&managed_heap_current->generations[i]);
   }
   
-  return doCollectAndMark(gen);
+mark_failure:
+  return reclaimedSize;
 }
 
 void gc_generic_compact(struct generation* gen) {

@@ -44,7 +44,6 @@ fh_descriptor_field fields2[] = {
 };
 
 fh_descriptor_param descParam2 = {
-  .alignment = alignof(struct test_type2),
   .fields = fields2,
   .size = sizeof(struct test_type2)
 };
@@ -115,7 +114,6 @@ static void doTestNormal() {
   };
   
   fh_descriptor_param descParam = {
-    .alignment = alignof(struct fluff),
     .fields = fields,
     .size = sizeof(struct fluff)
   };
@@ -561,6 +559,7 @@ int main2(int argc, const char** argv) {
   int ret = 0;
   if ((ret = -pthread_create(&loggerThread, NULL, loggerFunc, NULL)) < 0)
     hard_panic("Logger thread can't start: %d", ret);
+  pr_alert("Starting UwU");
   
   ret = hook_init();
   BUG_ON(ret < 0 && ret != -ENOSYS);

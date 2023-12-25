@@ -31,7 +31,6 @@ struct descriptor_ops {
   // different descriptor instance)
   const char* (*getName)(struct descriptor* self);
   
-  size_t (*getAlignment)(struct descriptor* self);
   size_t (*getObjectSize)(struct descriptor* self);
   struct descriptor* (*getDescriptorAt)(struct descriptor* self, size_t offset);
   
@@ -73,7 +72,6 @@ int descriptor_is_assignable_to(struct object* self, size_t offset, struct descr
 void descriptor_init_object(struct descriptor* self, struct object* obj);
 
 size_t descriptor_get_object_size(struct descriptor* self);
-size_t descriptor_get_alignment(struct descriptor* self);
 
 // Memory valid until next call even if different descriptor
 const char* descriptor_get_name(struct descriptor* self);

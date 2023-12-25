@@ -16,7 +16,7 @@ API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_array*), fh_alloc_array, __FLUFFYHE
 
 API_FUNCTION_DEFINE(ssize_t, fh_array_calc_offset, __FLUFFYHEAP_NONNULL(fh_array*), self, size_t, index) {
   context_block_gc();
-  struct descriptor* desc = atomic_load(&INTERN(self)->obj)->movePreserve.descriptor;
+  struct descriptor* desc = root_ref_get(INTERN(self))->movePreserve.descriptor;
   ssize_t res = descriptor_calc_offset(desc, index);
   context_unblock_gc();
   return res;
@@ -32,8 +32,11 @@ API_FUNCTION_DEFINE_VOID(fh_array_set_element, __FLUFFYHEAP_NONNULL(fh_array*), 
 
 API_FUNCTION_DEFINE(size_t, fh_array_get_length, __FLUFFYHEAP_NONNULL(fh_array*), self) {
   context_block_gc();
-  struct descriptor* desc = atomic_load(&INTERN(self)->obj)->movePreserve.descriptor;
+  struct descriptor* desc = root_ref_get(INTERN(self))->movePreserve.descriptor;
   size_t length = container_of(desc, struct array_descriptor, super)->arrayInfo.length;
   context_unblock_gc();
   return length;
 }
+
+
+

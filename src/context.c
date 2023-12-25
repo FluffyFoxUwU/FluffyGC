@@ -10,7 +10,6 @@
 #include "managed_heap.h"
 #include "object/object.h"
 #include "util/list_head.h"
-#include "util/refcount.h"
 #include "gc/gc.h"
 
 thread_local struct context* context_current = NULL;
@@ -28,6 +27,7 @@ struct context* context_new(struct managed_heap* heap) {
   
   list_head_init(&self->root);
   
+  // Inform GC that context is created 
   if (gc_current->ops->postContextInit(self) < 0) {
     context_free(self);
     return NULL;
@@ -36,7 +36,7 @@ struct context* context_new(struct managed_heap* heap) {
 }
 
 void context_free(struct context* self) {
-  if (!self->gcInitHookCalled)
+  if (!self->perContextInitGCHook)
     gc_current->ops->preContextCleanup(self);
   
   struct list_head* current;
@@ -60,17 +60,6 @@ void context__unblock_gc() {
     gc_unblock(gc_current);
 }
 
-// TODO: Remove GC blocks once object can be safely pinned
-void context_add_pinned_object(struct root_ref* obj) {
-  context_block_gc();
-  refcount_acquire(&obj->pinCounter);
-}
-
-void context_remove_pinned_object(struct root_ref* obj) {
-  refcount_release(&obj->pinCounter);
-  context_unblock_gc();
-}
-
 struct root_ref* context_add_root_object(struct object* obj) {
   context_block_gc();
   struct soc_chunk* chunk;
@@ -82,7 +71,6 @@ struct root_ref* context_add_root_object(struct object* obj) {
     .chunk = chunk
   };
   atomic_init(&rootRef->obj, obj);
-  refcount_init(&rootRef->pinCounter);
   
   list_add(&rootRef->node, &context_current->root);
   context_unblock_gc();
@@ -95,5 +83,9 @@ int context_remove_root_object(struct root_ref* obj) {
   soc_dealloc_explicit(listNodeCache, obj->chunk, obj);
   context_unblock_gc();
   return 0;
+}
+
+struct object* root_ref_get(struct root_ref* rootRef) {
+  return atomic_load(&rootRef->obj);
 }
 

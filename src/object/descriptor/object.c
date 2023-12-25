@@ -68,11 +68,6 @@ static size_t impl_getObjectSize(struct descriptor* super) {
   return self->objectSize;
 }
 
-static size_t impl_getAlignment(struct descriptor* super) {
-  struct object_descriptor* self = container_of(super, struct object_descriptor, super);
-  return self->alignment;
-}
-
 static const char* impl_getName(struct descriptor* super) {
   struct object_descriptor* self = container_of(super, struct object_descriptor, super);
   return self->name;
@@ -110,7 +105,6 @@ static ssize_t impl_calcOffset(struct descriptor* super, size_t index) {
 static struct descriptor_ops ops = {
   .forEachOffset = impl_forEachOffset,
   .free = freeSelf,
-  .getAlignment = impl_getAlignment,
   .getObjectSize = impl_getObjectSize,
   .getName = impl_getName,
   .getDescriptorAt = impl_getDescriptorAt,

@@ -84,7 +84,6 @@ struct fh_783de216_08ed_4ad5_ade6_8da1c47e6cb0 {
 
 struct fh_f39dbb2f_d8d1_4687_8486_a196de7712a3 {
   size_t size;
-  size_t alignment;
   
   __FLUFFYHEAP_NULLABLE(fh_finalizer) finalizer;
   __FLUFFYHEAP_NULLABLE(fh_descriptor_field*) fields;
@@ -181,7 +180,6 @@ __FLUFFYHEAP_EXPORT fh_object_type fh_object_get_type(__FLUFFYHEAP_NONNULL(fh_ob
 
 // Arrays stuff
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_array*) fh_alloc_array(__FLUFFYHEAP_NONNULL(fh_descriptor*) elementType, size_t length);
-__FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_array*) fh_alloc_data_array(size_t alignment, size_t length, size_t size);
 
 __FLUFFYHEAP_EXPORT ssize_t fh_array_calc_offset(__FLUFFYHEAP_NONNULL(fh_array*) self, size_t index);
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_object*) fh_array_get_element(__FLUFFYHEAP_NONNULL(fh_array*) self, size_t index);

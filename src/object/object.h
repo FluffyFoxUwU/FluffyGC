@@ -7,11 +7,11 @@
 #include "object/descriptor/embedded.h"
 #include "util/list_head.h"
 #include "gc/gc.h"
-#include "address_spaces.h"
 #include "concurrency/mutex.h"
 #include "concurrency/condition.h"
 
 struct heap;
+struct heap_block;
 struct mutex;
 struct condition;
 
@@ -24,15 +24,6 @@ enum reference_strength {
 
 const char* object_ref_strength_tostring(enum reference_strength strength);
 
-// Use this for pointers which points to user data
-// equivalent to fh_dma_ptr (the ptr must be the first entry)
-struct userptr {
-  void address_heap* ptr;
-};
-
-#define USERPTR(x) ((struct userptr) {(void address_heap*) (x)})
-#define USERPTR_NULL USERPTR(NULL)
-
 struct object_sync_structure {
   struct soc_chunk* sourceChunk;
   struct mutex lock;
@@ -42,23 +33,19 @@ struct object_sync_structure {
 struct object {
   struct list_head inPromotionList;
   
-  struct object_sync_structure* syncStructure;
-  
   // Used during compaction phase
   // Does not need to be _Atomic because it only modified during GC
   struct object* forwardingPointer;
   
   size_t objectSize; // Represent size of data
   int age; // Number of collection survived
-  
-  // As long GC blocked the object is not moved
-  // so this valid
-  struct userptr dataPtr;
-  
+   
   struct list_head rememberedSetNode[GC_MAX_GENERATIONS];
   atomic_bool isMarked;
   
   struct {
+    struct object_sync_structure* syncStructure;
+  
     struct descriptor* descriptor;
     int generationID;
     uint64_t foreverUniqueID;
@@ -81,20 +68,15 @@ struct node {
 };
 */
 
-void object_init(struct object* self, struct descriptor* desc, void address_heap* data);
-void object_cleanup(struct object* self, bool isDead);
+void object_init(struct object* self, struct descriptor* desc);
+void object_cleanup(struct object* self, bool canRunFinalizer);
 
 struct root_ref* object_read_reference(struct object* self, size_t offset);
 void object_write_reference(struct object* self, size_t offset, struct object* obj);
 
 void object_fix_pointers(struct object* self);
-
-// These guarantee to be safe for DMA for non reference field
-// If there object_get_dma there must be corresponding object_put_dma
-// the resulting userptr is not guarantee to be same
-// WARNING: DO NOT trample or write or anything on reference field
-struct userptr object_get_dma(struct root_ref* rootRef);
-int object_put_dma(struct root_ref* rootRef, struct userptr dma);
+struct heap_block* object_get_heap_block(struct object* self);
+void* object_get_ptr(struct object* self);
 
 struct object* object_resolve_forwarding(struct object* self);
 

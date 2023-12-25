@@ -32,11 +32,15 @@ static void freeGeneration(struct generation* gen) {
 }
 
 static int initGeneration(struct generation* gen, struct generation_params* param, bool useFastOnly) {
+  struct heap_init_params heapParams = {
+    .size = param->size
+  };
+
   if (mutex_init(&gen->rememberedSetLock) < 0)
     goto failure;
-  if (!(gen->fromHeap = heap_new(param->size / 2)))
+  if (!(gen->fromHeap = heap_new(&heapParams)))
     goto failure;
-  if (!(gen->toHeap = heap_new(param->size / 2)))
+  if (!(gen->toHeap = heap_new(&heapParams)))
     goto failure;
   
   list_head_init(&gen->rememberedSet);
@@ -160,13 +164,14 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
     return NULL;
   *attemptedOn = gen;
   
-  struct heap_block* (*allocFunc)(struct heap*,size_t,size_t);
+  struct heap_block* (*allocFunc)(struct heap* self ,size_t size);
   allocFunc = gen->useFastOnly ? heap_alloc_fast : heap_alloc;
   
-  if ((block = allocFunc(gen->fromHeap, descriptor_get_alignment(desc), descriptor_get_object_size(desc))))
+  if ((block = allocFunc(gen->fromHeap, descriptor_get_object_size(desc))))
     goto allocSuccess;
   
-  while (!block) {
+  // While block not allocated
+  while (block == NULL) {
     if (gc_upgrade_to_gc_mode(gc_current)) {
       mutex_lock(&self->gcCompleted.lock);
       completion_reset(&self->gcCompleted);
@@ -176,7 +181,7 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
       // and this thread got exclusive attempt to allocate
       
       gc_start(self->gcState, gen);
-      block = allocFunc(gen->fromHeap, descriptor_get_alignment(desc), descriptor_get_object_size(desc));
+      block = allocFunc(gen->fromHeap, descriptor_get_object_size(desc));
       complete_all(&self->gcCompleted);
       if (block)
         break;
@@ -186,9 +191,11 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
       mutex_unlock(&self->gcCompleted.lock);
       
       gc_start(self->gcState, NULL);
-      block = allocFunc(gen->fromHeap, descriptor_get_alignment(desc), descriptor_get_object_size(desc));
+      block = allocFunc(gen->fromHeap, descriptor_get_object_size(desc));
       complete_all(&self->gcCompleted);
-      if (!block)
+      
+      // Out of memory :3
+      if (block == NULL)
         break;
       
       gc_downgrade_from_gc_mode(gc_current);
@@ -201,7 +208,7 @@ static struct heap_block* doAlloc(struct managed_heap* self, struct descriptor* 
       wait_for_completion(&self->gcCompleted);
       gc_block(gc_current);
       
-      if ((block = allocFunc(gen->fromHeap, descriptor_get_alignment(desc), descriptor_get_object_size(desc))))
+      if ((block = allocFunc(gen->fromHeap, descriptor_get_object_size(desc))))
         break;
     }
   }
@@ -227,7 +234,7 @@ struct root_ref* managed_heap_alloc_object(struct descriptor* desc) {
     heap_dealloc(attemptedOn->fromHeap, newBlock);
     goto failure;
   }
-  object_init(&newBlock->objMetadata, desc, newBlock->dataPtr.ptr);
+  object_init(&newBlock->objMetadata, desc);
   BUG_ON(!attemptedOn);
   newBlock->objMetadata.movePreserve.generationID = attemptedOn->genID;
 failure:
@@ -237,8 +244,8 @@ failure:
 
 static void managed_heap_set_context_state_nolock(struct context* context, enum context_state state) {
   context->state = state;
-  list_del(&context_current->list);
-  list_add(&context_current->list, &managed_heap_current->contextStates[state]);
+  list_del(&context_current->node);
+  list_add(&context_current->node, &managed_heap_current->contextStates[state]);
 }
 
 void managed_heap_set_context_state(struct context* context, enum context_state state) {
@@ -352,7 +359,7 @@ struct context* managed_heap_new_context(struct managed_heap* self) {
   
   mutex_lock(&self->contextTrackerLock);
   self->contextCount++;
-  list_add(&ctx->list, &self->contextStates[CONTEXT_INACTIVE]);
+  list_add(&ctx->node, &self->contextStates[CONTEXT_INACTIVE]);
   mutex_unlock(&self->contextTrackerLock);
   
 failure:
@@ -369,7 +376,7 @@ void managed_heap_free_context(struct managed_heap* self, struct context* ctx) {
   
   mutex_lock(&managed_heap_current->contextTrackerLock);
   self->contextCount--;
-  list_del(&ctx->list);
+  list_del(&ctx->node);
   mutex_unlock(&managed_heap_current->contextTrackerLock);
   
   if (context_current)

@@ -6,9 +6,7 @@
 #include <string.h>
 #include <inttypes.h>
 
-#include "address_spaces.h"
 #include "concurrency/mutex.h"
-#include "config.h"
 #include "gc/gc.h"
 #include "managed_heap.h"
 #include "memory/heap.h"
@@ -24,7 +22,7 @@
 SOC_DEFINE(syncStructureCache, SOC_DEFAULT_CHUNK_SIZE, struct object_sync_structure);
 
 static _Atomic(struct object*)* getAtomicPtrToReference(struct object* self, size_t offset) {
-  return (_Atomic(struct object*)*) ((char*) self->dataPtr.ptr + offset);
+  return (_Atomic(struct object*)*) ((char*) object_get_ptr(self) + offset);
 }
 
 struct object* object_resolve_forwarding(struct object* self) {
@@ -68,22 +66,23 @@ static bool isEligibleForRememberedSet(struct object* parent, struct object* chi
   return child &&  parent->movePreserve.generationID != child->movePreserve.generationID && !list_is_valid(&parent->rememberedSetNode[child->movePreserve.generationID]);
 }
 
-void object_write_reference(struct object* self, size_t offset, struct object* obj) {
+void object_write_reference(struct object* self, size_t offset, struct object* child) {
   context_block_gc();
-  if (!descriptor_is_assignable_to(self, offset, obj->movePreserve.descriptor))
-    panic();
+  if (!descriptor_is_assignable_to(self, offset, child->movePreserve.descriptor))
+    panic("Incompatible assignment");
   
-  struct object* old = atomic_exchange(getAtomicPtrToReference(self, offset), obj);
+  struct object* oldChild = atomic_exchange(getAtomicPtrToReference(self, offset), child);
   
   // TODO: implement conditional write barriers
-  gc_current->ops->postWriteBarrier(old);
+  gc_current->ops->postWriteBarrier(oldChild);
   
-  // Add current object to `obj`'s generation remembered set
-  if (isEligibleForRememberedSet(self, obj)) {
-    struct generation* target = &managed_heap_current->generations[obj->movePreserve.generationID];
-    mutex_lock(&target->rememberedSetLock);
-    list_add(&self->rememberedSetNode[obj->movePreserve.generationID], &target->rememberedSet);
-    mutex_unlock(&target->rememberedSetLock);
+  // Add current object to child's generation remembered set
+  if (isEligibleForRememberedSet(self, child)) {
+    int childGenerationID = child->movePreserve.generationID;
+    struct generation* childGeneration = &managed_heap_current->generations[childGenerationID];
+    mutex_lock(&childGeneration->rememberedSetLock);
+    list_add(&self->rememberedSetNode[childGenerationID], &childGeneration->rememberedSet);
+    mutex_unlock(&childGeneration->rememberedSetLock);
   }
   context_unblock_gc();
 }
@@ -102,7 +101,7 @@ int object_init_synchronization_structs(struct object* self) {
     goto failure;
   
   context_block_gc();
-  self->syncStructure = data;
+  self->movePreserve.syncStructure = data;
   context_unblock_gc();
   
 failure:
@@ -114,40 +113,24 @@ failure:
   return res;
 }
 
-void object_cleanup(struct object* self, bool isDead) {
+void object_cleanup(struct object* self, bool canRunFinalizer) {
   for (int i = 0; i < GC_MAX_GENERATIONS; i++)
     if (list_is_valid(&self->rememberedSetNode[i]))
       list_del(&self->rememberedSetNode[i]);
   
-  // The object going to die anyway so give 
-  // the direct pointer
-  if (isDead && self->movePreserve.descriptor->type == OBJECT_NORMAL)
+  if (canRunFinalizer && self->movePreserve.descriptor->type == OBJECT_NORMAL)
     descriptor_run_finalizer_on(self->movePreserve.descriptor, self);
-    // self->movePreserve.descriptor->info.normal->api.param.finalizer((const void*) self->dataPtr.ptr);
   
-  if (self->syncStructure) {
-    mutex_cleanup(&self->syncStructure->lock);
-    condition_cleanup(&self->syncStructure->cond);
-    soc_dealloc_explicit(syncStructureCache, self->syncStructure->sourceChunk, self->syncStructure);
+  if (self->movePreserve.syncStructure) {
+    mutex_cleanup(&self->movePreserve.syncStructure->lock);
+    condition_cleanup(&self->movePreserve.syncStructure->cond);
+    soc_dealloc_explicit(syncStructureCache, self->movePreserve.syncStructure->sourceChunk, self->movePreserve.syncStructure);
   }
 }
 
-struct userptr object_get_dma(struct root_ref* rootRef) {
-  context_add_pinned_object(rootRef);
-  return atomic_load(&rootRef->obj)->dataPtr;
-}
-
-int object_put_dma(struct root_ref* rootRef, struct userptr dma) {
-  if (dma.ptr != atomic_load(&rootRef->obj)->dataPtr.ptr)
-    return -EINVAL;
-  context_remove_pinned_object(rootRef);
-  return 0;
-}
-
-static void commonInit(struct object* self, struct descriptor* desc, void address_heap* data) {
+static void commonInit(struct object* self, struct descriptor* desc) {
   *self = (struct object) {
     .objectSize = descriptor_get_object_size(desc),
-    .dataPtr = {data}
   };
   
   atomic_init(&self->isMarked, false);
@@ -156,8 +139,8 @@ static void commonInit(struct object* self, struct descriptor* desc, void addres
   descriptor_init_object(desc, self);
 }
 
-void object_init(struct object* self, struct descriptor* desc, void address_heap* data) {
-  commonInit(self, desc, data);
+void object_init(struct object* self, struct descriptor* desc) {
+  commonInit(self, desc);
   self->movePreserve.foreverUniqueID = managed_heap_generate_object_id();
 }
 
@@ -171,25 +154,16 @@ void object_fix_pointers(struct object* self) {
 }
 
 struct object* object_move(struct object* self, struct heap* dest) {
-  struct heap_block* newBlock = heap_alloc(dest, descriptor_get_alignment(self->movePreserve.descriptor), self->objectSize);
+  struct heap_block* newBlock = heap_alloc(dest, self->objectSize);
   if (!newBlock)
     return NULL;
   
   struct object* newBlockObj = &newBlock->objMetadata;
   self->forwardingPointer = newBlockObj;
-  commonInit(newBlockObj, self->movePreserve.descriptor, newBlock->dataPtr.ptr);
-  memcpy(newBlockObj->dataPtr.ptr, self->dataPtr.ptr, self->objectSize);
+  commonInit(newBlockObj, self->movePreserve.descriptor);
+  memcpy(heap_block_get_ptr(newBlock), object_get_ptr(self), self->objectSize);
   
-  newBlockObj->movePreserve = self->movePreserve;
-  
-  // Poison self
-  memset(&self->movePreserve, 0xF0, sizeof(self->movePreserve));
-  
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    struct heap_block* block = container_of(self, struct heap_block, objMetadata);
-    free(block->dataPtr.ptr);
-    block->dataPtr.ptr = NULL;
-  }
+  newBlockObj->movePreserve = self->movePreserve; 
   return newBlockObj;
 }
 
@@ -218,3 +192,12 @@ const char* object_ref_strength_tostring(enum reference_strength strength) {
   }
   return NULL;
 }
+
+struct heap_block* object_get_heap_block(struct object* self) {
+  return container_of(self, struct heap_block, objMetadata);
+}
+
+void* object_get_ptr(struct object* self) {
+  return heap_block_get_ptr(object_get_heap_block(self));
+}
+

@@ -8,14 +8,13 @@
 #include "concurrency/rwulock.h"
 #include "context.h"
 #include "gc.h"
-#include "macros.h"
 #include "itc/channel.h"
 #include "managed_heap.h"
 #include "bug.h"
 #include "config.h"
 
-#include "gc/nop/nop.h"
-#include "gc/serial/serial.h"
+#include "gc/nop/nop.h" // IWYU pragma: keep
+#include "gc/serial/serial.h" // IWYU pragma: keep
 #include "memory/heap.h"
 #include "util/list_head.h"
 #include "util/util.h"
@@ -221,7 +220,7 @@ void gc_for_each_root_entry(void (^iterator)(struct root_ref*)) {
     struct list_head* currentContext;
     list_for_each(currentContext, &managed_heap_current->contextStates[i]) {
       struct list_head* current;
-      list_for_each(current, &list_entry(currentContext, struct context, list)->root)
+      list_for_each(current, &list_entry(currentContext, struct context, node)->root)
         iterator(list_entry(current, struct root_ref, node));
     }
   }

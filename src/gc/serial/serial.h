@@ -1,7 +1,6 @@
 #ifndef _headers_1685457249_FluffyGC_serial
 #define _headers_1685457249_FluffyGC_serial
 
-#include <stdint.h>
 #include <stddef.h>
 
 #include "gc/gc_flags.h"

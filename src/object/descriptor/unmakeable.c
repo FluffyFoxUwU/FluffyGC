@@ -18,11 +18,6 @@ static size_t impl_getObjectSize(struct descriptor* super) {
   panic("Operation inappropriate for unmakeable!");
 }
 
-static size_t impl_getAlignment(struct descriptor* super) {
-  UNUSED(super);
-  panic("Operation inappropriate for unmakeable!");
-}
-
 static const char* impl_getName(struct descriptor* super) {
   struct unmakeable_descriptor* self = container_of(super, struct unmakeable_descriptor, super);
   return self->name;
@@ -68,7 +63,6 @@ static ssize_t impl_calcOffset(struct descriptor* super, size_t index) {
 struct descriptor_ops unmakeable_ops = {
   .forEachOffset = impl_forEachOffset,
   .free = impl_free,
-  .getAlignment = impl_getAlignment,
   .getObjectSize = impl_getObjectSize,
   .getName = impl_getName,
   .isCompatible = impl_isCompatible,

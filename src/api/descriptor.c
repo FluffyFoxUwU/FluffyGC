@@ -103,7 +103,6 @@ static int process(struct descriptor_loader_context* loader, struct object_descr
   if ((ret = type_registry_add_nolock(managed_heap_current->api.registry, &current->super)) < 0)
     return ret;
   
-  current->alignment = param->alignment;
   current->objectSize = param->size;
   
   static enum reference_strength strengthMapping[FH_REF_COUNT] = {

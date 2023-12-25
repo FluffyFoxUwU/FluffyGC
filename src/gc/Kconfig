@@ -11,4 +11,11 @@ menu "GC"
       to hopefully improve cache locality and also
       for convenience of watching GC CPU usage for
       main part
+
+  config GC_MARK_MAX_DEPTH
+    int "Maximum recursion for marking"
+    range 200 10000
+    default 200
+    help
+      Upper bound of recursive mark
 endmenu

@@ -20,7 +20,6 @@ The definition is
    
    typedef struct {
      size_t size;
-     size_t alignment;
      
      // Called somewhere in the future after
      // losing last reference.

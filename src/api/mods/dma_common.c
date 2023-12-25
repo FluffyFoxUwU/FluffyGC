@@ -4,6 +4,7 @@
 #include "logger/logger.h"
 #include "object/object.h"
 #include "managed_heap.h"
+#include "userptr.h"
 
 SOC_DEFINE(api_mod_dma_dma_ptr_cache, SOC_DEFAULT_CHUNK_SIZE, struct dma_data);
 
@@ -18,5 +19,7 @@ int api_mod_dma_common_init_dma_data(struct dma_data* self, struct object* obj, 
 
 void api_mod_dma_common_cleanup_dma_data(struct dma_data* self, struct object* obj) {
   if (obj->movePreserve.foreverUniqueID != self->owningObjectID)
-    pr_crit("Trying unmapping DMA pointer %p (associated with %" PRIu64") using %" PRIu64, &self->apiPtr, self->owningObjectID, obj->movePreserve.foreverUniqueID);
+    pr_crit("Trying unmapping DMA pointer %p (associated with %" PRIu64" object) using %" PRIu64 " object", &self->apiPtr, self->owningObjectID, obj->movePreserve.foreverUniqueID);
 }
+
+
