@@ -8,10 +8,10 @@
 #include <string.h>
 #include <threads.h>
 
+#include "attributes.h"
 #include "concurrency/thread_local.h"
 #include "heap.h"
 #include "bug.h"
-#include "config.h"
 #include "heap_free_block_searchers.h"
 #include "concurrency/mutex.h"
 #include "object/object.h"
@@ -59,9 +59,14 @@ void heap_free(struct heap* self) {
 }
 
 void* heap_block_get_ptr(struct heap_block* block) {
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
-    return block->allocPtr;
   return &block->data;
+}
+
+void heap_move(struct heap_block* src, struct heap_block* dest) {
+  BUG_ON(src->blockSize != dest->blockSize);
+
+  size_t copySize = src->blockSize - sizeof(*src);
+  memcpy(&dest->data, &src->data, copySize);
 }
 
 // Try merge chain of free blocks
@@ -81,10 +86,8 @@ static void tryMergeFreeBlock(struct heap* self, struct heap_block* block) {
   }
 }
 
-void heap_merge_free_blocks(struct heap* self) {
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
-    return;
-
+ATTRIBUTE_USED()
+static void heap_merge_free_blocks(struct heap* self) {
   mutex_lock(&self->lock);
   
   struct list_head* current;
@@ -95,31 +98,31 @@ void heap_merge_free_blocks(struct heap* self) {
   mutex_unlock(&self->lock);
 }
 
-static void initFreeBlock(struct heap_block* block, size_t blockSize) {
-  *block = (struct heap_block) {
-    .blockSize = blockSize
-  };
-}
-
-static void postFreeHook(struct heap* self, struct heap_block* block) {
-  atomic_fetch_sub(&self->usage, block->blockSize);
-  // printf("[Heap %p] Usage %10zu bytes / %10zu bytes (dealloc)\n", self, self->usage, self->size);
-  
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
-    free(block->allocPtr);
-}
-
 static void heapDeallocNoLock(struct heap* self, struct heap_block* block) {
   // Remove from allocated block list
   list_del(&block->node);
   
-  postFreeHook(self, block);
-  initFreeBlock(block, block->blockSize);
+  atomic_fetch_sub(&self->usage, block->blockSize);
+  // printf("[Heap %p] Usage %10zu bytes / %10zu bytes (dealloc)\n", self, self->usage, self->size);
   
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
-    free(block);
-  else
-    list_add(&block->node, &self->recentFreeBlocks);
+  list_add(&block->node, &self->recentFreeBlocks);
+}
+
+void heap_clear(struct heap* self) {
+  mutex_lock(&self->lock);
+  
+  struct list_head* current;
+  struct list_head* next;
+  list_for_each_safe(current, next, &self->allocatedBlocks)
+    heapDeallocNoLock(self, list_entry(current, struct heap_block, node));
+  
+  // Resets allocation information
+  list_head_init(&self->recentFreeBlocks);
+  list_head_init(&self->allocatedBlocks);
+  
+  atomic_store(&self->bumpPointer, (uintptr_t) self->base);
+  atomic_store(&self->usage, 0);
+  mutex_unlock(&self->lock);
 }
 
 void heap_dealloc(struct heap* self, struct heap_block* block) {
@@ -128,57 +131,16 @@ void heap_dealloc(struct heap* self, struct heap_block* block) {
   mutex_unlock(&self->lock);
 }
 
-static struct heap_block* splitFreeBlocks(struct heap_block* block, size_t blockSize) {
-  if (block->blockSize == blockSize)
-    return block;
-  BUG_ON(blockSize > block->blockSize);
-  
-  // Not enough space for new block
-  // Because the second block must fit
-  // the new block
-  if (block->blockSize - blockSize < sizeof(struct heap_block))
-    return block;
-  
-  struct heap_block* blockA = block;
-  struct heap_block* blockB = (struct heap_block*) ((char*) block + blockSize);
-  
-  blockSize = (uintptr_t) blockB - (uintptr_t) blockA;
-  
-  initFreeBlock(blockB, block->blockSize - blockSize);
-  
-  list_add(&blockB->node, &blockA->node);
-  return block;
-}
-
-static struct heap_block* commonBlockInit(struct heap* self, struct heap_block* block, size_t blockSize, size_t objectSize) {
-  bool isOOM = !util_atomic_add_if_less_size_t(&self->usage, blockSize, self->size, NULL);
-  if (isOOM) {
-    // printf("[Heap %p] Out of memory: Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
-    return NULL;
-  }
-  
+static void initNewBlock(struct heap* self, struct heap_block* block, size_t blockSize) {
   *block = (struct heap_block) {
-    .blockSize = blockSize,
-    .dataSize = objectSize
+    .blockSize = blockSize
   };
   
   mutex_lock(&self->lock);
   list_add(&block->node, &self->allocatedBlocks);
   mutex_unlock(&self->lock);
-  
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    block->allocPtr = util_aligned_alloc(alignof(max_align_t), block->dataSize);
-    if (!block->allocPtr)
-      goto failure;
-  }
-  
+   
   // printf("[Heap %p] Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
-  
-  return block;
-
-failure:
-  heap_dealloc(self, block);
-  return NULL;
 }
 
 struct local_heap_uwu {
@@ -222,16 +184,11 @@ static inline size_t calcHeapBlockSize(size_t objectSize) {
   return ROUND_UP(sizeof(struct heap_block) + objectSize, alignof(struct heap_block));
 }
 
-struct heap_block* heap_alloc_fast(struct heap* self, size_t objectSize) {
+static struct heap_block* tryAllocFast(struct heap* self, size_t objectSize) {
   struct local_heap_uwu* localHeap = getLocalHeap(self);
   struct heap_block* block = NULL;
   size_t size = calcHeapBlockSize(objectSize);
-  
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC)) {
-    block = malloc(sizeof(*block));
-    goto alloc_sucess;
-  }
-  
+   
   // Skip allocation from local heap if it larger
   // or non existent local heap
   if (size > self->localHeapSize || !localHeap) {
@@ -240,7 +197,7 @@ struct heap_block* heap_alloc_fast(struct heap* self, size_t objectSize) {
     goto alloc_sucess;
   }
   
-  // Get new local heap (its full)
+  // Get new local heap (if its full)
   if (size > getLocalHeapFreeSize(localHeap)) {
     uintptr_t newLocalHeap = (uintptr_t) allocFastAligned(self, self->localHeapSize);
     if (!newLocalHeap)
@@ -249,30 +206,54 @@ struct heap_block* heap_alloc_fast(struct heap* self, size_t objectSize) {
     localHeap->endLocalHeap = newLocalHeap + self->localHeapSize;
   }
 
+  // Alloc from local heap
   block = (struct heap_block*) localHeap->bumpPointer;
   localHeap->bumpPointer += size;
-alloc_sucess:;
-  struct heap_block* computedBlock = commonBlockInit(self, block, size, objectSize);
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC) && computedBlock == NULL)
-    free(block);
-  block = computedBlock;
+alloc_sucess:
+  initNewBlock(self, block, size);
 alloc_failure:
+  return block;
+}
+
+static struct heap_block* trySplitFreeBlock(struct heap_block* block, size_t blockSize) {
+  if (block->blockSize == blockSize)
+    return block;
+
+  // Bug in heap free block searcher
+  BUG_ON(blockSize > block->blockSize);
+  
+  // Not enough space for new block
+  // Because the second block must fit
+  // the new block
+  if (block->blockSize - blockSize < sizeof(struct heap_block))
+    return block;
+  
+  struct heap_block* blockA = block;
+  struct heap_block* blockB = (struct heap_block*) ((char*) block + blockSize);
+  
+  blockSize = (uintptr_t) blockB - (uintptr_t) blockA;
+  
+  blockB->blockSize = block->blockSize - blockSize;
+  list_add(&blockB->node, &blockA->node);
   return block;
 }
 
 struct heap_block* heap_alloc(struct heap* self, size_t objectSize) {
   if (objectSize == 0)
     return NULL;
+  
   struct heap_block* block = NULL;
+  size_t blockSize = calcHeapBlockSize(objectSize); 
   
-  if ((block = heap_alloc_fast(self, objectSize)))
-    return block;
-  
-  // The rest of the logic not applicable for malloc based
-  if (IS_ENABLED(CONFIG_HEAP_USE_MALLOC))
+  // Check if out of memory or not
+  bool isOOM = !util_atomic_add_if_less_size_t(&self->usage, blockSize, self->size, NULL);
+  if (isOOM) {
+    // printf("[Heap %p] Out of memory: Usage %10zu bytes / %10zu bytes (alloc)\n", self, self->usage, self->size);
     return NULL;
-  
-  size_t blockSize = calcHeapBlockSize(objectSize);
+  }
+
+  if ((block = tryAllocFast(self, objectSize)))
+    return block;
   
   // Slow alloc method
   mutex_lock(&self->lock);
@@ -280,32 +261,14 @@ struct heap_block* heap_alloc(struct heap* self, size_t objectSize) {
   if (!block) 
     goto alloc_failed;
   
-  block = splitFreeBlocks(block, blockSize);
+  block = trySplitFreeBlock(block, blockSize);
   
   // Remove from free block list
   list_del(&block->node);
   
+  initNewBlock(self, block, blockSize);
 alloc_failed:
   mutex_unlock(&self->lock);
-  if (block)
-    block = commonBlockInit(self, block, blockSize, objectSize);
   return block;
-}
-
-void heap_clear(struct heap* self) {
-  mutex_lock(&self->lock);
-  
-  struct list_head* current;
-  struct list_head* next;
-  list_for_each_safe(current, next, &self->allocatedBlocks)
-    heapDeallocNoLock(self, list_entry(current, struct heap_block, node));
-  
-  // Resets allocation information
-  list_head_init(&self->recentFreeBlocks);
-  list_head_init(&self->allocatedBlocks);
-  
-  atomic_store(&self->bumpPointer, (uintptr_t) self->base);
-  atomic_store(&self->usage, 0);
-  mutex_unlock(&self->lock);
 }
 

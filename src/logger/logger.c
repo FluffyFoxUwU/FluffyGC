@@ -158,3 +158,5 @@ static void loggerCleanup() {
 void logger_init() {
   atexit(loggerCleanup);
 }
+
+

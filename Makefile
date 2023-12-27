@@ -13,7 +13,7 @@ UwUMaker-c-flags-y += -std=c2x -g \
 	-I$(PROJECT_DIR)/deps/templated-hashmap \
 	-I$(PROJECT_DIR)/src \
 	-I$(PROJECT_DIR)/include \
-	-fblocks -fvisibility=hidden -fno-common
+	-fblocks -fvisibility=hidden -fno-common \
 
 UwUMaker-linker-flags-y += -lm -lBlocksRuntime 
 UwUMaker-linker-flags-$(CONFIG_STACKTRACE_PROVIDER_LIBBACKTRACE) += -lbacktrace
@@ -22,5 +22,7 @@ UwUMaker-dirs-y += src deps
 
 # Stacktrace options
 UwUMaker-linker-flags-$(CONFIG_STACKTRACE_PROVIDER_LIBBACKTRACE) += -lbacktrace
+UwUMaker-pkg-config-libs-$(CONFIG_STACKTRACE_PROVIDER_LIBUNWIND) += libunwind
+
 
 

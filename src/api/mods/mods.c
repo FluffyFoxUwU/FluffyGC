@@ -1,8 +1,8 @@
 #include <string.h>
 #include <threads.h>
 
-#include "api/mods/debug/debug.h"
-#include "api/mods/dma/dma_common.h"
+#include "debug/debug.h"
+#include "dma/dma_common.h"
 
 #include "FluffyHeap/mods/dma.h"
 #include "FluffyHeap/mods/debug.h"

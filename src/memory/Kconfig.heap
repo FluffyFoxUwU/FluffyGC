@@ -1,28 +1,38 @@
-menu "Heap allocator"
-  config HEAP_USE_MALLOC
-    bool "Use system malloc instead custom allocator"
-    default y if MEMORY_DEBUG
-    help
-      Use system malloc to allow ASAN to catch heap access error
-      or if system malloc faster than custom implementation
-      
-      If in doubt, answer N
-  
-  
+menu "Heap"
+  config HEAP_COMPACTABLE_HEAP
+    bool
+
+  # The data ptr is fixed throughout
+  # object lifetime, data may be moved
+  # but ptr used to accessed it still
+  # usable
+  config HEAP_HAVE_FIXED_DATA_PTR
+    bool
+
   choice
-    prompt "Free block finder type"
-    depends on !HEAP_USE_MALLOC
-    default HEAP_FREE_BLOCK_BEST_FIT
+    prompt "Heap flavour"
+    default HEAP_FLAVOUR_MALLOC
+
+    config HEAP_FLAVOUR_SIMPLE
+      bool "Simple"
+      select HEAP_COMPACTABLE_HEAP
+      help
+        Simple and capable of heap compaction.
     
-    config HEAP_FREE_BLOCK_BEST_FIT
-      bool "Best fit"
+    config HEAP_FLAVOUR_MALLOC
+      bool "Runtime malloc"
       help
-        Slower allocation on slow path (when bump pointer method exhausted)
-        but leads to less heap fragmentation 
-    config HEAP_FREE_BLOCK_FIRST_FIT
-      bool "First fit"
-      help
-        Faster allocation on slow path (when bump pointer method exhausted)
-        but leads to more heap fragmentation
+        Plain and simple malloc call. With 0 capability
+        of heap compaction.
   endchoice
+
+  if HEAP_FLAVOUR_SIMPLE
+  source "heap_simple/Kconfig"
+  endif
+  
+  if HEAP_FLAVOUR_MALLOC
+  source "heap_malloc/Kconfig"
+  endif
 endmenu
+
+

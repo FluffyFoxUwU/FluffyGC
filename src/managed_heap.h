@@ -46,7 +46,6 @@ struct generation {
   
   struct mutex rememberedSetLock;
   struct list_head rememberedSet;
-  bool useFastOnly;
 };
 
 struct managed_heap {

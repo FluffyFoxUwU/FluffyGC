@@ -3,6 +3,11 @@ config ENABLE_STACKTRACE
   bool "Enable stacktrace support"
   depends on !STRICTLY_POSIX
 
+config STACKTRACE_HAVE_LIBUNWIND
+  def_bool $[[scripts/check_pkgconfig.sh libunwind]]
+config STACKTRACE_HAVE_LIBBACKTRACE
+  def_bool $[[scripts/check_linker_lib.sh backtrace]]
+
 menu "Stacktrace options"
   choice
     prompt "Stacktrace provider"
@@ -10,6 +15,11 @@ menu "Stacktrace options"
     
     config STACKTRACE_PROVIDER_LIBBACKTRACE
       bool "libbacktrace"
+      depends on STACKTRACE_HAVE_LIBBACKTRACE
+
+    config STACKTRACE_PROVIDER_LIBUNWIND
+      bool "libunwind"
+      depends on STACKTRACE_HAVE_LIBUNWIND
   endchoice
 
   config STACKTRACE_USE_DLADDR

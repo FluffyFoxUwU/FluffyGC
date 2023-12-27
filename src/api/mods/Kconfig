@@ -4,7 +4,7 @@ menu "Mods"
     default n
   
   if MOD_DMA
-    source "Kconfig.dma"
+    source "dma/Kconfig"
   endif
   
   config MOD_DEBUG

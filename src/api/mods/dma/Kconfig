@@ -1,11 +1,11 @@
 
 choice
   prompt "DMA Flavour"
-  default MOD_DMA_NATIVE if GC_UNMOVEABLE_DATA
+  default MOD_DMA_ZERO_COPY if HEAP_HAVE_FIXED_DATA_PTR
   
   config MOD_DMA_ZERO_COPY
     bool "Zero copy (fastest)"
-    depends on GC_UNMOVEABLE_DATA
+    depends on HEAP_HAVE_FIXED_DATA_PTR
     help
       Fastest mode with zero overhead of copying data
 
@@ -15,4 +15,6 @@ choice
   #  help
   #    Slower implementation of DMA mod by using intermediate
   #    buffer. Works with any configuration
+
 endchoice
+

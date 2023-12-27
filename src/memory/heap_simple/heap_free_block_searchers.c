@@ -37,9 +37,9 @@ static struct heap_block* firstFit(struct heap* self, size_t blockSize) {
 }
 
 struct heap_block* heap_find_free_block(struct heap* self, size_t blockSize) {
-  if (IS_ENABLED(CONFIG_HEAP_FREE_BLOCK_BEST_FIT))
+  if (IS_ENABLED(CONFIG_HEAP_SIMPLE_FREE_BLOCK_BEST_FIT))
     return bestFit(self, blockSize);
-  else if (IS_ENABLED(CONFIG_HEAP_FREE_BLOCK_FIRST_FIT))
+  else if (IS_ENABLED(CONFIG_HEAP_SIMPLE_FREE_BLOCK_FIRST_FIT))
     return firstFit(self, blockSize);
   
   // Just incase
