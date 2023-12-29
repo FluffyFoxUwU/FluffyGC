@@ -4,7 +4,7 @@
 #include "FluffyHeap/FluffyHeap.h"
 #include "hook/hook.h"
 
-HOOK_FUNCTION_DECLARE(, size_t, debug_hook_fh_array_get_length_head, __FLUFFYHEAP_NONNULL(fh_array*), self);
+HOOK_FUNCTION_DECLARE(, ssize_t, debug_hook_fh_array_get_length_head, __FLUFFYHEAP_NONNULL(fh_array*), self);
 HOOK_FUNCTION_DECLARE(, ssize_t, debug_hook_fh_array_calc_offset_head, __FLUFFYHEAP_NONNULL(fh_array*), self, size_t, index);
 
 #endif

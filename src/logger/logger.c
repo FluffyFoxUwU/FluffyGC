@@ -9,6 +9,7 @@
 #include "concurrency/mutex.h"
 #include "panic.h"
 #include "util/circular_buffer.h"
+#include "config.h"
 
 #ifdef BUG
 #  undef BUG
@@ -28,11 +29,10 @@
     BUG(); \
 } while(0)
 
-#define LOG_BUFFER_SIZE (8 * 1024 * 1024)
-#define LOCAL_BUFFER_SIZE (96 * 1024)
-static_assert(LOCAL_BUFFER_SIZE - 4096 > 0, "4 KiB extra must be available");
+#define LOG_BUFFER_SIZE (1 << CONFIG_LOG_BUFFER_SHIFT)
+#define LOCAL_BUFFER_SIZE (1 << CONFIG_PERTHREAD_LOG_BUFFER_SHIFT)
 
-DEFINE_LOGGER_STATIC(defaultLogger, "Misc");
+DEFINE_LOGGER_STATIC(defaultLogger, "Default");
 DEFINE_CIRCULAR_BUFFER_STATIC(buffer, LOG_BUFFER_SIZE);
 
 static const char* loglevelToString(enum logger_loglevel level) {
@@ -61,12 +61,9 @@ static const char* loglevelToString(enum logger_loglevel level) {
 
 void logger_doPrintk_va(struct logger* logger, enum logger_loglevel level, const char* location, const char* func, const char* fmt, va_list args) {
   static thread_local char outputBuffer[LOCAL_BUFFER_SIZE];
-  static thread_local char messageBuffer[LOCAL_BUFFER_SIZE - 4096];
   
   if (!logger)
     logger = &defaultLogger;
-  
-  vsnprintf(messageBuffer, sizeof(messageBuffer), fmt, args);
   
   struct timespec currentTime;
   clock_gettime(CLOCK_REALTIME, &currentTime);
@@ -92,7 +89,12 @@ void logger_doPrintk_va(struct logger* logger, enum logger_loglevel level, const
   
   // Format is [timestamp] [subsystemName] [ThreadName/loglevel] [FileSource.c:line#function()] Message
   // Example: [Sat 12 Aug 2023, 10:31 AM +0700] [Renderer] [Render Thread/INFO] [renderer/renderer.c:20#init()] Initalizing OpenGL...
-  size_t messageLen = snprintf(outputBuffer, sizeof(outputBuffer), "[%s] [%s] [%s/%s] [%s%s()] %s", timestampBuffer, logger->subsystemName, util_get_thread_name(), loglevelToString(level), location, func, messageBuffer);
+  int messageLen = snprintf(outputBuffer, sizeof(outputBuffer), "[%s] [%s] [%s/%s] [%s%s()] ", timestampBuffer, logger->subsystemName, util_get_thread_name(), loglevelToString(level), location, func);
+  
+  // There space to put the message
+  printf("Huh? %zu\n", sizeof(outputBuffer) - messageLen);
+  if (messageLen >= 0 && (size_t) messageLen < sizeof(outputBuffer))
+    messageLen += vsnprintf(outputBuffer + messageLen, sizeof(outputBuffer) - messageLen, fmt, args);
   
   struct logger_entry header = {
     .len = messageLen,

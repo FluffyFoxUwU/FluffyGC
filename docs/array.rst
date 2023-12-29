@@ -19,7 +19,7 @@ Methods
 +----------------------+---------------------------------------------------------------------------------+-------------------------+
 | void                 | fh_array_set_element(fh_array* self, size_t index, @Nullable fh_object* object) | `fh_array_set_element`_ |
 +----------------------+---------------------------------------------------------------------------------+-------------------------+
-| size_t               | fh_array_get_length(fh_array* self)                                             | `fh_array_get_length`_  |
+| ssize_t              | fh_array_get_length(fh_array* self)                                             | `fh_array_get_length`_  |
 +----------------------+---------------------------------------------------------------------------------+-------------------------+
 
 Constructors
@@ -99,7 +99,7 @@ fh_array_get_length
 ********************
 .. code-block:: c
 
-   size_t fh_array_get_length(fh_array* self)
+   ssize_t fh_array_get_length(fh_array* self)
 
 Gets array length
 
@@ -113,7 +113,7 @@ Parameters
 
 Return value
 ============
-The array length
+The array length or -1 if not array
 
 Tags
 ====

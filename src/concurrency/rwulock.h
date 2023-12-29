@@ -17,7 +17,7 @@ struct rwulock {
   struct rwulock name = RWULOCK_INITIALIZER
 
 static inline int rwulock_init(struct rwulock* self) {
-  int res = rwlock_init(&self->lock);
+  int res = rwlock_init(&self->lock, 0);
   if (res < 0)
     return res;
   return mutex_init(&self->upgradeLock);

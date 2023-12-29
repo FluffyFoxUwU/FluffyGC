@@ -7,20 +7,34 @@
 #include <errno.h>
 
 #include "attributes.h"
+#include "concurrency/condition.h"
 
 struct rwlock {
-  pthread_rwlock_t rwlock;
   bool inited;
+  pthread_rwlock_t rwlock;
+
+  int flags;
+  atomic_bool writersWaiting;
+  struct condition writerDone;
 };
+
+#define RWLOCK_FLAGS_PREFER_WRITER 0x01
 
 #define RWLOCK_INITIALIZER { \
     .rwlock = PTHREAD_RWLOCK_INITIALIZER, \
     .inited = true, \
+    .flags = 0 \
+  }
+#define RWLOCK_INITIALIZER_PREFER_WRITER { \
+    .rwlock = PTHREAD_RWLOCK_INITIALIZER, \
+    .inited = true, \
+    .flags = RWLOCK_FLAGS_PREFER_WRITER, \
+    .writerDone = CONDITION_INITIALIZER \
   }
 #define RWLOCK_DEFINE(name) \
   struct rwlock name = RWLOCK_INITIALIZER
 
-int rwlock_init(struct rwlock* self);
+int rwlock_init(struct rwlock* self, int flags);
 void rwlock_cleanup(struct rwlock* self);
 
 ATTRIBUTE_USED()

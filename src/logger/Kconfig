@@ -1,0 +1,23 @@
+
+menu "Logger"
+  config PERTHREAD_LOG_BUFFER_SHIFT
+    int "Per thread log buffer size"
+    range 10 12
+    help
+      Size of per thread buffer in bit shift
+      10 => 1 KiB
+      11 => 2 KiB
+      12 => 4 KiB
+  config LOG_BUFFER_SHIFT
+    int "Log buffer size"
+    range 16 20
+    help
+      Size of loggee buffer in bit shift
+      15 => 32 KiB
+      16 => 64 KiB
+      17 => 128 KiB
+      18 => 256 KiB
+      19 => 512 KiB
+      20 => 1 MiB
+endmenu 
+

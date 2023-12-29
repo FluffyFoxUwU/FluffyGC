@@ -42,7 +42,7 @@ struct type_registry* type_registry_new() {
   self->map.map_base.key_free = free;
   self->map.map_base.key_dup = dupString;
   
-  if (rwlock_init(&self->lock) < 0)
+  if (rwlock_init(&self->lock, 0) < 0)
     goto failure;
   
   #define X(name, enumVal) \

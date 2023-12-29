@@ -21,9 +21,9 @@ menu General
   
   config STRICTLY_POSIX
     bool "Strict POSIX compliant"
-    default y
+    default n
     help
-      Disable any non POSIX 2008 libc or
+      Hide and disable any non POSIX 2008 libc or
       platform specific API usage
 endmenu
 
@@ -39,7 +39,7 @@ source "src/memory/Kconfig"
 source "src/fuzzing/Kconfig"
 source "src/gc/Kconfig"
 source "src/api/mods/Kconfig"
-
+source "src/logger/Kconfig"
 source "src/stacktrace/Kconfig"
 
 config HOOK

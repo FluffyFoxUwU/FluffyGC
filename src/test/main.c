@@ -59,7 +59,6 @@ static int loader(const char* name, void* udata, fh_descriptor_param* param) {
   return -ESRCH;
 }
 
-[[maybe_unused]]
 static void doTestNormal() {
   size_t sizes[] = {
     64 * 1024 * 1024
@@ -156,11 +155,11 @@ static void doTestNormal() {
     fh_array_calc_offset(array, 999);
     
     const fh_type_info* info = fh_object_get_type_info(FH_CAST_TO_OBJECT(array));
-    pr_alert("Array is %zu has entries long", info->info.refArray->length);
-    pr_alert("Array is %zu has entries according to API call", fh_array_get_length(array));
+    pr_alert("Array is %zu has entries long according to type info", info->info.refArray->length);
+    pr_alert("Array is %zd has entries according to API call", fh_array_get_length(array));
     fh_object_put_type_info(FH_CAST_TO_OBJECT(array), info);
     
-    pr_alert("Not real array has %zu entries according to API call", fh_array_get_length(FH_CAST_TO_ARRAY(obj)));
+    pr_alert("Not real array has %zd entries according to API call", fh_array_get_length(FH_CAST_TO_ARRAY(obj)));
     
     fh_del_ref((fh_object*) array);
     fh_del_ref((fh_object*) readVal);

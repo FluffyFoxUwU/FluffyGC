@@ -184,7 +184,7 @@ __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_array*) fh_alloc_array(__FLUFFYHEAP
 __FLUFFYHEAP_EXPORT ssize_t fh_array_calc_offset(__FLUFFYHEAP_NONNULL(fh_array*) self, size_t index);
 __FLUFFYHEAP_EXPORT __FLUFFYHEAP_NULLABLE(fh_object*) fh_array_get_element(__FLUFFYHEAP_NONNULL(fh_array*) self, size_t index);
 __FLUFFYHEAP_EXPORT void fh_array_set_element(__FLUFFYHEAP_NONNULL(fh_array*) self, size_t index, __FLUFFYHEAP_NULLABLE(fh_object*) object);
-__FLUFFYHEAP_EXPORT size_t fh_array_get_length(__FLUFFYHEAP_NONNULL(fh_array*) self);
+__FLUFFYHEAP_EXPORT ssize_t fh_array_get_length(__FLUFFYHEAP_NONNULL(fh_array*) self);
 
 // Descriptors stuff
 __FLUFFYHEAP_EXPORT int fh_define_descriptor(__FLUFFYHEAP_NONNULL(__FLUFFYHEAP_NULLABLE(fh_descriptor*)*) resultDescriptor, __FLUFFYHEAP_NONNULL(const char*) name, __FLUFFYHEAP_NONNULL(fh_descriptor_param*) parameter, bool dontInvokeLoader);

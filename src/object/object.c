@@ -5,9 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+#include <threads.h>
 
+#include "macros.h"
 #include "concurrency/mutex.h"
-#include "gc/gc.h"
+#include "concurrency/rwlock.h"
 #include "managed_heap.h"
 #include "memory/heap.h"
 #include "memory/soc.h"
@@ -32,6 +34,7 @@ struct object* object_resolve_forwarding(struct object* self) {
 }
 
 static struct object* readPointerAt(struct object* self, size_t offset) {
+  object_ptr_use_start(self);
   struct object* obj = atomic_load(getAtomicPtrToReference(self, offset));
   if (!obj)
     return NULL;
@@ -42,22 +45,17 @@ static struct object* readPointerAt(struct object* self, size_t offset) {
   if (obj != forwarded)
     atomic_compare_exchange_strong(getAtomicPtrToReference(self, offset), &obj, forwarded);
   obj = forwarded;
+  object_ptr_use_end(self);
   return obj;
 }
 
 struct root_ref* object_read_reference(struct object* self, size_t offset) {
-  context_block_gc();
   struct root_ref* res = NULL;
   struct object* obj = readPointerAt(self, offset);
   if (!obj)
-    goto obj_is_null;
+    return NULL;
   
   res = context_add_root_object(obj);
-  // Called in blocked GC state to ensure GC cycle not starting before
-  // obj is checked for liveness
-  gc_current->ops->postReadBarrier(obj);
-obj_is_null:
-  context_unblock_gc();
   return res;
 }
 
@@ -67,15 +65,13 @@ static bool isEligibleForRememberedSet(struct object* parent, struct object* chi
 }
 
 void object_write_reference(struct object* self, size_t offset, struct object* child) {
-  context_block_gc();
   if (!descriptor_is_assignable_to(self, offset, child->movePreserve.descriptor))
     panic("Incompatible assignment");
   
-  struct object* oldChild = atomic_exchange(getAtomicPtrToReference(self, offset), child);
-  
-  // TODO: implement conditional write barriers
-  gc_current->ops->postWriteBarrier(oldChild);
-  
+  object_ptr_use_start(self);
+  atomic_store(getAtomicPtrToReference(self, offset), child);
+  object_ptr_use_end(self);
+   
   // Add current object to child's generation remembered set
   if (isEligibleForRememberedSet(self, child)) {
     int childGenerationID = child->movePreserve.generationID;
@@ -84,7 +80,6 @@ void object_write_reference(struct object* self, size_t offset, struct object* c
     list_add(&self->rememberedSetNode[childGenerationID], &childGeneration->rememberedSet);
     mutex_unlock(&childGeneration->rememberedSetLock);
   }
-  context_unblock_gc();
 }
 
 int object_init_synchronization_structs(struct object* self) {
@@ -100,9 +95,7 @@ int object_init_synchronization_structs(struct object* self) {
   if ((res = condition_init(&data->cond)) < 0) 
     goto failure;
   
-  context_block_gc();
   self->movePreserve.syncStructure = data;
-  context_unblock_gc();
   
 failure:
   if (res < 0) {
@@ -136,12 +129,15 @@ static void commonInit(struct object* self, struct descriptor* desc) {
   atomic_init(&self->isMarked, false);
   for (int i = 0; i < GC_MAX_GENERATIONS; i++)
     list_init_as_invalid(&self->rememberedSetNode[i]);
-  descriptor_init_object(desc, self);
 }
 
 void object_init(struct object* self, struct descriptor* desc) {
   commonInit(self, desc);
+  self->movePreserve.descriptor = desc;
   self->movePreserve.foreverUniqueID = managed_heap_generate_object_id();
+  self->movePreserve.overridePtr = NULL;
+  self->movePreserve.syncStructure = NULL;
+  descriptor_init_object(desc, self);
 }
 
 void object_fix_pointers(struct object* self) {
@@ -197,7 +193,66 @@ struct heap_block* object_get_heap_block(struct object* self) {
   return container_of(self, struct heap_block, objMetadata);
 }
 
-void* object_get_ptr(struct object* self) {
+void* object_get_backing_ptr(struct object* self) {
   return heap_block_get_ptr(object_get_heap_block(self));
 }
+
+void* object_get_ptr(struct object* self) {
+  if (self->movePreserve.overridePtr)
+    return self->movePreserve.overridePtr->overridePtr;
+  return object_get_backing_ptr(self);
+}
+
+// TODO: Convert this to lazy rwlock which init
+// only if something want to block pointer access
+// of current object (its just unnecessary that
+// CopyingDMA blocks every pointer get on any heaps)
+static struct rwlock ptrAccessLock = RWLOCK_INITIALIZER_PREFER_WRITER;
+
+static thread_local int blockCount = 0;
+void object_block_ptr(struct object* self) {
+  UNUSED(self);
+  blockCount++;
+  if (blockCount == 1)
+    rwlock_wrlock(&ptrAccessLock);
+}
+
+void object_unblock_ptr(struct object* self) {
+  UNUSED(self);
+  blockCount--;
+  // Unbalanced block/unblock
+  BUG_ON(blockCount < 0);
+  if (blockCount == 0)
+    rwlock_unlock(&ptrAccessLock);
+}
+
+void object_set_override_ptr(struct object* self, struct object_override_info* newPtr) {
+  self->movePreserve.overridePtr = newPtr;
+}
+
+struct object_override_info* object_get_override_ptr(struct object* self) {
+  return self->movePreserve.overridePtr;
+}
+
+static thread_local int useCount = 0;
+void object_ptr_use_start(struct object* self) {
+  UNUSED(self);
+  useCount++;
+  if (useCount == 1)
+    rwlock_rdlock(&ptrAccessLock);
+}
+
+void object_ptr_use_end(struct object* self) {
+  UNUSED(self);
+  useCount--;
+  // Unbalanced start/end
+  BUG_ON(useCount < 0);
+  if (useCount == 0)
+    rwlock_unlock(&ptrAccessLock);
+}
+
+
+
+
+
 

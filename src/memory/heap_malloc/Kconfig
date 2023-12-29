@@ -6,7 +6,4 @@ config HEAP_MALLOC_NO_COPY
   help
     Optimize move so that move consist only moving data pointer
     instead actually do the copy.
-    
-    May hinder debugging if enabled as raw pointer to dead object
-    still points to valid data
 

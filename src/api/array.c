@@ -30,10 +30,12 @@ API_FUNCTION_DEFINE_VOID(fh_array_set_element, __FLUFFYHEAP_NONNULL(fh_array*), 
   fh_object_write_ref(FH_CAST_TO_OBJECT(self), fh_array_calc_offset(self, index), object);
 }
 
-API_FUNCTION_DEFINE(size_t, fh_array_get_length, __FLUFFYHEAP_NONNULL(fh_array*), self) {
+API_FUNCTION_DEFINE(ssize_t, fh_array_get_length, __FLUFFYHEAP_NONNULL(fh_array*), self) {
   context_block_gc();
   struct descriptor* desc = root_ref_get(INTERN(self))->movePreserve.descriptor;
-  size_t length = container_of(desc, struct array_descriptor, super)->arrayInfo.length;
+  ssize_t length = -1;
+  if (desc->type == OBJECT_ARRAY) 
+    length = container_of(desc, struct array_descriptor, super)->arrayInfo.length;
   context_unblock_gc();
   return length;
 }

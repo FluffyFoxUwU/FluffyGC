@@ -101,7 +101,7 @@ ADD_HOOK_TARGET(fh_array_get_element);
 ADD_HOOK_TARGET(fh_array_set_element);
 ADD_HOOK_TARGET(fh_array_get_length);
 # if IS_ENABLED(CONFIG_MOD_DEBUG)
-  ADD_HOOK_FUNC_AND_DECLARE(fh_array_get_length, HOOK_HEAD, size_t, debug_hook_fh_array_get_length_head, __FLUFFYHEAP_NONNULL(fh_array*), self);
+  ADD_HOOK_FUNC_AND_DECLARE(fh_array_get_length, HOOK_HEAD, ssize_t, debug_hook_fh_array_get_length_head, __FLUFFYHEAP_NONNULL(fh_array*), self);
 # endif
 
 // Descriptor stuffs
