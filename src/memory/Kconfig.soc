@@ -1,6 +1,7 @@
 menu "Small Object Cache"
+  # Without malloc its broken right now
   config SOC_USE_MALLOC
-    bool "Use system malloc instead from cache"
+    bool #"Use system malloc instead from cache"
     default y
     help
       This essentially bypass cache and use malloc instead if you are using

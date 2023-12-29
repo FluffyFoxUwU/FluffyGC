@@ -6,7 +6,7 @@ if [ ! $# -eq 1 ]; then
 fi
 
 TEMP=$(mktemp)
-trap "rm -- $TEMP" EXIT
+trap "rm -f -- $TEMP" EXIT
 
 MUTED=$(echo "int main() {}" | $CC -Wl,--no-as-needed -l$1 -xc -o $TEMP - 2>&1)
 (exit $?) && echo y || echo n
