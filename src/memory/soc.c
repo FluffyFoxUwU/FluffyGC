@@ -174,10 +174,8 @@ void soc_free(struct small_object_cache* self) {
   
   // The static one (defined using SOC_DEFINE)
   // dont need to be cleaned
-  if (self->isStatic) {
+  if (self->isStatic)
     panic();
-    return;
-  }
   
   if (IS_ENABLED(CONFIG_SOC_USE_MALLOC)) {
     free(self);

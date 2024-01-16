@@ -16,6 +16,7 @@
 #include "attributes.h"
 #include "bug.h"
 #include "hook/hook.h"
+#include "panic.h"
 #include "util/circular_buffer.h"
 #include "util/util.h"
 #include "macros.h"
