@@ -1,6 +1,9 @@
+#include <stdatomic.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "common.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "api/mods/debug/debug.h"
 #include "context.h"
 #include "api/api.h"

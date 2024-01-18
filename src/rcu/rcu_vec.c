@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "rcu_vec.h"
+#include "rcu/rcu_generic.h"
 #include "vec.h"
 
 static int copyFunc(const void* _src, void* _dest) {

@@ -1,8 +1,6 @@
 #ifndef _headers_1673868968_FluffyGC_bits
 #define _headers_1673868968_FluffyGC_bits
 
-#include <stddef.h>
-
 #define BITS_PER_BYTE 8
 
 #define BITS_PER_LONG_LONG (sizeof(long long) * BITS_PER_BYTE)

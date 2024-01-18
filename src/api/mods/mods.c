@@ -1,6 +1,8 @@
+#include <errno.h>
 #include <string.h>
 #include <threads.h>
 
+#include "api/api.h"
 #include "debug/debug.h"
 #include "dma/dma_common.h"
 
@@ -9,6 +11,7 @@
 #include "FluffyHeap/FluffyHeap.h"
 #include "mods.h"
 #include "config.h"
+#include "managed_heap.h"
 #include "util/util.h"
 
 static struct api_mod_info mods[FH_MOD_COUNT] = {

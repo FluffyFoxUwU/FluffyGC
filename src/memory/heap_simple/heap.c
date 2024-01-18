@@ -14,6 +14,7 @@
 #include "bug.h"
 #include "heap_free_block_searchers.h"
 #include "concurrency/mutex.h"
+#include "memory/heap_common_types.h"
 #include "object/object.h"
 #include "util/list_head.h"
 #include "util/util.h"

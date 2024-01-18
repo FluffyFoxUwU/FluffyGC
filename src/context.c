@@ -4,7 +4,6 @@
 #include <threads.h>
 #include <pthread.h>
 
-#include "memory/heap.h"
 #include "memory/soc.h"
 #include "context.h"
 #include "managed_heap.h"

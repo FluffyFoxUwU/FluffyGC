@@ -5,10 +5,8 @@
 // not multithread safe
 // as i dont understand
 // how would that work out
-#include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <time.h>
 
 #include "hashmap.h"
 #include "list.h"

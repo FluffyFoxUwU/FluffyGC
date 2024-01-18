@@ -1,5 +1,4 @@
 #include <pthread.h>
-#include <stdlib.h>
 
 #include "bug.h"
 #include "thread_local.h"

@@ -1,4 +1,6 @@
+#include <errno.h>
 #include <stdatomic.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <strings.h>
 #include <threads.h>

@@ -2,6 +2,7 @@
 #define _headers_1691144010_FluffyGC_rcu
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include "concurrency/mutex.h"
 #include "concurrency/condition.h"

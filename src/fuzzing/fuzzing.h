@@ -2,7 +2,6 @@
 #define _headers_1674625865_FluffyGC_fuzzing
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include "attributes.h"
 #include "config.h"
@@ -12,7 +11,7 @@ int fuzzing_heap(const void* data, size_t size);
 int fuzzing_root_refs(const void* data, size_t size);
 
 ATTRIBUTE_USED()
-static int fuzzing_blank(const void* data, size_t size) {
+static int fuzzing_blank(const void*, size_t) {
   return 0;
 }
 

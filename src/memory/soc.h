@@ -6,6 +6,7 @@
 // but it would warn about it
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "util/list_head.h"
 #include "util/util.h"

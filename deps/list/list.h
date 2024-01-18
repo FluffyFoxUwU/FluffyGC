@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-#include <stdlib.h>
+#include <stdlib.h> // IWYU pragma: keep
 
 // Library version
 

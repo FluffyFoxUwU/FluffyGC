@@ -2,15 +2,18 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 
 #include "memory/soc.h"
 #include "config.h"
 
-int fuzzing_soc(const void* data, size_t size) {
+int fuzzing_soc(const void* _data, size_t size);
+int fuzzing_soc(const void* _data, size_t size) {
   if (size < sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint8_t) + sizeof(uint8_t))
     return 0;
-  
-  const void* dataEnd = data + size;
+
+  const char* data = _data;
+  const char* dataEnd = data + size;
   
   size_t objSize = *(const uint16_t*) data + 1;
   data += 2;

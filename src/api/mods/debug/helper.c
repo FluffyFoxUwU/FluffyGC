@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stddef.h>
 #include <threads.h>
 #include <time.h>
 #include <inttypes.h>
@@ -14,7 +15,9 @@
 #include "api/mods/debug/common.h"
 #include "api/mods/debug/debug.h"
 #include "api/mods/dma/dma_common.h"
+#include "api/mods/mods.h"
 #include "buffer.h"
+#include "bug.h"
 #include "concurrency/thread_local.h"
 #include "logger/logger.h"
 #include "api/api.h"

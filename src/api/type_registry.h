@@ -6,6 +6,7 @@
 #include "concurrency/rwlock.h"
 #include "hashmap.h"
 
+struct descriptor;
 struct type_registry {
   struct rwlock lock;
   HASHMAP(char, struct descriptor) map;

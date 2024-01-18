@@ -3,8 +3,8 @@
 
 #include <stddef.h>
 
-#include "rcu/rcu.h"
-#include "rcu_generic.h"
+#include "rcu/rcu.h" // IWYU pragma: keep
+#include "rcu_generic.h" // IWYU pragma: keep
 
 // RCU generic but type checked
 

@@ -1,10 +1,10 @@
 #include <limits.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <time.h>
 
 #include "gc/gc.h"
 #include "gc/nop/nop.h"
-#include "util/util.h"
+#include "gc/gc_flags.h"
 #include "managed_heap.h"
 #include "macros.h"
 

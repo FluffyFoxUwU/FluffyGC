@@ -2,7 +2,6 @@
 #define _headers_1683212706_FluffyGC_nop
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include "gc/gc_flags.h"
 #include "gc/gc.h"

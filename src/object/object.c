@@ -7,6 +7,8 @@
 #include <inttypes.h>
 #include <threads.h>
 
+#include "concurrency/condition.h"
+#include "gc/gc.h"
 #include "macros.h"
 #include "concurrency/mutex.h"
 #include "concurrency/rwlock.h"

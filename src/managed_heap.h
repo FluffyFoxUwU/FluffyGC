@@ -5,7 +5,9 @@
 // Tracking various things
 
 #include <stdint.h>
+#include <stddef.h>
 #include <threads.h>
+#include <time.h>
 
 #include "FluffyHeap/FluffyHeap.h"
 #include "concurrency/completion.h"

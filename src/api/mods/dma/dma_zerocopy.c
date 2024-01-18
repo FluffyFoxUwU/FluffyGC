@@ -1,5 +1,8 @@
+#include <stddef.h>
 #include <stdatomic.h>
 #include <inttypes.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #include "api/api.h"
 

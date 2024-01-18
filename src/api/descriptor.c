@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <errno.h>
+#include <string.h>
 
 #include "api/api.h"
 #include "bug.h"

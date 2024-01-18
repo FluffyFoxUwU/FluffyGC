@@ -6,8 +6,11 @@
 #include "macros.h"
 #include "stacktrace/stacktrace.h"
 #include "logger/logger.h"
-#include "stacktrace/provider/libbacktrace.h"
 #include "config.h"
+
+# if IS_ENABLED(CONFIG_STACKTRACE_PROVIDER_LIBBACKTRACE)
+#include "stacktrace/provider/libbacktrace.h"
+# endif
 
 static bool stacktraceEnabled = false;
 

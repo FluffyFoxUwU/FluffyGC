@@ -3,6 +3,8 @@
 
 #include <pthread.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <time.h>
 
 struct mutex;
 struct condition {

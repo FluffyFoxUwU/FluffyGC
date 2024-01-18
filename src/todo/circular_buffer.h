@@ -14,6 +14,7 @@
 // Designed for one reader and multiple writers (for use
 // in logging subsystem)
 
+#include <stdint.h>
 #include <time.h>
 
 #include "concurrency/condition.h"

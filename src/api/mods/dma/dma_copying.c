@@ -1,12 +1,17 @@
+#include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <string.h>
+#include <stddef.h>
 
 #include "FluffyHeap/FluffyHeap.h"
 #include "FluffyHeap/mods/dma.h"
 
+#include "api/api.h"
 #include "api/mods/debug/common.h"
+#include "context.h"
 #include "macros.h"
 #include "logger/logger.h"
 #include "dma_common.h"

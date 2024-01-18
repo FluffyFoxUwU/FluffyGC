@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "hooks.h"
 #include "api/type_registry.h"
 #include "managed_heap.h"

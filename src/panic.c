@@ -1,15 +1,16 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdatomic.h>
-#include <stddef.h>
 #include <errno.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdlib.h> // IWYU pragma: keep // Weird? warning on clangd
+#include <time.h>
 #include <unistd.h>
 
 #include "panic.h"
 #include "logger/logger.h"
 #include "stacktrace/stacktrace.h"
+#include "util/util.h"
 
 static const char* snip1 = "--------[ stacktrace UwU ]--------";
 static const char* snip2 = "----------------------------------";

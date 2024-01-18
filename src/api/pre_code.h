@@ -1,7 +1,6 @@
 #ifndef _headers_1686662453_FluffyGC_pre_code
 #define _headers_1686662453_FluffyGC_pre_code
 
-#include "attributes.h"
 #include "public.h"
 
 #define __FLUFFYHEAP_EXPORT PUBLIC

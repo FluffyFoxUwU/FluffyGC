@@ -16,7 +16,9 @@
 #include <stdint.h>
 #include <string.h>
 #include <regex.h>
+#include <stddef.h>
 
+#include "panic.h"
 #include "util.h"
 #include "bug.h"
 #include "macros.h"

@@ -1,4 +1,9 @@
+#include <stdatomic.h>
+#include <stddef.h>
+
 #include "api/mods/debug/debug.h"
+#include "api/pre_code.h"
+#include "context.h"
 #include "hook/hook.h"
 #include "FluffyHeap/FluffyHeap.h"
 #include "managed_heap.h"

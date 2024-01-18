@@ -11,6 +11,7 @@
 
 #include "FluffyHeap/FluffyHeap.h" // IWYU pragma: keep
 #include "FluffyHeap/mods/dma.h" // IWYU pragma: keep
+#include "util/util.h"
 
 enum debug_argument_type {
   DEBUG_TYPE_FH_ARRAY,

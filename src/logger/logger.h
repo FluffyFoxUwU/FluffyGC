@@ -1,6 +1,7 @@
 #ifndef _headers_1690279182_FluffyGC_logger
 #define _headers_1690279182_FluffyGC_logger
 
+#include <stdarg.h>
 #include <stddef.h>
 #include <time.h>
 

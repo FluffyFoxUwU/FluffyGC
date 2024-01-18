@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <threads.h>
 
 #include "FluffyHeap/FluffyHeap.h"

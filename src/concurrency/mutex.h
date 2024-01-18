@@ -4,6 +4,8 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdatomic.h>
+#include <stddef.h>
+#include <time.h>
 
 struct mutex {
   pthread_mutex_t mutex;

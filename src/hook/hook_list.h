@@ -2,10 +2,14 @@
 #define _headers_1689844559_FluffyGC_hook_list
 // This file only ever included by hook.c
 
+#include <stddef.h>
+
 #include "FluffyHeap/FluffyHeap.h"
 #include "attributes.h"
+#include "config.h"
 #include "hook.h"
 #include "macros.h"
+#include "util/util.h"
 
 #ifndef ADD_HOOK_TARGET
 # define STANDALONE
@@ -21,7 +25,7 @@
 
 #ifdef STANDALONE
 ATTRIBUTE_USED()
-void (^uwu)() = ^() {
+void (^PASTE(uwu, __COUNTER__))() = ^() {
 #endif
 
 //////////////////////////////
@@ -111,6 +115,7 @@ ADD_HOOK_TARGET(fh_release_descriptor);
 ADD_HOOK_TARGET(fh_descriptor_get_param);
 
 // Mods
+
 #include "api/mods/mods_hooklist.h" // IWYU pragma: keep
 
 #ifdef STANDALONE

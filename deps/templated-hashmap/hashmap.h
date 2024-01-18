@@ -12,7 +12,7 @@ extern "C" {
 #endif
 
 #include <stddef.h>
-#include "hashmap_base.h"
+#include "hashmap_base.h" // IWYU pragma: keep
 
 /*
  * INTERNAL USE ONLY: Updates an iterator structure after the current element was removed.

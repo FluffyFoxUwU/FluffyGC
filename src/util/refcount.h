@@ -1,7 +1,6 @@
 #ifndef _headers_1673683913_FluffyGC_resourc_tracker
 #define _headers_1673683913_FluffyGC_resourc_tracker
 
-#include <stdatomic.h>
 #include <stdbool.h>
 
 #include "attributes.h"

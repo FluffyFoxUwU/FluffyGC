@@ -1,4 +1,6 @@
+#include <stddef.h>
 #include <inttypes.h>
+#include <stddef.h>
 
 #include "dma_common.h"
 #include "logger/logger.h"

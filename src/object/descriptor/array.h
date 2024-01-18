@@ -3,6 +3,7 @@
 
 #include "FluffyHeap/FluffyHeap.h"
 #include "object/descriptor.h"
+#include <stddef.h>
 
 struct array_descriptor {
   struct descriptor super;

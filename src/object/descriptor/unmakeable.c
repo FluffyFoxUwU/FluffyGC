@@ -1,10 +1,12 @@
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "unmakeable.h"
 #include "object/descriptor.h"
 #include "object/object.h"
 #include "panic.h"
 #include "macros.h"
+#include "util/util.h"
 
 static int impl_forEachOffset(struct descriptor* super, struct object* object, int (^iterator)(size_t offset)) {
   UNUSED(super);

@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -9,11 +10,13 @@
 #include "bug.h"
 #include "concurrency/completion.h"
 #include "concurrency/mutex.h"
+#include "gc/gc_flags.h"
 #include "hook/hook.h"
 #include "managed_heap.h"
 #include "context.h"
 #include "gc/gc.h"
 #include "memory/heap.h"
+#include "memory/heap_common_types.h"
 #include "object/descriptor.h"
 #include "object/object.h"
 #include "util/id_generator.h"

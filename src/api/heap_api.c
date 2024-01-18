@@ -1,4 +1,7 @@
+#include <stddef.h>
 #include <errno.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #include "api/api.h"
 #include "context.h"

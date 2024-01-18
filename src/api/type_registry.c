@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <errno.h>
+#include <stddef.h>
 
 #include "concurrency/rwlock.h"
 #include "hashmap_base.h"

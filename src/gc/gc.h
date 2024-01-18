@@ -1,6 +1,7 @@
 #ifndef _headers_1682059498_FluffyGC_gc
 #define _headers_1682059498_FluffyGC_gc
 
+#include <pthread.h>
 #include <threads.h>
 
 #include "attributes.h"

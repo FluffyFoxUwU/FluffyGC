@@ -2,6 +2,7 @@
 #define _headers_1644388362_FoxGC_descriptors
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include "FluffyHeap/FluffyHeap.h"
 #include "util/counter.h"

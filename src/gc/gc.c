@@ -8,6 +8,7 @@
 #include "concurrency/rwulock.h"
 #include "context.h"
 #include "gc.h"
+#include "gc/gc_flags.h"
 #include "itc/channel.h"
 #include "managed_heap.h"
 #include "bug.h"
@@ -15,7 +16,6 @@
 
 #include "gc/nop/nop.h" // IWYU pragma: keep
 #include "gc/serial/serial.h" // IWYU pragma: keep
-#include "memory/heap.h"
 #include "util/list_head.h"
 #include "util/util.h"
 

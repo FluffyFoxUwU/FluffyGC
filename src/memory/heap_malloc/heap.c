@@ -1,6 +1,8 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "bug.h"
+#include "memory/heap_common_types.h"
 #include "util/list_head.h"
 #include "concurrency/mutex.h"
 

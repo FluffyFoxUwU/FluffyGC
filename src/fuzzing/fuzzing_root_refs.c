@@ -1,10 +1,12 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stddef.h>
 
 #include "context.h"
 #include "gc/gc.h"
 
+int fuzzing_root_refs(const void* data, size_t size);
 int fuzzing_root_refs(const void* data, size_t size) {
   if (size < sizeof(uint16_t))
     return 0;

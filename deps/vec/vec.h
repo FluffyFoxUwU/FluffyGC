@@ -8,8 +8,8 @@
 #ifndef VEC_H
 #define VEC_H
 
-#include <stdlib.h>
-#include <string.h>
+#include <stdlib.h> // IWYU pragma: keep
+#include <string.h> // IWYU pragma: keep
 
 #define VEC_VERSION "0.2.1"
 

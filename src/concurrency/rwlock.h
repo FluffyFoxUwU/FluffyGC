@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <errno.h>
+#include <stddef.h>
 
 #include "attributes.h"
 #include "concurrency/condition.h"

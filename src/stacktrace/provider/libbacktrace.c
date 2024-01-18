@@ -25,6 +25,8 @@ static int dladdr(const void* addr, Dl_info* info) {
 #include <pthread.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include "libbacktrace.h"
 #include "stacktrace/stacktrace.h"

@@ -1,10 +1,12 @@
 #include <stdatomic.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "rcu.h"
 #include "bug.h"
+#include "concurrency/condition.h"
 #include "concurrency/mutex.h"
 #include "panic.h"
 

@@ -1,7 +1,8 @@
+#include <stddef.h>
 #include <errno.h>
 #include <pthread.h>
+#include <time.h>
 
-#include "bug.h"
 #include "mutex.h"
 #include "condition.h"
 #include "panic.h"

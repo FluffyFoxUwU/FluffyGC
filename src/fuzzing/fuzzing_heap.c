@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 
 #include "context.h"
 #include "memory/heap.h"
@@ -11,10 +12,12 @@
 
 #define printf(...)
 
-int fuzzing_heap(const void* data, size_t size) {
+int fuzzing_heap(const void* _data, size_t size);
+int fuzzing_heap(const void* _data, size_t size) {
   if (size < sizeof(size_t) + sizeof(uint16_t) + sizeof(uint8_t))
     return 0;
   
+  const char* data = _data;
   const void* dataEnd = data + size;
   
   size_t heapSize = (*(const size_t*) data) % MB(64);

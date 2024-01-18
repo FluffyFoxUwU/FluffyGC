@@ -1,4 +1,5 @@
 #include "bitops.h"
+#include "bits.h"
 
 void setbit(long nr, volatile unsigned long* addr) {
   addr[BIT_WORD(nr)] |= BIT_MASK(nr);

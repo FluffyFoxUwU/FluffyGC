@@ -1,6 +1,8 @@
 #ifndef _headers_1682308214_FluffyGC_list_head
 #define _headers_1682308214_FluffyGC_list_head
 
+#include <stddef.h>
+
 #include "bug.h"
 #include "util.h"
 

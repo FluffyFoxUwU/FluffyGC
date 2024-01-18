@@ -6,6 +6,7 @@
 # define __FLUFFYHEAP_EXPORT PUBLIC
 #endif
 
+#include "util/macro_magics.h"
 #include "FluffyHeap/FluffyHeap.h"
 #include "api/mods/mods.h"
 #include "api/mods/debug/helper.h"

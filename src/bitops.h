@@ -1,7 +1,6 @@
 #ifndef _headers_1673868876_FluffyGC_bitops
 #define _headers_1673868876_FluffyGC_bitops
 
-#include <stdint.h>
 #include <stdbool.h>
 
 #include "bits.h"

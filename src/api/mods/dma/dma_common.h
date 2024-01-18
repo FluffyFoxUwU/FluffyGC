@@ -2,6 +2,7 @@
 #define _headers_1688801859_FluffyGC_dma_common
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include "FluffyHeap/mods/dma.h"
 #include "memory/soc.h"

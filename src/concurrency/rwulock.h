@@ -3,6 +3,8 @@
 
 #include "concurrency/mutex.h"
 #include "concurrency/rwlock.h"
+#include <stddef.h>
+#include <stdatomic.h>
 
 struct rwulock {
   struct rwlock lock;

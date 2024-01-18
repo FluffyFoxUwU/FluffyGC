@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdatomic.h>
 
 #include "api/api.h"

@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 #include <time.h>
 
 #include "bits.h"
@@ -121,6 +122,9 @@ struct timespec util_relative_to_abs(clockid_t clock, double offset);
 
 #define __stringify_1(x...)	#x
 #define stringify(x...)	__stringify_1(x)
+
+#define __PASTE(x, y) x ## y
+#define PASTE(x, y) __PASTE(x, y)
 
 #if __clang__
 # define NONNULLABLE(t) t _Nonnull

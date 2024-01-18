@@ -1,4 +1,10 @@
+#include <string.h>
+#include <stddef.h>
+#include <time.h>
+
 #include "api/api.h"
+#include "bug.h"
+#include "concurrency/mutex.h"
 #include "object/descriptor.h"
 #include "object/descriptor/array.h"
 #include "panic.h"
@@ -7,6 +13,7 @@
 #include "concurrency/condition.h"
 #include "context.h"
 #include "managed_heap.h"
+#include "util/util.h"
 #include "object/object.h"
 
 API_FUNCTION_DEFINE(__FLUFFYHEAP_NULLABLE(fh_object*), fh_alloc_object, __FLUFFYHEAP_NONNULL(fh_descriptor*), desc) {

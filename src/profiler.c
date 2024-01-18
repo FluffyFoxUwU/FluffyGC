@@ -4,6 +4,9 @@
 #include <time.h>
 
 #include "profiler.h"
+#include "hashmap.h"
+#include "hashmap_base.h"
+#include "list.h"
 #include "panic.h"
 
 static void freeSection(struct profiler_section* section) {

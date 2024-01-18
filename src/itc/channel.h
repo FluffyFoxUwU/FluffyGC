@@ -2,7 +2,6 @@
 #define _headers_1685763386_FluffyGC_channel
 
 #include <stdint.h>
-#include <stddef.h>
 
 // Single direction
 // Multiple writer may has some trouble

@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 #include "heap_free_block_searchers.h"
 #include "heap.h"
 #include "config.h"

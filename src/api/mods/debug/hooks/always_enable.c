@@ -2,7 +2,7 @@
 #include <errno.h>
 #include <threads.h>
 
-#include "FluffyHeap.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "bug.h"
 #include "hook/hook.h"
 #include "api/mods/debug/debug.h"

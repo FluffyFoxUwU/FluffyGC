@@ -8,6 +8,7 @@
 #include "util/list_head.h"
 
 #include "../heap_common_types.h"
+#include <pthread.h>
 
 struct heap {
   struct mutex lock;

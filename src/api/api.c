@@ -1,7 +1,9 @@
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "api.h"
+#include "FluffyHeap/FluffyHeap.h"
 #include "api/mods/mods.h"
 #include "managed_heap.h"
 #include "util/util.h"

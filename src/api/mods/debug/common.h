@@ -3,6 +3,8 @@
 
 // Common checks here
 
+#include <stddef.h>
+
 #include "FluffyHeap/FluffyHeap.h"
 
 enum debug_access {

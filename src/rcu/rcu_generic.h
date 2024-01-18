@@ -4,6 +4,7 @@
 // Generic container for RCU data
 // doesn't really care what data its storing
 
+#include <pthread.h>
 #include <stdint.h>
 
 #include "rcu/rcu.h"
