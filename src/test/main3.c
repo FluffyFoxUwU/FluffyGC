@@ -521,9 +521,10 @@ static void* loggerFunc(void*) {
   
   const char* logFilename = "./latest.log"; 
   FILE* logFile = NULL; //fopen(logFilename, "a");
-  if (!logFile)
-    pr_alert("Error opening '%s' log file, logs will not be logged", logFilename);
-  pr_info("Logging into %s", logFilename);
+  if (!logFile) {
+    pr_error("Error opening '%s' log file, logs will not be logged", logFilename);
+    pr_info("Logging into %s", logFilename);
+  }
   
   bool isLogBuffered = false;
   if (logFile && setvbuf(logFile, NULL, _IONBF, 0) < 0) {

@@ -94,7 +94,6 @@ void logger_doPrintk_va(struct logger* logger, enum logger_loglevel level, const
   int messageLen = snprintf(outputBuffer, sizeof(outputBuffer), "[%s] [%s] [%s/%s] [%s%s()] ", timestampBuffer, logger->subsystemName, util_get_thread_name(), loglevelToString(level), location, func);
   
   // There space to put the message
-  printf("Huh? %zu\n", sizeof(outputBuffer) - messageLen);
   if (messageLen >= 0 && (size_t) messageLen < sizeof(outputBuffer))
     messageLen += vsnprintf(outputBuffer + messageLen, sizeof(outputBuffer) - messageLen, fmt, args);
   

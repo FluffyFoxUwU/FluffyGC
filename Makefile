@@ -22,5 +22,6 @@ UwUMaker-dirs-y += src deps
 UwUMaker-linker-flags-$(CONFIG_STACKTRACE_PROVIDER_LIBBACKTRACE) += -lbacktrace
 UwUMaker-pkg-config-libs-$(CONFIG_STACKTRACE_PROVIDER_LIBUNWIND) += libunwind
 
-
+proj_run:
+	@cd "$(PROJECT_DIR)" && LD_LIBRARY_PATH="./build/objs:$$LD_LIBRARY_PATH" ./build/objs/src/test/test_exe/objs/FluffyGCTest
 
