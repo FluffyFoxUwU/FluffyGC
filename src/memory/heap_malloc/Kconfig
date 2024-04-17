@@ -1,9 +1,0 @@
-
-config HEAP_MALLOC_NO_COPY
-  bool "Optimize move"
-  default y
-  select HEAP_HAVE_FIXED_DATA_PTR
-  help
-    Optimize move so that move consist only moving data pointer
-    instead actually do the copy.
-
