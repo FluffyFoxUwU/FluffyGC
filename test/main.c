@@ -4,7 +4,7 @@
 #include <flup/thread/thread.h>
 #include <unistd.h>
 
-#include "memory/heap.h"
+#include "memory/arena.h"
 
 int main() {
   if (!flup_attach_thread("Main-Thread")) {
