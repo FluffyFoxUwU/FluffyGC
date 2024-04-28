@@ -1,4 +1,4 @@
-UwUMaker-dirs-y += test
+UwUMaker-dirs-y += test memory
 
 UwUMaker-c-flags-y += -std=c2x -g \
 		-Wall -Wshadow -Wpointer-arith \
@@ -13,9 +13,9 @@ UwUMaker-c-flags-y += -std=c2x -g \
 		-fstrict-flex-arrays=3 -Warray-bounds \
 		-Wno-initializer-overrides \
 		-Wundef -fno-omit-frame-pointer \
-		-fsanitize=address -fsanitize=undefined
+		-fsanitize=undefined -fsanitize=address
 
-UwUMaker-linker-flags-y += -fsanitize=address -fsanitize=undefined -lFlup
+UwUMaker-linker-flags-y += -fsanitize=address -fsanitize=undefined -lFlup -lBlocksRuntime
 
 UwUMaker-pkg-config-libs-y += mimalloc
 
@@ -26,4 +26,12 @@ proj_run:
 	@$(MAKE) -C $(UWUMAKER_DIR) PROJECT_DIR="$(PROJECT_DIR)" cmd_all
 	@cd "$(PROJECT_DIR)" && $(BUILD_DIR)/objs/FluffyGC
 
+proj_run_gdb:
+	@$(MAKE) -C $(UWUMAKER_DIR) PROJECT_DIR="$(PROJECT_DIR)" cmd_all
+	@cd "$(PROJECT_DIR)" && gdb $(BUILD_DIR)/objs/FluffyGC
+
+
+proj_run_valgrind:
+	@$(MAKE) -C $(UWUMAKER_DIR) PROJECT_DIR="$(PROJECT_DIR)" cmd_all
+	@cd "$(PROJECT_DIR)" && valgrind $(BUILD_DIR)/objs/FluffyGC
 
