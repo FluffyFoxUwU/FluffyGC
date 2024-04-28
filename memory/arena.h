@@ -2,9 +2,13 @@
 #define UWU_F15ECD4B_1EE0_482D_8E14_3B523A879538_UWU
 
 #include <stddef.h>
+
 #include <flup/data_structs/dyn_array.h>
+#include <flup/concurrency/mutex.h>
 
 struct arena {
+  flup_mutex* lock;
+  
   size_t currentUsage;
   size_t maxSize;
   
