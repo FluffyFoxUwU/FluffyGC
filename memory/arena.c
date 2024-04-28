@@ -49,7 +49,7 @@ static void freeBlock(struct arena_block* block) {
   free(block);
 }
 
-struct arena_block* arena_alloc(struct arena* self, size_t size) {
+void* arena_alloc(struct arena* self, size_t size) {
   flup_mutex_lock(self->lock);
   if (self->currentUsage + size > self->maxSize) {
     flup_mutex_unlock(self->lock);
@@ -61,9 +61,7 @@ struct arena_block* arena_alloc(struct arena* self, size_t size) {
   if (!block)
     goto failure;
   
-  *block = (struct arena_block) {
-    .size = size
-  };
+  *block = (struct arena_block) {};
   
   if (!(block->data = malloc(size)))
     goto failure;
@@ -71,7 +69,7 @@ struct arena_block* arena_alloc(struct arena* self, size_t size) {
   if (flup_dyn_array_append(self->blocks, &block) < 0)
     goto failure;
   flup_mutex_unlock(self->lock);
-  return block;
+  return block->data;
 
 failure:
   self->currentUsage -= size;

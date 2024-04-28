@@ -16,14 +16,13 @@ struct arena {
 };
 
 struct arena_block {
-  size_t size;
   void* data;
 };
 
 struct arena* arena_new(size_t size);
 void arena_free(struct arena* self);
 
-struct arena_block* arena_alloc(struct arena* self, size_t size);
+void* arena_alloc(struct arena* self, size_t size);
 void arena_wipe(struct arena* self);
 
 #endif
