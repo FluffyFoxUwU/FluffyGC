@@ -26,7 +26,9 @@ struct arena_block {
 struct arena* arena_new(size_t size);
 void arena_free(struct arena* self);
 
-void* arena_alloc(struct arena* self, size_t size);
+struct arena_block* arena_alloc(struct arena* self, size_t size);
+void arena_dealloc(struct arena* self, struct arena_block* blk);
+
 void arena_wipe(struct arena* self);
 
 #endif

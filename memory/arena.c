@@ -51,7 +51,7 @@ static void freeBlock(struct arena_block* block) {
   free(block);
 }
 
-void* arena_alloc(struct arena* self, size_t size) {
+struct arena_block* arena_alloc(struct arena* self, size_t size) {
   flup_mutex_lock(self->lock);
   if (self->currentUsage + size > self->maxSize) {
     flup_mutex_unlock(self->lock);
@@ -63,6 +63,7 @@ void* arena_alloc(struct arena* self, size_t size) {
   
   if (!flup_list_is_empty(&self->freeList)) {
     block = flup_list_first_entry(&self->freeList, struct arena_block, node);
+    flup_list_del(&block->node);
     goto free_block_exist;
   }
   
@@ -81,7 +82,7 @@ free_block_exist:
   if (flup_dyn_array_append(self->blocks, &block) < 0)
     goto failure;
   flup_mutex_unlock(self->lock);
-  return block->data;
+  return block;
 
 failure:
   self->currentUsage -= size;
@@ -104,6 +105,16 @@ void arena_wipe(struct arena* self) {
   
   // Clear the array
   flup_dyn_array_remove(self->blocks, 0, self->blocks->length);
+  flup_mutex_unlock(self->lock);
+}
+
+void arena_dealloc(struct arena* self, struct arena_block* blk) {
+  flup_mutex_lock(self->lock);
+  free(blk->data);
+  blk->data = NULL;
+  blk->used = false;
+  
+  flup_list_add_head(&self->freeList, &blk->node);
   flup_mutex_unlock(self->lock);
 }
 
