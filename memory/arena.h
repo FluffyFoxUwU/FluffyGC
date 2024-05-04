@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 #include <flup/data_structs/dyn_array.h>
+#include <flup/data_structs/list_head.h>
 #include <flup/concurrency/mutex.h>
 
 struct arena {
@@ -13,9 +14,12 @@ struct arena {
   size_t maxSize;
   
   flup_dyn_array* blocks;
+  flup_list_head freeList;
 };
 
 struct arena_block {
+  bool used;
+  flup_list_head node;
   void* data;
 };
 

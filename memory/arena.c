@@ -1,3 +1,4 @@
+#include <flup/data_structs/list_head.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stddef.h>
@@ -18,7 +19,8 @@ struct arena* arena_new(size_t size) {
     .currentUsage = 0,
     .maxSize = size,
     .blocks = NULL,
-    .lock = NULL
+    .lock = NULL,
+    .freeList = FLUP_LIST_HEAD_INIT(self->freeList)
   };
   
   if ((self->lock = flup_mutex_new()) == NULL)
@@ -57,11 +59,21 @@ void* arena_alloc(struct arena* self, size_t size) {
   }
   self->currentUsage += size;
   
-  struct arena_block* block = malloc(sizeof(*block));
+  struct arena_block* block;
+  
+  if (!flup_list_is_empty(&self->freeList)) {
+    block = flup_list_first_entry(&self->freeList, struct arena_block, node);
+    goto free_block_exist;
+  }
+  
+  block = malloc(sizeof(*block));
   if (!block)
     goto failure;
+free_block_exist:
   
-  *block = (struct arena_block) {};
+  *block = (struct arena_block) {
+    .used = true
+  };
   
   if (!(block->data = malloc(size)))
     goto failure;
