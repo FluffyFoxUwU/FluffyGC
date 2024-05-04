@@ -37,6 +37,9 @@ failure:
 }
 
 void arena_free(struct arena* self) {
+  if (!self)
+    return;
+  
   arena_wipe(self);
   flup_dyn_array_free(self->blocks);
   flup_mutex_free(self->lock);
