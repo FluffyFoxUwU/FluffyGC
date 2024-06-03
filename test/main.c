@@ -1,13 +1,11 @@
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <flup/core/logger.h>
 #include <flup/thread/thread.h>
 
-#include "memory/arena.h"
-#include "object/descriptor.h"
-#include "object/object.h"
+#include "heap/generation.h"
 
 int main() {
   if (!flup_attach_thread("Main-Thread")) {
@@ -15,16 +13,18 @@ int main() {
     return EXIT_FAILURE;
   }
   
-  puts("Hello World!\n");
+  pr_info("Hello World!");
   
-  struct arena* arena = arena_new(128 * 1024 * 1024);
-  if (!arena) {
-    puts("Error creating arena");
+  // Create 128 MiB generation
+  struct generation* gen = generation_new(128 * 1024 * 1024);
+  if (!gen) {
+    pr_error("Error creating generation");
     return EXIT_FAILURE;
   }
   
   
-  arena_free(arena);
+  
+  generation_free(gen);
   flup_thread_free(flup_detach_thread());
   // mimalloc_play();
 }
