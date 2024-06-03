@@ -60,7 +60,6 @@ struct arena_block* arena_alloc(struct arena* self, size_t size) {
     flup_mutex_unlock(self->lock);
     return NULL;
   }
-  self->currentUsage += size;
   
   struct arena_block* block;
   
@@ -84,11 +83,11 @@ free_block_exist:
   
   if (flup_dyn_array_append(self->blocks, &block) < 0)
     goto failure;
+  self->currentUsage += size;
   flup_mutex_unlock(self->lock);
   return block;
 
 failure:
-  self->currentUsage -= size;
   freeBlock(block);
   flup_mutex_unlock(self->lock);
   return NULL;
