@@ -1,0 +1,1 @@
+UwUMaker-c-sources-y += bitmap.c
