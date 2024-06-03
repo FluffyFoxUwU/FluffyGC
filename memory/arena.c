@@ -7,6 +7,7 @@
 #include <flup/data_structs/dyn_array.h>
 #include <flup/concurrency/mutex.h>
 #include <flup/core/logger.h>
+#include <flup/util/min_max.h>
 
 #include "arena.h"
 
@@ -20,7 +21,8 @@ struct arena* arena_new(size_t size) {
     .maxSize = size,
     .blocks = NULL,
     .lock = NULL,
-    .freeList = FLUP_LIST_HEAD_INIT(self->freeList)
+    .freeList = FLUP_LIST_HEAD_INIT(self->freeList),
+    .maxObjectCount = size / ARENA_MIN_OBJECT_ACCOUNT_SIZE
   };
   
   if ((self->lock = flup_mutex_new()) == NULL)
@@ -56,6 +58,9 @@ static void freeBlock(struct arena_block* block) {
 
 struct arena_block* arena_alloc(struct arena* self, size_t size) {
   flup_mutex_lock(self->lock);
+  size_t allocSize = size;
+  size = flup_min(size, ARENA_MIN_OBJECT_ACCOUNT_SIZE);
+  
   if (self->currentUsage + size > self->maxSize) {
     flup_mutex_unlock(self->lock);
     return NULL;
@@ -78,7 +83,7 @@ free_block_exist:
     .used = true
   };
   
-  if (!(block->data = malloc(size)))
+  if (!(block->data = malloc(allocSize)))
     goto failure;
   
   if (flup_dyn_array_append(self->blocks, &block) < 0)

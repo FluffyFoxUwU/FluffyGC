@@ -7,11 +7,19 @@
 #include <flup/data_structs/list_head.h>
 #include <flup/concurrency/mutex.h>
 
+// Minimum size which currentUsage is incremented
+// (object allocated still the size requested)
+// Therefore allowing setting upperbound number of
+// objects in arena to be arena->maxSize / ARENA_MIN_OBJECT_ACCOUNT_SIZE
+#define ARENA_MIN_OBJECT_ACCOUNT_SIZE 16
+
 struct arena {
   flup_mutex* lock;
   
   size_t currentUsage;
   size_t maxSize;
+  size_t objectCount;
+  size_t maxObjectCount;
   
   flup_dyn_array* blocks;
   flup_list_head freeList;
