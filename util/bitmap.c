@@ -6,14 +6,13 @@
 #include <flup/bug.h>
 
 #include "bitmap.h"
-#include "util.h"
 
 struct bitmap* bitmap_new(unsigned long bitCount) {
   struct bitmap* self = malloc(sizeof(*self));
   if (!self)
     return NULL;
   
-  size_t longCount = ROUND_UP(bitCount, LONG_BIT) / LONG_BIT;
+  size_t longCount = bitCount / LONG_BIT + 1;
   *self = (struct bitmap) {
     .bitCount = bitCount,
     .map = calloc(sizeof(unsigned long), longCount)

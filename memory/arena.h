@@ -7,6 +7,8 @@
 #include <flup/data_structs/list_head.h>
 #include <flup/concurrency/mutex.h>
 
+#include "gc/gc.h"
+
 // Minimum size which currentUsage is incremented
 // (object allocated still the size requested)
 // Therefore allowing setting upperbound number of
@@ -29,6 +31,7 @@ struct arena_block {
   bool used;
   flup_list_head node;
   void* data;
+  struct gc_block_metadata gcMetadata;
 };
 
 struct arena* arena_new(size_t size);

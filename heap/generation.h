@@ -3,19 +3,17 @@
 
 #include <stddef.h>
 
+#include "gc/gc.h"
 #include "memory/arena.h"
-#include "util/bitmap.h"
 
 struct generation {
   struct arena* arena;
-  // Bit map of arena block which has
-  // direct reference to outside of current
-  // generation (the bit offset is the block's
-  // index in the arena array)
-  struct bitmap* crossGenerationReferenceMap;
+  struct gc_per_generation_state* gcState;
 };
 
-struct generation* generation_new(size_t sz);
+struct generation* generation_new(size_t size);
 void generation_free(struct generation* self);
+
+struct arena_block* generation_alloc(struct generation* self, size_t size);
 
 #endif
