@@ -84,6 +84,7 @@ Extra notes:
 
 #include <flup/data_structs/dyn_array.h>
 #include <flup/data_structs/buffer.h>
+#include <flup/concurrency/rwlock.h>
 
 // 8 MiB mutator mark queue size
 #define GC_MARK_QUEUE_SIZE (8 * 1024 * 1024)
@@ -99,6 +100,7 @@ struct gc_block_metadata {
 
 struct gc_per_generation_state {
   struct generation* ownerGen;
+  flup_rwlock* gcLock;
   
   // What mark bit value correspond to marked (
   // the meaning of the mark bit changes throughout
@@ -118,5 +120,9 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self);
 
 void gc_on_allocate(struct arena_block* block, struct generation* gen);
 void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten);
+
+// These can't be nested
+void gc_block(struct gc_per_generation_state* self);
+void gc_unblock(struct gc_per_generation_state* self);
 
 #endif

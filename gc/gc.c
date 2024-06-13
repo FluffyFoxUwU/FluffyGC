@@ -1,10 +1,12 @@
 #include <errno.h>
 #include <stddef.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdatomic.h>
 #include <time.h>
 
 #include <flup/bug.h>
+#include <flup/concurrency/rwlock.h>
 #include <flup/container_of.h>
 #include <flup/data_structs/list_head.h>
 #include <flup/core/panic.h>
@@ -51,6 +53,8 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     .ownerGen = gen
   };
   
+  if (!(self->gcLock = flup_rwlock_new()))
+    goto failure;
   if (!(self->snapshotOfRootSet = flup_dyn_array_new(sizeof(void*), 0)))
     goto failure;
   if (!(self->mutatorMarkQueue = flup_buffer_new(GC_MARK_QUEUE_SIZE)))
@@ -66,6 +70,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   if (!self)
     return;
   
+  flup_rwlock_free(self->gcLock);
   flup_dyn_array_free(self->snapshotOfRootSet);
   flup_buffer_free(self->mutatorMarkQueue);
   free(self);
@@ -193,6 +198,14 @@ void gc_start_cycle(struct gc_per_generation_state* self) {
     ((double) start.tv_sec + ((double) start.tv_nsec) / 1'000'000'000.0f);
   pr_info("Cycle time was: %lf ms", duration * 1000.f);
   pr_info("After cycle mem usage: %f MiB", (float) arena->currentUsage / 1024.0f / 1024.0f);
+}
+
+void gc_block(struct gc_per_generation_state* self) {
+  flup_rwlock_rdlock(self->gcLock);
+}
+
+void gc_unblock(struct gc_per_generation_state* self) {
+  flup_rwlock_unlock(self->gcLock);
 }
 
 

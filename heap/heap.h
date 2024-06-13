@@ -27,4 +27,8 @@ struct root_ref* heap_alloc(struct heap* self, size_t size);
 struct root_ref* heap_root_dup(struct heap* self, struct root_ref* ref);
 void heap_root_unref(struct heap* self, struct root_ref* ref);
 
+// These can't be nested
+void heap_block_gc(struct heap* self);
+void heap_unblock_gc(struct heap* self);
+
 #endif

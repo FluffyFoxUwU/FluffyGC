@@ -85,4 +85,12 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
   return ref;
 }
 
+void heap_block_gc(struct heap* self) {
+  gc_block(self->gen->gcState);
+}
+
+void heap_unblock_gc(struct heap* self) {
+  gc_unblock(self->gen->gcState);
+}
+
 
