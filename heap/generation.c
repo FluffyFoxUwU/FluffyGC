@@ -33,6 +33,9 @@ void generation_free(struct generation* self) {
 
 struct arena_block* generation_alloc(struct generation* self, size_t size) {
   struct arena_block* block = arena_alloc(self->arena, size);
+  if (!block)
+    return NULL;
+  
   gc_on_allocate(block, self);
   return block;
 }
