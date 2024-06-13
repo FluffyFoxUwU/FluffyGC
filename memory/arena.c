@@ -86,6 +86,7 @@ free_block_exist:
     goto failure;
   // Includes size of block metadata
   self->currentUsage += size + sizeof(*blockMetadata);
+  blockMetadata->size = size;
   flup_mutex_unlock(self->lock);
   return blockMetadata;
 
@@ -104,6 +105,9 @@ void arena_wipe(struct arena* self) {
     bool ret = flup_dyn_array_get(self->blocks, i, (void**) &block);
     BUG_ON(!ret);
     
+    if (!(*block)->used)
+      continue;
+    self->currentUsage -= (*block)->size + sizeof(**block);
     freeBlock(*block);
   }
   
