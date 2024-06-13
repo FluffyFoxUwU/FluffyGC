@@ -7,6 +7,7 @@
 #include "memory/arena.h"
 
 struct generation {
+  struct heap* ownerHeap;
   struct arena* arena;
   struct gc_per_generation_state* gcState;
 };

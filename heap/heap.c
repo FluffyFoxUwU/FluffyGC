@@ -24,6 +24,7 @@ struct heap* heap_new(size_t size) {
   
   if (!(self->gen = generation_new(size)))
     goto failure;
+  self->gen->ownerHeap = self;
   return self;
 
 failure:
