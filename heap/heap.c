@@ -55,6 +55,8 @@ struct root_ref* heap_root_dup(struct heap* self, struct root_ref* ref) {
 void heap_root_unref(struct heap* self, struct root_ref* ref) {
   self->rootEntryCount--;
   flup_list_del(&ref->node);
+  
+  gc_on_reference_lost(ref->obj);
   free(ref);
 }
 
