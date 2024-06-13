@@ -15,7 +15,6 @@ struct arena {
   size_t currentUsage;
   size_t maxSize;
   size_t objectCount;
-  size_t maxObjectCount;
   
   flup_dyn_array* blocks;
   flup_list_head freeList;

@@ -21,8 +21,7 @@ struct arena* arena_new(size_t size) {
     .maxSize = size,
     .blocks = NULL,
     .lock = NULL,
-    .freeList = FLUP_LIST_HEAD_INIT(self->freeList),
-    .maxObjectCount = size
+    .freeList = FLUP_LIST_HEAD_INIT(self->freeList)
   };
   
   if ((self->lock = flup_mutex_new()) == NULL)
