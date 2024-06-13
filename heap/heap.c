@@ -64,7 +64,7 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
   
   struct arena_block* newObj = generation_alloc(self->gen, size);
   for (int i = 0; i < HEAP_ALLOC_RETRY_COUNT && newObj == NULL; i++) {
-    pr_info("Allocation failed trying calling GC #%d", i);
+    pr_info("Allocation failed trying calling GC #%d", i + 1);
     gc_start_cycle(self->gen->gcState);
     newObj = generation_alloc(self->gen, size);
   }
