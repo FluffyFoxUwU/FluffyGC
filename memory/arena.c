@@ -22,7 +22,7 @@ struct arena* arena_new(size_t size) {
     .blocks = NULL,
     .lock = NULL,
     .freeList = FLUP_LIST_HEAD_INIT(self->freeList),
-    .maxObjectCount = size / ARENA_MIN_OBJECT_ACCOUNT_SIZE
+    .maxObjectCount = size
   };
   
   if ((self->lock = flup_mutex_new()) == NULL)
@@ -58,42 +58,40 @@ static void freeBlock(struct arena_block* block) {
 
 struct arena_block* arena_alloc(struct arena* self, size_t size) {
   flup_mutex_lock(self->lock);
-  size_t allocSize = size;
-  size = flup_min(size, ARENA_MIN_OBJECT_ACCOUNT_SIZE);
-  
   if (self->currentUsage + size > self->maxSize) {
     flup_mutex_unlock(self->lock);
     return NULL;
   }
   
-  struct arena_block* block;
+  struct arena_block* blockMetadata;
   
   if (!flup_list_is_empty(&self->freeList)) {
-    block = flup_list_first_entry(&self->freeList, struct arena_block, node);
-    flup_list_del(&block->node);
+    blockMetadata = flup_list_first_entry(&self->freeList, struct arena_block, node);
+    flup_list_del(&blockMetadata->node);
     goto free_block_exist;
   }
   
-  block = malloc(sizeof(*block));
-  if (!block)
+  blockMetadata = malloc(sizeof(*blockMetadata));
+  if (!blockMetadata)
     goto failure;
 free_block_exist:
   
-  *block = (struct arena_block) {
+  *blockMetadata = (struct arena_block) {
     .used = true
   };
   
-  if (!(block->data = malloc(allocSize)))
+  if (!(blockMetadata->data = malloc(size)))
     goto failure;
   
-  if (flup_dyn_array_append(self->blocks, &block) < 0)
+  if (flup_dyn_array_append(self->blocks, &blockMetadata) < 0)
     goto failure;
-  self->currentUsage += size;
+  // Includes size of block metadata
+  self->currentUsage += size + sizeof(*blockMetadata);
   flup_mutex_unlock(self->lock);
-  return block;
+  return blockMetadata;
 
 failure:
-  freeBlock(block);
+  freeBlock(blockMetadata);
   flup_mutex_unlock(self->lock);
   return NULL;
 }

@@ -9,12 +9,6 @@
 
 #include "gc/gc.h"
 
-// Minimum size which currentUsage is incremented
-// (object allocated still the size requested)
-// Therefore allowing setting upperbound number of
-// objects in arena to be arena->maxSize / ARENA_MIN_OBJECT_ACCOUNT_SIZE
-#define ARENA_MIN_OBJECT_ACCOUNT_SIZE 16
-
 struct arena {
   flup_mutex* lock;
   
@@ -29,9 +23,9 @@ struct arena {
 
 struct arena_block {
   bool used;
+  struct gc_block_metadata gcMetadata;
   flup_list_head node;
   void* data;
-  struct gc_block_metadata gcMetadata;
 };
 
 struct arena* arena_new(size_t size);
