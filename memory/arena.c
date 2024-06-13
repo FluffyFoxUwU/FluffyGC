@@ -73,6 +73,10 @@ struct arena_block* arena_alloc(struct arena* self, size_t size) {
   blockMetadata = malloc(sizeof(*blockMetadata));
   if (!blockMetadata)
     goto failure;
+  
+  // Only add if metadata not present in array
+  if (flup_dyn_array_append(self->blocks, &blockMetadata) < 0)
+    goto failure;
 free_block_exist:
   
   *blockMetadata = (struct arena_block) {
@@ -82,8 +86,6 @@ free_block_exist:
   if (!(blockMetadata->data = malloc(size)))
     goto failure;
   
-  if (flup_dyn_array_append(self->blocks, &blockMetadata) < 0)
-    goto failure;
   // Includes size of block metadata
   self->currentUsage += size + sizeof(*blockMetadata);
   blockMetadata->size = size;
@@ -105,8 +107,6 @@ void arena_wipe(struct arena* self) {
     bool ret = flup_dyn_array_get(self->blocks, i, (void**) &block);
     BUG_ON(!ret);
     
-    if (!(*block)->used)
-      continue;
     self->currentUsage -= (*block)->size + sizeof(**block);
     freeBlock(*block);
   }
@@ -122,6 +122,7 @@ void arena_dealloc(struct arena* self, struct arena_block* blk) {
   blk->data = NULL;
   blk->used = false;
   
+  self->currentUsage -= blk->size + sizeof(*blk);
   flup_list_add_head(&self->freeList, &blk->node);
   flup_mutex_unlock(self->lock);
 }
