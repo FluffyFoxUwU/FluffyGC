@@ -1,6 +1,6 @@
 UwUMaker-dirs-y += test memory object heap util gc
 
-UwUMaker-c-flags-y += -std=c2x -g \
+UwUMaker-c-flags-y += -std=c2x -g -O0 \
 		-Wall -Wshadow -Wpointer-arith \
 		-Wmissing-prototypes \
 		-fpic -fblocks -Wextra \
@@ -12,10 +12,11 @@ UwUMaker-c-flags-y += -std=c2x -g \
 		-Wcast-align -Wfloat-equal -Wformat=2 \
 		-fstrict-flex-arrays=3 -Warray-bounds \
 		-Wno-initializer-overrides \
-		-Wundef -fno-omit-frame-pointer \
-		-fsanitize=undefined -fsanitize=address
+		-Wundef -fno-omit-frame-pointer -flto=full
 
-UwUMaker-linker-flags-y += -fsanitize=address -fsanitize=undefined -lFlup -lBlocksRuntime
+UwUMaker-c-flags-y += -fsanitize=undefined -fsanitize=address
+UwUMaker-linker-flags-y += -fsanitize=address -fsanitize=undefined
+UwUMaker-linker-flags-y += -lFlup -lBlocksRuntime
 
 UwUMaker-pkg-config-libs-y += mimalloc
 

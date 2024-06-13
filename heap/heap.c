@@ -1,3 +1,4 @@
+#include <flup/bug.h>
 #include <flup/container_of.h>
 #include <stdlib.h>
 #include <stddef.h>
