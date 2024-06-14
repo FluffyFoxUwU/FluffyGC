@@ -24,8 +24,8 @@ int main() {
     return EXIT_FAILURE;
   }
   
-  // Intentionally leak 5 MiB
-  // heap_alloc(heap, 5 * 1024 * 1024);
+  // Intentionally leak 5 MiB for testing
+  heap_alloc(heap, 5 * 1024 * 1024);
   // Try to allocate and release 256 MiB worth of items
   size_t bytesToAlloc = 256 * 1024 * 1024;
   size_t perItemSize = 64;

@@ -182,7 +182,7 @@ static void sweepPhase(struct cycle_state* state) {
     sweepSize += block->size;
     arena_dealloc(state->arena, block);
   }
-  pr_info("Sweeped %zu objects (%lf MiB) out of %zu objects (%lf MiB)", sweepedCount, (double) sweepSize / 1024.0f / 1024.0f, count, (double) totalSize / 1024.0f / 1024.0f);
+  // pr_info("Sweeped %zu objects (%lf MiB) out of %zu objects (%lf MiB)", sweepedCount, (double) sweepSize / 1024.0f / 1024.0f, count, (double) totalSize / 1024.0f / 1024.0f);
 }
 
 static void cycleRunner(struct gc_per_generation_state* self) {
@@ -190,7 +190,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   struct heap* heap = self->ownerGen->ownerHeap;
   
   flup_rwlock_wrlock(self->gcLock);
-  pr_info("Before cycle mem usage: %f MiB", (float) atomic_load(&arena->currentUsage) / 1024.0f / 1024.0f);
+  // pr_info("Before cycle mem usage: %f MiB", (float) atomic_load(&arena->currentUsage) / 1024.0f / 1024.0f);
   
   struct cycle_state state = {
     .arena = arena,
@@ -216,8 +216,8 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   double duration =
     ((double) end.tv_sec + ((double) end.tv_nsec) / 1'000'000'000.0f) -
     ((double) start.tv_sec + ((double) start.tv_nsec) / 1'000'000'000.0f);
-  pr_info("Cycle time was: %lf ms", duration * 1000.f);
-  pr_info("After cycle mem usage: %f MiB", (float) atomic_load(&arena->currentUsage) / 1024.0f / 1024.0f);
+  // pr_info("Cycle time was: %lf ms", duration * 1000.f);
+  // pr_info("After cycle mem usage: %f MiB", (float) atomic_load(&arena->currentUsage) / 1024.0f / 1024.0f);
   flup_rwlock_unlock(self->gcLock);
   
   flup_mutex_lock(self->invokeCycleLock);
@@ -244,7 +244,7 @@ static void gcThread(void* _self) {
         pr_info("Shutting down GC thread");
         goto shutdown_gc_thread;
       case GC_START_CYCLE:
-        pr_info("Starting GC cycle!");
+        // pr_info("Starting GC cycle!");
         cycleRunner(self);
         break;
     }
