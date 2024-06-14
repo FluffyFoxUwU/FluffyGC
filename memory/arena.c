@@ -19,22 +19,22 @@ struct arena* arena_new(size_t size) {
     return NULL;
   
   *self = (struct arena) {
-    .currentUsage = 0,
-    .maxSize = size,
+    .stats.currentUsage = 0,
+    .stats.maxSize = size,
     .blocks = NULL,
     .lock = NULL,
     .freeList = FLUP_LIST_HEAD_INIT(self->freeList),
     // How many blocks can store accounting for metadata + a pointer to it
-    .maxBlocksCount = size / (sizeof(struct arena_block) + sizeof(void*))
+    .stats.maxBlocksCount = size / (sizeof(struct arena_block) + sizeof(void*))
   };
   
   if ((self->lock = flup_mutex_new()) == NULL)
     goto failure;
   
-  pr_info("Maximum blocks can be sotored is %zu", self->maxBlocksCount);
-  if (!(self->blocks = calloc(self->maxBlocksCount, sizeof(void*))))
+  pr_info("Maximum blocks can be sotored is %zu", self->stats.maxBlocksCount);
+  if (!(self->blocks = calloc(self->stats.maxBlocksCount, sizeof(void*))))
     goto failure;
-  self->currentUsage += self->maxBlocksCount * sizeof(void*);
+  self->stats.currentUsage += self->stats.maxBlocksCount * sizeof(void*);
   return self;
 
 failure:
@@ -64,7 +64,7 @@ struct arena_block* arena_alloc(struct arena* self, size_t allocSize) {
   if (flup_list_is_empty(&self->freeList))
     totalSize += sizeof(struct arena_block);
   
-  if (self->currentUsage + totalSize > self->maxSize) {
+  if (self->stats.currentUsage + totalSize > self->stats.maxSize) {
     flup_mutex_unlock(self->lock);
     return NULL;
   }
@@ -80,7 +80,7 @@ struct arena_block* arena_alloc(struct arena* self, size_t allocSize) {
   }
   
   // Could there miscalculation? of the size for blocks array?
-  BUG_ON(self->numBlocksCreated == self->maxBlocksCount);
+  BUG_ON(self->numBlocksCreated == self->stats.maxBlocksCount);
   
   blockMetadata = malloc(sizeof(*blockMetadata));
   if (!blockMetadata)
@@ -100,7 +100,7 @@ free_block_exist:
   
   // Only add the block to array and update stats if ready to use
   atomic_store(&self->blocks[blockMetadata->index], blockMetadata);
-  self->currentUsage += totalSize;
+  self->stats.currentUsage += totalSize;
   flup_mutex_unlock(self->lock);
   return blockMetadata;
 
@@ -112,13 +112,13 @@ failure:
 
 void arena_wipe(struct arena* self) {
   flup_mutex_lock(self->lock);
-  self->currentUsage = 0;
+  self->stats.currentUsage = 0;
   
-  for (size_t i = 0; i < self->maxBlocksCount; i++) {
+  for (size_t i = 0; i < self->stats.maxBlocksCount; i++) {
     struct arena_block* block = self->blocks[i];
     if (!block)
       continue;
-    self->currentUsage -= block->size + sizeof(*block);
+    self->stats.currentUsage -= block->size + sizeof(*block);
     freeBlock(block);
   }
   
@@ -130,7 +130,7 @@ void arena_wipe(struct arena* self) {
   }
   
   // Clear the array
-  memset(self->blocks, 0, sizeof(void*) * self->maxBlocksCount);
+  memset(self->blocks, 0, sizeof(void*) * self->stats.maxBlocksCount);
   self->numBlocksCreated = 0;
   flup_mutex_unlock(self->lock);
 }
@@ -141,8 +141,14 @@ void arena_dealloc(struct arena* self, struct arena_block* blk) {
   blk->data = NULL;
   
   atomic_store(&self->blocks[blk->index], NULL);
-  self->currentUsage -= blk->size;
+  self->stats.currentUsage -= blk->size;
   flup_list_add_head(&self->freeList, &blk->node);
+  flup_mutex_unlock(self->lock);
+}
+
+void arena_get_stat(struct arena* self, struct arena_stats* stats) {
+  flup_mutex_lock(self->lock);
+  *stats = self->stats;
   flup_mutex_unlock(self->lock);
 }
 

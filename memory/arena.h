@@ -9,13 +9,16 @@
 
 #include "gc/gc.h"
 
-struct arena {
-  flup_mutex* lock;
-  
+struct arena_stats {
   size_t currentUsage;
   size_t maxSize;
   size_t objectCount;
   size_t maxBlocksCount;
+};
+
+struct arena {
+  flup_mutex* lock;
+  struct arena_stats stats;
   
   size_t numBlocksCreated;
   _Atomic(struct arena_block*)* blocks;
@@ -29,6 +32,8 @@ struct arena_block {
   flup_list_head node;
   void* data;
 };
+
+void arena_get_stat(struct arena* self, struct arena_stats* stats);
 
 struct arena* arena_new(size_t size);
 void arena_free(struct arena* self);
