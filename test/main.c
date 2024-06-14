@@ -24,11 +24,11 @@ int main() {
   }
   
   // Intentionally leak 5 MiB
-  heap_alloc(heap, 5 * 1024 * 1024);
+  // heap_alloc(heap, 5 * 1024 * 1024);
   // Try to allocate and release 256 MiB worth of items
   size_t bytesToAlloc = 256 * 1024 * 1024;
-  size_t perItemSize = 16;
-  for (size_t i = 0; i < bytesToAlloc / perItemSize; i++) {
+  size_t perItemSize = 0;
+  for (size_t i = 0; i < bytesToAlloc; i++) {
     struct root_ref* ref = heap_alloc(heap, perItemSize);
     heap_root_unref(heap, ref);
   }

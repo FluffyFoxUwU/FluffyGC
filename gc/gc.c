@@ -118,17 +118,14 @@ static void processMutatorMarkQueuePhase(struct cycle_state* state) {
 }
 
 static void sweepPhase(struct cycle_state* state) {
-  size_t count = state->self->ownerGen->arena->blocks->length;
+  size_t count = 0;
   size_t sweepedCount = 0;
-  for (size_t i = 0; i < count; i++) {
-    struct arena_block** blockPtr;
-    int ret = flup_dyn_array_get(state->arena->blocks, i, (void**) &blockPtr);
-    BUG_ON(ret < 0);
-    
-    struct arena_block* block = *blockPtr;
-    if (!block->used)
+  for (size_t i = 0; i < state->arena->numBlocksCreated; i++) {
+    struct arena_block* block = state->arena->blocks[i];
+    if (!block || !block->used)
       continue;
     
+    count++;
     // Object is alive continuing
     if (block->gcMetadata.markBit == state->self->GCMarkedBitValue)
       continue;

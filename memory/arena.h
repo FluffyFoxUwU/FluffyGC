@@ -3,7 +3,6 @@
 
 #include <stddef.h>
 
-#include <flup/data_structs/dyn_array.h>
 #include <flup/data_structs/list_head.h>
 #include <flup/concurrency/mutex.h>
 
@@ -15,8 +14,10 @@ struct arena {
   size_t currentUsage;
   size_t maxSize;
   size_t objectCount;
+  size_t maxBlocksCount;
   
-  flup_dyn_array* blocks;
+  size_t numBlocksCreated;
+  struct arena_block** blocks;
   flup_list_head freeList;
 };
 

@@ -1,5 +1,6 @@
 #include <flup/data_structs/list_head.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <stddef.h>
 
@@ -21,15 +22,18 @@ struct arena* arena_new(size_t size) {
     .maxSize = size,
     .blocks = NULL,
     .lock = NULL,
-    .freeList = FLUP_LIST_HEAD_INIT(self->freeList)
+    .freeList = FLUP_LIST_HEAD_INIT(self->freeList),
+    // How many blocks can store accounting for metadata + a pointer to it
+    .maxBlocksCount = size / (sizeof(struct arena_block) + sizeof(void*))
   };
   
   if ((self->lock = flup_mutex_new()) == NULL)
     goto failure;
   
-  if (!(self->blocks = flup_dyn_array_new(sizeof(void*), 0)))
+  pr_info("Maximum blocks can be sotored is %zu", self->maxBlocksCount);
+  if (!(self->blocks = calloc(self->maxBlocksCount, sizeof(void*))))
     goto failure;
-  
+  self->currentUsage += self->maxBlocksCount * sizeof(void*);
   return self;
 
 failure:
@@ -42,7 +46,7 @@ void arena_free(struct arena* self) {
     return;
   
   arena_wipe(self);
-  flup_dyn_array_free(self->blocks);
+  free(self->blocks);
   flup_mutex_free(self->lock);
   free(self);
 }
@@ -55,9 +59,10 @@ static void freeBlock(struct arena_block* block) {
   free(block);
 }
 
-struct arena_block* arena_alloc(struct arena* self, size_t size) {
+struct arena_block* arena_alloc(struct arena* self, size_t allocSize) {
   flup_mutex_lock(self->lock);
-  if (self->currentUsage + size > self->maxSize) {
+  size_t totalSize = sizeof(struct arena_block) + allocSize;
+  if (self->currentUsage + totalSize > self->maxSize) {
     flup_mutex_unlock(self->lock);
     return NULL;
   }
@@ -70,25 +75,28 @@ struct arena_block* arena_alloc(struct arena* self, size_t size) {
     goto free_block_exist;
   }
   
+  // Could there miscalculation? of the size for blocks array?
+  BUG_ON(self->numBlocksCreated == self->maxBlocksCount);
+  
   blockMetadata = malloc(sizeof(*blockMetadata));
   if (!blockMetadata)
     goto failure;
   
   // Only add if metadata not present in array
-  if (flup_dyn_array_append(self->blocks, &blockMetadata) < 0)
-    goto failure;
+  self->blocks[self->numBlocksCreated] = blockMetadata;
+  self->numBlocksCreated++;
 free_block_exist:
   
   *blockMetadata = (struct arena_block) {
     .used = true
   };
   
-  if (!(blockMetadata->data = malloc(size)))
+  if (!(blockMetadata->data = malloc(allocSize)))
     goto failure;
   
   // Includes size of block metadata
-  self->currentUsage += size + sizeof(*blockMetadata);
-  blockMetadata->size = size;
+  self->currentUsage += totalSize;
+  blockMetadata->size = allocSize;
   flup_mutex_unlock(self->lock);
   return blockMetadata;
 
@@ -102,17 +110,15 @@ void arena_wipe(struct arena* self) {
   flup_mutex_lock(self->lock);
   self->currentUsage = 0;
   
-  for (size_t i = 0; i < self->blocks->length; i++) {
-    struct arena_block** block;
-    bool ret = flup_dyn_array_get(self->blocks, i, (void**) &block);
-    BUG_ON(!ret);
-    
-    self->currentUsage -= (*block)->size + sizeof(**block);
-    freeBlock(*block);
+  for (size_t i = 0; i < self->maxBlocksCount; i++) {
+    struct arena_block* block = self->blocks[i];
+    self->currentUsage -= block->size + sizeof(*block);
+    freeBlock(block);
   }
   
   // Clear the array
-  flup_dyn_array_remove(self->blocks, 0, self->blocks->length);
+  memset(self->blocks, 0, sizeof(void*) * self->maxBlocksCount);
+  self->numBlocksCreated = 0;
   flup_mutex_unlock(self->lock);
 }
 
