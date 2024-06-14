@@ -80,11 +80,12 @@ Extra notes:
 3. Phase 2, 3 and 4 each can be executed in parallel
 */
 
-#include <flup/concurrency/cond.h>
-#include <flup/concurrency/mutex.h>
 #include <stdatomic.h>
 #include <stdint.h>
+#include <stddef.h>
 
+#include <flup/concurrency/cond.h>
+#include <flup/concurrency/mutex.h>
 #include <flup/data_structs/dyn_array.h>
 #include <flup/data_structs/buffer.h>
 #include <flup/concurrency/rwlock.h>
@@ -109,7 +110,23 @@ enum gc_request {
   GC_SHUTDOWN
 };
 
+struct gc_stats {
+  uint64_t lifetimeTotalObjectCount;
+  size_t lifetimeTotalObjectSize;
+  
+  uint64_t lifetimeTotalSweepedObjectCount;
+  size_t lifetimeTotalSweepedObjectSize;
+  
+  uint64_t lifetimeTotalLiveObjectCount;
+  size_t lifetimeLiveObjectSize;
+  
+  double lifetimeCycleTime;
+};
+
 struct gc_per_generation_state {
+  flup_mutex* statsLock;
+  struct gc_stats stats;
+  
   struct generation* ownerGen;
   flup_rwlock* gcLock;
   
@@ -150,5 +167,7 @@ void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten)
 // These can't be nested
 void gc_block(struct gc_per_generation_state* self);
 void gc_unblock(struct gc_per_generation_state* self);
+
+void gc_get_stats(struct gc_per_generation_state* self, struct gc_stats* stats);
 
 #endif

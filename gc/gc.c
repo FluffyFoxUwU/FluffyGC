@@ -125,6 +125,9 @@ struct cycle_state {
   struct gc_per_generation_state* self;
   struct arena* arena;
   struct heap* heap;
+  
+  // Temporary stats stored here before finally copied to per generation state
+  struct gc_stats stats;
 };
 
 // Must be STW once GC has own thread
@@ -161,10 +164,15 @@ static void processMutatorMarkQueuePhase(struct cycle_state* state) {
 }
 
 static void sweepPhase(struct cycle_state* state) {
-  size_t count = 0;
+  uint64_t count = 0;
   size_t totalSize = 0;
-  size_t sweepedCount = 0;
+  
+  uint64_t sweepedCount = 0;
   size_t sweepSize = 0;
+  
+  uint64_t liveObjectCount = 0;
+  size_t liveObjectSize = 0;
+  
   for (size_t i = 0; i < state->arena->numBlocksCreated; i++) {
     struct arena_block* block = state->arena->blocks[i];
     // If block is invalid that mean it has to be recently allocated
@@ -175,14 +183,25 @@ static void sweepPhase(struct cycle_state* state) {
     count++;
     totalSize += block->size;
     // Object is alive continuing
-    if (atomic_load(&block->gcMetadata.markBit) == state->self->GCMarkedBitValue)
+    if (atomic_load(&block->gcMetadata.markBit) == state->self->GCMarkedBitValue) {
+      liveObjectCount++;
+      liveObjectSize += block->size;
       continue;
+    }
     
     sweepedCount++;
     sweepSize += block->size;
     arena_dealloc(state->arena, block);
   }
-  // pr_info("Sweeped %zu objects (%lf MiB) out of %zu objects (%lf MiB)", sweepedCount, (double) sweepSize / 1024.0f / 1024.0f, count, (double) totalSize / 1024.0f / 1024.0f);
+  
+  state->stats.lifetimeTotalSweepedObjectCount += sweepedCount;
+  state->stats.lifetimeTotalSweepedObjectSize += sweepSize;
+  
+  state->stats.lifetimeTotalObjectCount += count;
+  state->stats.lifetimeTotalObjectSize += totalSize;
+  
+  state->stats.lifetimeTotalLiveObjectCount += liveObjectCount;
+  state->stats.lifetimeTotalObjectSize += liveObjectSize;
 }
 
 static void cycleRunner(struct gc_per_generation_state* self) {
@@ -197,6 +216,10 @@ static void cycleRunner(struct gc_per_generation_state* self) {
     .self = self,
     .heap = heap
   };
+  
+  flup_mutex_lock(self->statsLock);
+  state.stats = self->stats;
+  flup_mutex_unlock(self->statsLock);
   
   struct timespec start, end;
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
@@ -216,9 +239,12 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   double duration =
     ((double) end.tv_sec + ((double) end.tv_nsec) / 1'000'000'000.0f) -
     ((double) start.tv_sec + ((double) start.tv_nsec) / 1'000'000'000.0f);
-  // pr_info("Cycle time was: %lf ms", duration * 1000.f);
-  // pr_info("After cycle mem usage: %f MiB", (float) atomic_load(&arena->currentUsage) / 1024.0f / 1024.0f);
+  state.stats.lifetimeCycleTime += duration;
   flup_rwlock_unlock(self->gcLock);
+  
+  flup_mutex_lock(self->statsLock);
+  self->stats = state.stats;
+  flup_mutex_unlock(self->statsLock);
   
   flup_mutex_lock(self->invokeCycleLock);
   self->cycleID++;
@@ -289,4 +315,9 @@ void gc_unblock(struct gc_per_generation_state* self) {
   flup_rwlock_unlock(self->gcLock);
 }
 
+void gc_get_stats(struct gc_per_generation_state* self, struct gc_stats* stats) {
+  flup_mutex_lock(self->statsLock);
+  *stats = self->stats;
+  flup_mutex_unlock(self->statsLock);
+}
 
