@@ -25,47 +25,47 @@ int main() {
   pr_info("Hello World!");
   
   // Create 64 MiB heap
-  struct heap* heap = heap_new(64 * 1024 * 1024);
+  struct heap* heap = heap_new(128 * 1024 * 1024);
   if (!heap) {
     pr_error("Error creating heap");
     return EXIT_FAILURE;
   }
   
-  FILE* statCSVFile = fopen("stat2.csv", "a");
-  if (!statCSVFile)
-    flup_panic("Cannot open ./stat2.csv file for appending!");
-  if (setvbuf(statCSVFile, fwuffyAndLargeBufferUwU, _IOFBF, sizeof(fwuffyAndLargeBufferUwU)) != 0)
-    flup_panic("Error on setvbuf for stat2.csv");
-  fprintf(statCSVFile, "timestamp_sec,timestamp_nanosec,heap_usage,heap_total_size\n");
+  // FILE* statCSVFile = fopen("stat2.csv", "a");
+  // if (!statCSVFile)
+  //   flup_panic("Cannot open ./stat2.csv file for appending!");
+  // if (setvbuf(statCSVFile, fwuffyAndLargeBufferUwU, _IOFBF, sizeof(fwuffyAndLargeBufferUwU)) != 0)
+  //   flup_panic("Error on setvbuf for stat2.csv");
+  // fprintf(statCSVFile, "timestamp_sec,timestamp_nanosec,heap_usage,heap_total_size\n");
   
-  static atomic_bool shutdownRequested = false;
-  flup_thread* statWriter = flup_thread_new_with_block(^(void) {
-    struct timespec deadline;
-    clock_gettime(CLOCK_REALTIME, &deadline);
-    while (!atomic_load(&shutdownRequested)) {
-      // Collect in 100 ms interval
-      deadline.tv_nsec += 100 * 1'000'000;
-      if (deadline.tv_nsec > 1'000'000'000) {
-        deadline.tv_nsec -= 1'000'000'000;
-        deadline.tv_sec++;
-      }
+  // static atomic_bool shutdownRequested = false;
+  // flup_thread* statWriter = flup_thread_new_with_block(^(void) {
+    // struct timespec deadline;
+    // clock_gettime(CLOCK_REALTIME, &deadline);
+    // while (!atomic_load(&shutdownRequested)) {
+    //   // Collect in 100 ms interval
+    //   deadline.tv_nsec += 100 * 1'000'000;
+    //   if (deadline.tv_nsec > 1'000'000'000) {
+    //     deadline.tv_nsec -= 1'000'000'000;
+    //     deadline.tv_sec++;
+    //   }
       
-      struct timespec now;
-      clock_gettime(CLOCK_REALTIME, &now);
+    //   struct timespec now;
+    //   clock_gettime(CLOCK_REALTIME, &now);
       
-      size_t usage = atomic_load(&heap->gen->arena->currentUsage);
-      size_t maxSize = heap->gen->arena->maxSize;
-      fprintf(statCSVFile, "%llu,%llu,%zu,%zu\n", (unsigned long long) now.tv_sec, (unsigned long long) now.tv_nsec, usage, maxSize);
+    //   size_t usage = atomic_load(&heap->gen->arena->currentUsage);
+    //   size_t maxSize = heap->gen->arena->maxSize;
+    //   fprintf(statCSVFile, "%llu,%llu,%zu,%zu\n", (unsigned long long) now.tv_sec, (unsigned long long) now.tv_nsec, usage, maxSize);
       
-      while (clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &deadline, NULL) == EINTR)
-        ;
-    }
-  });
+    //   while (clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &deadline, NULL) == EINTR)
+    //     ;
+    // }
+  // });
   
   // Intentionally leak 5 MiB for testing
   heap_alloc(heap, 5 * 1024 * 1024);
   // Try to allocate and release 256 MiB worth of items
-  size_t bytesToAlloc = 512 * 1024 * 1024;
+  size_t bytesToAlloc = 256UL * 1024 * 1024 * 1024;
   size_t perItemSize = 64;
   for (size_t i = 0; i < bytesToAlloc / perItemSize; i++) {
     size_t sz = (size_t) (((float) rand() / (float) RAND_MAX) * (float) 1024);
@@ -75,11 +75,11 @@ int main() {
   
   pr_info("Exiting... UwU");
   
-  atomic_store(&shutdownRequested, true);
-  flup_thread_wait(statWriter);
-  flup_thread_free(statWriter);
+  // atomic_store(&shutdownRequested, true);
+  // flup_thread_wait(statWriter);
+  // flup_thread_free(statWriter);
   
-  fclose(statCSVFile);
+  // fclose(statCSVFile);
   heap_free(heap);
   flup_thread_free(flup_detach_thread());
   // mimalloc_play();
