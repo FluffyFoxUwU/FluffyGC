@@ -84,6 +84,7 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
   // Heap is actually OOM-ed
   if (!newObj) {
     free(ref);
+    heap_unblock_gc(self);
     return NULL;
   }
   
