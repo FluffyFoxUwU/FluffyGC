@@ -82,6 +82,8 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     goto failure;
   if (!(self->gcRequestedCond = flup_cond_new()))
     goto failure;
+  if (!(self->statsLock = flup_mutex_new()))
+    goto failure;
   if (!(self->thread = flup_thread_new(gcThread, self)))
     goto failure;
   return self;
@@ -107,6 +109,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
     flup_thread_wait(self->thread);
     flup_thread_free(self->thread);
   }
+  flup_mutex_free(self->statsLock);
   flup_cond_free(self->gcRequestedCond);
   flup_mutex_free(self->gcRequestLock);
   flup_cond_free(self->invokeCycleDoneEvent);
@@ -218,6 +221,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   };
   
   flup_mutex_lock(self->statsLock);
+  self->stats.cycleIsRunning = true;
   state.stats = self->stats;
   flup_mutex_unlock(self->statsLock);
   
@@ -244,6 +248,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   
   flup_mutex_lock(self->statsLock);
   self->stats = state.stats;
+  self->stats.cycleIsRunning = false;
   flup_mutex_unlock(self->statsLock);
   
   flup_mutex_lock(self->invokeCycleLock);
