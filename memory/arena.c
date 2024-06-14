@@ -91,7 +91,6 @@ struct arena_block* arena_alloc(struct arena* self, size_t allocSize) {
 free_block_exist:
   
   *blockMetadata = (struct arena_block) {
-    .used = true,
     .size = allocSize,
     .index = blockIndex
   };
@@ -140,7 +139,6 @@ void arena_dealloc(struct arena* self, struct arena_block* blk) {
   flup_mutex_lock(self->lock);
   free(blk->data);
   blk->data = NULL;
-  blk->used = false;
   
   atomic_store(&self->blocks[blk->index], NULL);
   self->currentUsage -= blk->size;

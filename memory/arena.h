@@ -25,7 +25,6 @@ struct arena {
 struct arena_block {
   size_t index;
   size_t size;
-  bool used;
   struct gc_block_metadata gcMetadata;
   flup_list_head node;
   void* data;
