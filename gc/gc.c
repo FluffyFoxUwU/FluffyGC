@@ -21,10 +21,10 @@
 #include "gc.h"
 
 void gc_on_allocate(struct arena_block* block, struct generation* gen) {
-  block->gcMetadata = (struct gc_block_metadata) {
-    .markBit = !gen->gcState->mutatorMarkedBitValue,
-    .owningGeneration = gen
-  };
+  block->gcMetadata.markBit = !gen->gcState->mutatorMarkedBitValue;
+  block->gcMetadata.owningGeneration = gen;
+  
+  atomic_store(&block->gcMetadata.isValid, true);
 }
 
 void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten) {
@@ -122,7 +122,9 @@ static void sweepPhase(struct cycle_state* state) {
   size_t sweepedCount = 0;
   for (size_t i = 0; i < state->arena->numBlocksCreated; i++) {
     struct arena_block* block = state->arena->blocks[i];
-    if (!block || !block->used)
+    // If block is invalid that mean it has to be recently allocated
+    // so treat it as marked
+    if (!block || !atomic_load(&block->gcMetadata.isValid))
       continue;
     
     count++;
