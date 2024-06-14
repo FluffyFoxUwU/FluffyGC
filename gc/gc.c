@@ -162,7 +162,9 @@ static void processMutatorMarkQueuePhase(struct cycle_state* state) {
 
 static void sweepPhase(struct cycle_state* state) {
   size_t count = 0;
+  size_t totalSize = 0;
   size_t sweepedCount = 0;
+  size_t sweepSize = 0;
   for (size_t i = 0; i < state->arena->numBlocksCreated; i++) {
     struct arena_block* block = state->arena->blocks[i];
     // If block is invalid that mean it has to be recently allocated
@@ -171,14 +173,16 @@ static void sweepPhase(struct cycle_state* state) {
       continue;
     
     count++;
+    totalSize += block->size;
     // Object is alive continuing
     if (atomic_load(&block->gcMetadata.markBit) == state->self->GCMarkedBitValue)
       continue;
     
     sweepedCount++;
+    sweepSize += block->size;
     arena_dealloc(state->arena, block);
   }
-  pr_info("Sweeped %zu out of %zu objects", sweepedCount, count);
+  pr_info("Sweeped %zu objects (%lf MiB) out of %zu objects (%lf MiB)", sweepedCount, (double) sweepSize / 1024.0f / 1024.0f, count, (double) totalSize / 1024.0f / 1024.0f);
 }
 
 static void cycleRunner(struct gc_per_generation_state* self) {
