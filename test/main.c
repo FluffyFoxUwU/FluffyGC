@@ -1,9 +1,9 @@
-#include <errno.h>
+// #include <errno.h>
 #include <stddef.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+// #include <time.h>
 #include <unistd.h>
 
 #include <flup/core/panic.h>
@@ -14,7 +14,7 @@
 
 #include "heap/heap.h"
 
-static char fwuffyAndLargeBufferUwU[16 * 1024 * 1024];
+// static char fwuffyAndLargeBufferUwU[16 * 1024 * 1024];
 
 int main() {
   if (!flup_attach_thread("Main-Thread")) {

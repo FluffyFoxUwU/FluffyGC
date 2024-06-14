@@ -83,7 +83,6 @@ Extra notes:
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <time.h>
 
 #include <flup/concurrency/cond.h>
 #include <flup/concurrency/mutex.h>

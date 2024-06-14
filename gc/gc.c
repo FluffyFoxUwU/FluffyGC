@@ -1,6 +1,3 @@
-#define _GNU_SOURCE
-#include <pthread.h>
-
 #include <errno.h>
 #include <stddef.h>
 #include <stddef.h>
@@ -230,7 +227,6 @@ static void unpauseAppThreads(struct cycle_state* state) {
 static void cycleRunner(struct gc_per_generation_state* self) {
   struct arena* arena = self->ownerGen->arena;
   struct heap* heap = self->ownerGen->ownerHeap;
-  pthread_setname_np(pthread_self(), "GC-Thread");
   
   // pr_info("Before cycle mem usage: %f MiB", (float) atomic_load(&arena->currentUsage) / 1024.0f / 1024.0f);
   
