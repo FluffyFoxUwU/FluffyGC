@@ -211,7 +211,6 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   struct arena* arena = self->ownerGen->arena;
   struct heap* heap = self->ownerGen->ownerHeap;
   
-  flup_rwlock_wrlock(self->gcLock);
   // pr_info("Before cycle mem usage: %f MiB", (float) atomic_load(&arena->currentUsage) / 1024.0f / 1024.0f);
   
   struct cycle_state state = {
@@ -227,16 +226,23 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   
   struct timespec start, end;
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
+  
+  flup_rwlock_wrlock(self->gcLock);
   atomic_store(&self->mutatorMarkedBitValue, !atomic_load(&self->mutatorMarkedBitValue));
   atomic_store(&self->cycleInProgress, true);
   
   takeRootSnapshotPhase(&state);
+  flup_rwlock_unlock(self->gcLock);
+  
   markingPhase(&state);
   processMutatorMarkQueuePhase(&state);
   sweepPhase(&state);
   
+  flup_rwlock_wrlock(self->gcLock);
   self->GCMarkedBitValue = !self->GCMarkedBitValue;
   atomic_store(&self->cycleInProgress, false);
+  flup_rwlock_unlock(self->gcLock);
+  
   flup_dyn_array_remove(self->snapshotOfRootSet, 0, self->snapshotOfRootSet->length);
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
   
@@ -244,7 +250,6 @@ static void cycleRunner(struct gc_per_generation_state* self) {
     ((double) end.tv_sec + ((double) end.tv_nsec) / 1'000'000'000.0f) -
     ((double) start.tv_sec + ((double) start.tv_nsec) / 1'000'000'000.0f);
   state.stats.lifetimeCycleTime += duration;
-  flup_rwlock_unlock(self->gcLock);
   
   flup_mutex_lock(self->statsLock);
   self->stats = state.stats;

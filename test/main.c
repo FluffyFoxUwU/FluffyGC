@@ -31,11 +31,11 @@ int main() {
     return EXIT_FAILURE;
   }
   
-  FILE* statCSVFile = fopen("stat.csv", "a");
+  FILE* statCSVFile = fopen("stat2.csv", "a");
   if (!statCSVFile)
-    flup_panic("Cannot open ./stat.csv file for appending!");
+    flup_panic("Cannot open ./stat2.csv file for appending!");
   if (setvbuf(statCSVFile, fwuffyAndLargeBufferUwU, _IOFBF, sizeof(fwuffyAndLargeBufferUwU)) != 0)
-    flup_panic("Error on setvbuf for stat.csv");
+    flup_panic("Error on setvbuf for stat2.csv");
   fprintf(statCSVFile, "timestamp_sec,timestamp_nanosec,heap_usage,heap_total_size\n");
   
   static atomic_bool shutdownRequested = false;
