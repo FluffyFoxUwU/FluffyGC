@@ -179,7 +179,7 @@ static void sweepPhase(struct cycle_state* state) {
   size_t liveObjectSize = 0;
   
   for (size_t i = 0; i < state->arena->numBlocksCreated; i++) {
-    struct arena_block* block = state->arena->blocks[i];
+    struct arena_block* block = atomic_load(&state->arena->blocks[i]);
     // If block is invalid that mean it has to be recently allocated
     // so treat it as marked
     if (!block || !atomic_load(&block->gcMetadata.isValid))
