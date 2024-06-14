@@ -10,13 +10,12 @@
 #include "gc/gc.h"
 
 struct arena {
-  flup_mutex* lock;
-  
   atomic_size_t currentUsage;
   atomic_size_t objectCount;
   size_t maxSize;
   size_t maxBlocksCount;
   
+  flup_mutex* allocLock;
   atomic_size_t numBlocksCreated;
   _Atomic(struct arena_block*)* blocks;
   flup_list_head freeList;
