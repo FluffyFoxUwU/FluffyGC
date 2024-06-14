@@ -134,6 +134,8 @@ struct cycle_state {
   
   // Temporary stats stored here before finally copied to per generation state
   struct gc_stats stats;
+  
+  struct timespec pauseBegin, pauseEnd;
 };
 
 // Must be STW once GC has own thread
@@ -210,6 +212,21 @@ static void sweepPhase(struct cycle_state* state) {
   state->stats.lifetimeTotalObjectSize += liveObjectSize;
 }
 
+static void pauseAppThreads(struct cycle_state* state) {
+  clock_gettime(CLOCK_REALTIME, &state->pauseBegin);
+  flup_rwlock_wrlock(state->self->gcLock);
+}
+
+static void unpauseAppThreads(struct cycle_state* state) {
+  flup_rwlock_unlock(state->self->gcLock);
+  clock_gettime(CLOCK_REALTIME, &state->pauseEnd);
+  
+  double duration = 
+    ((double) state->pauseEnd.tv_sec + ((double) state->pauseEnd.tv_nsec/ 1'000'000'000.0f)) -
+    ((double) state->pauseBegin.tv_sec + ((double) state->pauseBegin.tv_nsec/ 1'000'000'000.0f));
+  state->stats.lifetimeSTWTime += duration;
+}
+
 static void cycleRunner(struct gc_per_generation_state* self) {
   struct arena* arena = self->ownerGen->arena;
   struct heap* heap = self->ownerGen->ownerHeap;
@@ -231,21 +248,21 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   struct timespec start, end;
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
   
-  flup_rwlock_wrlock(self->gcLock);
+  pauseAppThreads(&state);
   atomic_store(&self->mutatorMarkedBitValue, !atomic_load(&self->mutatorMarkedBitValue));
   atomic_store(&self->cycleInProgress, true);
   
   takeRootSnapshotPhase(&state);
-  flup_rwlock_unlock(self->gcLock);
+  unpauseAppThreads(&state);
   
   markingPhase(&state);
   processMutatorMarkQueuePhase(&state);
   sweepPhase(&state);
   
-  flup_rwlock_wrlock(self->gcLock);
+  pauseAppThreads(&state);
   self->GCMarkedBitValue = !self->GCMarkedBitValue;
   atomic_store(&self->cycleInProgress, false);
-  flup_rwlock_unlock(self->gcLock);
+  unpauseAppThreads(&state);
   
   flup_dyn_array_remove(self->snapshotOfRootSet, 0, self->snapshotOfRootSet->length);
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
@@ -256,6 +273,21 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   state.stats.lifetimeCycleTime += duration;
   
   flup_mutex_lock(self->statsLock);
+  static struct timespec deadline = {};
+  if (deadline.tv_sec == 0) {
+    clock_gettime(CLOCK_REALTIME, &deadline);
+    deadline.tv_sec -= 1;
+  }
+  
+  struct timespec current;
+  clock_gettime(CLOCK_REALTIME, &current);
+  if (current.tv_sec >= deadline.tv_sec) {
+    pr_info("STW (last second): %lf sec", state.stats.lifetimeSTWTime - self->stats.lifetimeSTWTime);
+    pr_info("STW (lifetime)   : %lf sec", state.stats.lifetimeSTWTime);
+    pr_info("GC rate          : %lf MiB/sec", (double) (state.stats.lifetimeTotalSweepedObjectSize - self->stats.lifetimeTotalSweepedObjectSize) / 1024.0f / 1024.0f);
+    deadline.tv_sec++;
+  }
+  
   self->stats = state.stats;
   self->stats.cycleIsRunning = false;
   flup_mutex_unlock(self->statsLock);

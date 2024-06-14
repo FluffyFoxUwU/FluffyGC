@@ -83,6 +83,7 @@ Extra notes:
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <time.h>
 
 #include <flup/concurrency/cond.h>
 #include <flup/concurrency/mutex.h>
@@ -123,6 +124,7 @@ struct gc_stats {
   size_t lifetimeLiveObjectSize;
   
   double lifetimeCycleTime;
+  double lifetimeSTWTime;
 };
 
 struct gc_per_generation_state {
