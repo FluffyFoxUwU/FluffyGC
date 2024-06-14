@@ -212,24 +212,29 @@ void gc_start_cycle(struct gc_per_generation_state* self) {
   // It was already started lets wait
   // uint64_t cycleID;
   flup_mutex_lock(self->invokeCycleLock);
-  uint64_t lastCycleID = self->cycleID;
   if (self->cycleWasInvoked)
     goto no_need_to_call;
   
   self->cycleWasInvoked = true;
-  
   flup_mutex_unlock(self->invokeCycleLock);
-  cycleRunner(self);
-  flup_mutex_lock(self->invokeCycleLock);
   
+  cycleRunner(self);
+  
+  flup_mutex_lock(self->invokeCycleLock);
   self->cycleID++;
   self->cycleWasInvoked = false;
+  flup_cond_wake_all(self->invokeCycleDoneEvent);
+  flup_mutex_unlock(self->invokeCycleLock);
+  return;
+  
 no_need_to_call:
+  uint64_t lastCycleID = self->cycleID;
   
   // Waiting loop
   while (self->cycleID == lastCycleID)
     flup_cond_wait(self->invokeCycleDoneEvent, self->invokeCycleLock, NULL);
   flup_mutex_unlock(self->invokeCycleLock);
+  return;
 }
 
 void gc_block(struct gc_per_generation_state* self) {
