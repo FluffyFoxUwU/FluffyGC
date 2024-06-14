@@ -29,8 +29,6 @@ void gc_on_allocate(struct arena_block* block, struct generation* gen) {
   block->gcMetadata.owningGeneration = gen;
   
   atomic_store(&block->gcMetadata.isValid, true);
-  
-  
 }
 
 void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten) {
@@ -174,9 +172,7 @@ static void sweepPhase(struct cycle_state* state) {
 static void cycleRunner(struct gc_per_generation_state* self) {
   struct arena* arena = self->ownerGen->arena;
   struct heap* heap = self->ownerGen->ownerHeap;
-  struct arena_stats arenaStats;
-  arena_get_stat(arena, &arenaStats);
-  pr_info("Before cycle mem usage: %f MiB", (float) arenaStats.currentUsage / 1024.0f / 1024.0f);
+  pr_info("Before cycle mem usage: %f MiB", (float) arena->currentUsage / 1024.0f / 1024.0f);
   
   struct cycle_state state = {
     .arena = arena,
@@ -231,9 +227,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
     ((double) end.tv_sec + ((double) end.tv_nsec) / 1'000'000'000.0f) -
     ((double) start.tv_sec + ((double) start.tv_nsec) / 1'000'000'000.0f);
   pr_info("Cycle time was: %lf ms", duration * 1000.f);
-  
-  arena_get_stat(arena, &arenaStats);
-  pr_info("After cycle mem usage: %f MiB", (float) arenaStats.currentUsage / 1024.0f / 1024.0f);
+  pr_info("After cycle mem usage: %f MiB", (float) arena->currentUsage / 1024.0f / 1024.0f);
   
   flup_mutex_lock(self->invokeCycleLock);
   self->cycleID++;
