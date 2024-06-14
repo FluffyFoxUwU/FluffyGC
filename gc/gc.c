@@ -77,7 +77,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
 }
 
 static void doMark(struct gc_per_generation_state* state, struct arena_block* block) {
-  block->gcMetadata.markBit = state->GCMarkedBitValue;
+  atomic_store(&block->gcMetadata.markBit, state->GCMarkedBitValue);
 }
 
 struct cycle_state {
@@ -127,7 +127,7 @@ static void sweepPhase(struct cycle_state* state) {
     
     count++;
     // Object is alive continuing
-    if (block->gcMetadata.markBit == state->self->GCMarkedBitValue)
+    if (atomic_load(&block->gcMetadata.markBit) == state->self->GCMarkedBitValue)
       continue;
     
     sweepedCount++;
