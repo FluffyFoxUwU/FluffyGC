@@ -106,9 +106,9 @@ struct gc_per_generation_state {
   // What mark bit value correspond to marked (
   // the meaning of the mark bit changes throughout
   // lifetime) protected by STW events
-  bool mutatorMarkedBitValue;
+  atomic_bool mutatorMarkedBitValue;
   bool GCMarkedBitValue;
-  bool cycleInProgress;
+  atomic_bool cycleInProgress;
   
   flup_buffer* mutatorMarkQueue;
   flup_dyn_array* snapshotOfRootSet;

@@ -21,7 +21,7 @@
 #include "gc.h"
 
 void gc_on_allocate(struct arena_block* block, struct generation* gen) {
-  block->gcMetadata.markBit = !gen->gcState->mutatorMarkedBitValue;
+  block->gcMetadata.markBit = !atomic_load(&gen->gcState->mutatorMarkedBitValue);
   block->gcMetadata.owningGeneration = gen;
   
   atomic_store(&block->gcMetadata.isValid, true);
@@ -33,7 +33,7 @@ void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten)
   
   // Doesn't need to enqueue to mark queue as its
   // purpose is for queuing unmarked objects when GC running
-  if (!gcState->cycleInProgress)
+  if (!atomic_load(&gcState->cycleInProgress))
     return;
   
   bool prevMarkBit = atomic_exchange(&metadata->markBit, gcState->GCMarkedBitValue);
@@ -152,8 +152,8 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   struct timespec start, end;
   struct timespec start2, end2;
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
-  self->mutatorMarkedBitValue = !self->mutatorMarkedBitValue;
-  self->cycleInProgress = true;
+  atomic_store(&self->mutatorMarkedBitValue, !atomic_load(&self->mutatorMarkedBitValue));
+  atomic_store(&self->cycleInProgress, true);
   
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start2);
   takeRootSnapshotPhase(&state);
@@ -188,7 +188,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   pr_info("Sweep time was           : %lf ms", duration2 * 1000.f);
   
   self->GCMarkedBitValue = !self->GCMarkedBitValue;
-  self->cycleInProgress = false;
+  atomic_store(&self->cycleInProgress, false);
   flup_dyn_array_remove(self->snapshotOfRootSet, 0, self->snapshotOfRootSet->length);
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
   
