@@ -96,8 +96,8 @@ failure:
 static void callGCAsync(struct gc_per_generation_state* self, enum gc_request request) {
   flup_mutex_lock(self->gcRequestLock);
   self->gcRequest = request;
-  flup_mutex_unlock(self->gcRequestLock);
   flup_cond_wake_one(self->gcRequestedCond);
+  flup_mutex_unlock(self->gcRequestLock);
 }
 
 void gc_per_generation_state_free(struct gc_per_generation_state* self) {
@@ -291,8 +291,8 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   flup_mutex_lock(self->invokeCycleLock);
   self->cycleID++;
   self->cycleWasInvoked = false;
-  flup_mutex_unlock(self->invokeCycleLock);
   flup_cond_wake_all(self->invokeCycleDoneEvent);
+  flup_mutex_unlock(self->invokeCycleLock);
 }
 
 static void gcThread(void* _self) {
