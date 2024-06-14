@@ -267,7 +267,7 @@ static void gcThread(void* _self) {
 shutdown_gc_thread:
 }
 
-void gc_start_cycle(struct gc_per_generation_state* self) {
+uint64_t gc_start_cycle_async(struct gc_per_generation_state* self) {
   // It was already started lets wait
   flup_mutex_lock(self->invokeCycleLock);
   uint64_t lastCycleID = self->cycleID;
@@ -279,9 +279,14 @@ void gc_start_cycle(struct gc_per_generation_state* self) {
   
   // Wake GC thread
   callGCAsync(self, GC_START_CYCLE);
+no_need_to_wake_gc:
+  return lastCycleID;
+}
+
+void gc_start_cycle(struct gc_per_generation_state* self) {
+  uint64_t lastCycleID = gc_start_cycle_async(self);
   
   flup_mutex_lock(self->invokeCycleLock);
-no_need_to_wake_gc:
   // Waiting loop
   while (self->cycleID == lastCycleID)
     flup_cond_wait(self->invokeCycleDoneEvent, self->invokeCycleLock, NULL);

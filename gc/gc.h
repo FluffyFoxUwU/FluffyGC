@@ -137,6 +137,10 @@ struct gc_per_generation_state {
 
 void gc_start_cycle(struct gc_per_generation_state* self);
 
+// Return last cycle ID before GC is called
+// so caller can wait if needed
+uint64_t gc_start_cycle_async(struct gc_per_generation_state* self);
+
 struct gc_per_generation_state* gc_per_generation_state_new(struct generation* gen);
 void gc_per_generation_state_free(struct gc_per_generation_state* self);
 
