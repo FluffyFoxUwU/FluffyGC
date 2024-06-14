@@ -26,6 +26,8 @@ struct heap* heap_new(size_t size) {
   
   if (!(self->gen = generation_new(size)))
     goto failure;
+  if (!(self->rootLock = flup_mutex_new()))
+    goto failure;
   self->gen->ownerHeap = self;
   return self;
 
@@ -40,6 +42,7 @@ void heap_free(struct heap* self) {
   flup_list_for_each_safe(&self->root, current, next)
     heap_root_unref(self, container_of(current, struct root_ref, node));
   generation_free(self->gen);
+  flup_mutex_free(self->rootLock);
   free(self);
 }
 
@@ -48,18 +51,26 @@ struct root_ref* heap_root_dup(struct heap* self, struct root_ref* ref) {
   if (!newRef)
     return NULL;
   
-  heap_block_gc(self);
-  flup_list_add_tail(&self->root, &newRef->node);
   newRef->obj = ref->obj;
+  
+  heap_block_gc(self);
+  flup_mutex_lock(self->rootLock);
+  
+  flup_list_add_tail(&self->root, &newRef->node);
   self->rootEntryCount++;
+  
+  flup_mutex_unlock(self->rootLock);
   heap_unblock_gc(self);
   return newRef;
 }
 
 void heap_root_unref(struct heap* self, struct root_ref* ref) {
   heap_block_gc(self);
+  
+  flup_mutex_lock(self->rootLock);
   self->rootEntryCount--;
   flup_list_del(&ref->node);
+  flup_mutex_unlock(self->rootLock);
   
   gc_on_reference_lost(ref->obj);
   heap_unblock_gc(self);
@@ -88,9 +99,11 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
     return NULL;
   }
   
+  flup_mutex_lock(self->rootLock);
   flup_list_add_tail(&self->root, &ref->node);
   ref->obj = newObj;
   self->rootEntryCount++;
+  flup_mutex_unlock(self->rootLock);
   heap_unblock_gc(self);
   return ref;
 }

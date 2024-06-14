@@ -2,6 +2,8 @@
 #define UWU_A20CD05E_D0C0_425B_B0C9_876974A0CA1B_UWU
 
 #include <stddef.h>
+
+#include <flup/concurrency/mutex.h>
 #include <flup/data_structs/list_head.h>
 
 #include "heap/generation.h"
@@ -10,6 +12,7 @@
 struct heap {
   struct generation* gen;
   
+  flup_mutex* rootLock;
   flup_list_head root;
   size_t rootEntryCount;
 };

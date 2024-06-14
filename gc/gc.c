@@ -130,6 +130,7 @@ struct cycle_state {
 // Must be STW once GC has own thread
 static void takeRootSnapshotPhase(struct cycle_state* state) {
   int ret;
+  flup_mutex_lock(state->heap->rootLock);
   if ((ret = flup_dyn_array_reserve(state->self->snapshotOfRootSet, state->heap->rootEntryCount)) < 0)
     flup_panic("Error reserving memory for root set snapshot: flup_dyn_array_reserve: %d", ret);
   
@@ -139,6 +140,7 @@ static void takeRootSnapshotPhase(struct cycle_state* state) {
     if (flup_dyn_array_append(state->self->snapshotOfRootSet, &ref) < 0)
       flup_panic("This can't occur TwT");
   }
+  flup_mutex_unlock(state->heap->rootLock);
 }
 
 static void markingPhase(struct cycle_state* state) {
