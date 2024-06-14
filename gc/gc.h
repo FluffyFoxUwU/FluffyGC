@@ -80,11 +80,15 @@ Extra notes:
 3. Phase 2, 3 and 4 each can be executed in parallel
 */
 
+#include <flup/concurrency/cond.h>
+#include <flup/concurrency/mutex.h>
 #include <stdatomic.h>
+#include <stdint.h>
 
 #include <flup/data_structs/dyn_array.h>
 #include <flup/data_structs/buffer.h>
 #include <flup/concurrency/rwlock.h>
+#include <flup/thread/thread.h>
 
 // 8 MiB mutator mark queue size
 #define GC_MARK_QUEUE_SIZE (8 * 1024 * 1024)
@@ -102,6 +106,11 @@ struct gc_block_metadata {
 struct gc_per_generation_state {
   struct generation* ownerGen;
   flup_rwlock* gcLock;
+  
+  bool cycleWasInvoked;
+  uint64_t cycleID;
+  flup_mutex* invokeCycleLock;
+  flup_cond* invokeCycleDoneEvent;
   
   // What mark bit value correspond to marked (
   // the meaning of the mark bit changes throughout

@@ -1,11 +1,14 @@
 #include <errno.h>
 #include <stddef.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdatomic.h>
 #include <time.h>
 
 #include <flup/bug.h>
+#include <flup/concurrency/cond.h>
+#include <flup/concurrency/mutex.h>
 #include <flup/concurrency/rwlock.h>
 #include <flup/container_of.h>
 #include <flup/data_structs/list_head.h>
@@ -59,6 +62,10 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     goto failure;
   if (!(self->mutatorMarkQueue = flup_buffer_new(GC_MARK_QUEUE_SIZE)))
     goto failure;
+  if (!(self->invokeCycleLock = flup_mutex_new()))
+    goto failure;
+  if (!(self->invokeCycleDoneEvent = flup_cond_new()))
+    goto failure;
   return self;
 
 failure:
@@ -70,6 +77,8 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   if (!self)
     return;
   
+  flup_cond_free(self->invokeCycleDoneEvent);
+  flup_mutex_free(self->invokeCycleLock);
   flup_rwlock_free(self->gcLock);
   flup_dyn_array_free(self->snapshotOfRootSet);
   flup_buffer_free(self->mutatorMarkQueue);
@@ -200,7 +209,27 @@ static void cycleRunner(struct gc_per_generation_state* self) {
 }
 
 void gc_start_cycle(struct gc_per_generation_state* self) {
+  // It was already started lets wait
+  // uint64_t cycleID;
+  flup_mutex_lock(self->invokeCycleLock);
+  uint64_t lastCycleID = self->cycleID;
+  if (self->cycleWasInvoked)
+    goto no_need_to_call;
+  
+  self->cycleWasInvoked = true;
+  
+  flup_mutex_unlock(self->invokeCycleLock);
   cycleRunner(self);
+  flup_mutex_lock(self->invokeCycleLock);
+  
+  self->cycleID++;
+  self->cycleWasInvoked = false;
+no_need_to_call:
+  
+  // Waiting loop
+  while (self->cycleID == lastCycleID)
+    flup_cond_wait(self->invokeCycleDoneEvent, self->invokeCycleLock, NULL);
+  flup_mutex_unlock(self->invokeCycleLock);
 }
 
 void gc_block(struct gc_per_generation_state* self) {
