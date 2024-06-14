@@ -206,14 +206,20 @@ static void cycleRunner(struct gc_per_generation_state* self) {
     ((double) start.tv_sec + ((double) start.tv_nsec) / 1'000'000'000.0f);
   pr_info("Cycle time was: %lf ms", duration * 1000.f);
   pr_info("After cycle mem usage: %f MiB", (float) arena->currentUsage / 1024.0f / 1024.0f);
+  
+  flup_mutex_lock(self->invokeCycleLock);
+  self->cycleID++;
+  self->cycleWasInvoked = false;
+  flup_cond_wake_all(self->invokeCycleDoneEvent);
+  flup_mutex_unlock(self->invokeCycleLock);
 }
 
 void gc_start_cycle(struct gc_per_generation_state* self) {
   // It was already started lets wait
-  // uint64_t cycleID;
   flup_mutex_lock(self->invokeCycleLock);
+  uint64_t lastCycleID = self->cycleID;
   if (self->cycleWasInvoked)
-    goto no_need_to_call;
+    goto no_need_to_wake_gc;
   
   self->cycleWasInvoked = true;
   flup_mutex_unlock(self->invokeCycleLock);
@@ -221,15 +227,7 @@ void gc_start_cycle(struct gc_per_generation_state* self) {
   cycleRunner(self);
   
   flup_mutex_lock(self->invokeCycleLock);
-  self->cycleID++;
-  self->cycleWasInvoked = false;
-  flup_cond_wake_all(self->invokeCycleDoneEvent);
-  flup_mutex_unlock(self->invokeCycleLock);
-  return;
-  
-no_need_to_call:
-  uint64_t lastCycleID = self->cycleID;
-  
+no_need_to_wake_gc:
   // Waiting loop
   while (self->cycleID == lastCycleID)
     flup_cond_wait(self->invokeCycleDoneEvent, self->invokeCycleLock, NULL);
