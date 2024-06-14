@@ -12,10 +12,12 @@ UwUMaker-c-flags-y += -std=c2x -g -O0 \
 		-Wcast-align -Wfloat-equal -Wformat=2 \
 		-fstrict-flex-arrays=3 -Warray-bounds \
 		-Wno-initializer-overrides \
-		-Wundef -fno-omit-frame-pointer -flto=full
+		-Wundef -fno-omit-frame-pointer
 
-UwUMaker-c-flags-y += -fsanitize=undefined -fsanitize=address
-UwUMaker-linker-flags-y += -fsanitize=address -fsanitize=undefined
+# UwUMaker-c-flags-y += -fsanitize=address
+# UwUMaker-linker-flags-y += -fsanitize=address
+UwUMaker-c-flags-y += -fsanitize=undefined
+UwUMaker-linker-flags-y += -fsanitize=undefined
 UwUMaker-linker-flags-y += -lFlup -lBlocksRuntime
 
 UwUMaker-pkg-config-libs-y += mimalloc
@@ -34,5 +36,5 @@ proj_run_gdb:
 
 proj_run_valgrind:
 	@$(MAKE) -C $(UWUMAKER_DIR) PROJECT_DIR="$(PROJECT_DIR)" cmd_all
-	@cd "$(PROJECT_DIR)" && valgrind $(BUILD_DIR)/objs/FluffyGC
+	@cd "$(PROJECT_DIR)" && valgrind $(RUN_FLAGS) $(BUILD_DIR)/objs/FluffyGC
 

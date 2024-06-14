@@ -29,6 +29,16 @@ void gc_on_allocate(struct arena_block* block, struct generation* gen) {
   block->gcMetadata.owningGeneration = gen;
   
   atomic_store(&block->gcMetadata.isValid, true);
+  
+  size_t usage = atomic_load(&gen->arena->currentUsage);
+  size_t maxSize = gen->arena->maxSize;
+  size_t softLimit = (size_t) ((float) maxSize * 0.4f);
+  
+  // Start GC cycle so memory freed before mutator has to start
+  // waiting on GC 
+  if (usage > softLimit) {
+    gc_start_cycle_async(gen->gcState);
+  }
 }
 
 void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten) {
@@ -172,6 +182,8 @@ static void sweepPhase(struct cycle_state* state) {
 static void cycleRunner(struct gc_per_generation_state* self) {
   struct arena* arena = self->ownerGen->arena;
   struct heap* heap = self->ownerGen->ownerHeap;
+  
+  flup_rwlock_wrlock(self->gcLock);
   pr_info("Before cycle mem usage: %f MiB", (float) atomic_load(&arena->currentUsage) / 1024.0f / 1024.0f);
   
   struct cycle_state state = {
@@ -228,26 +240,23 @@ static void cycleRunner(struct gc_per_generation_state* self) {
     ((double) start.tv_sec + ((double) start.tv_nsec) / 1'000'000'000.0f);
   pr_info("Cycle time was: %lf ms", duration * 1000.f);
   pr_info("After cycle mem usage: %f MiB", (float) atomic_load(&arena->currentUsage) / 1024.0f / 1024.0f);
+  flup_rwlock_unlock(self->gcLock);
   
   flup_mutex_lock(self->invokeCycleLock);
   self->cycleID++;
   self->cycleWasInvoked = false;
-  flup_cond_wake_all(self->invokeCycleDoneEvent);
   flup_mutex_unlock(self->invokeCycleLock);
-  
-  flup_mutex_lock(self->gcRequestLock);
-  self->gcRequest = GC_NOOP;
-  flup_mutex_unlock(self->gcRequestLock);
+  flup_cond_wake_all(self->invokeCycleDoneEvent);
 }
 
 static void gcThread(void* _self) {
   struct gc_per_generation_state* self = _self;
   while (1) {
     flup_mutex_lock(self->gcRequestLock);
-    self->gcRequest = GC_NOOP;
     while (self->gcRequest == GC_NOOP)
       flup_cond_wait(self->gcRequestedCond, self->gcRequestLock, NULL);
     enum gc_request request = self->gcRequest;
+    self->gcRequest = GC_NOOP;
     flup_mutex_unlock(self->gcRequestLock);
     
     switch (request) {
@@ -258,9 +267,7 @@ static void gcThread(void* _self) {
         goto shutdown_gc_thread;
       case GC_START_CYCLE:
         pr_info("Starting GC cycle!");
-        flup_rwlock_wrlock(self->gcLock);
         cycleRunner(self);
-        flup_rwlock_unlock(self->gcLock);
         break;
     }
   }
@@ -271,8 +278,10 @@ uint64_t gc_start_cycle_async(struct gc_per_generation_state* self) {
   // It was already started lets wait
   flup_mutex_lock(self->invokeCycleLock);
   uint64_t lastCycleID = self->cycleID;
-  if (self->cycleWasInvoked)
+  if (self->cycleWasInvoked) {
+    flup_mutex_unlock(self->invokeCycleLock);
     goto no_need_to_wake_gc;
+  }
   
   self->cycleWasInvoked = true;
   flup_mutex_unlock(self->invokeCycleLock);

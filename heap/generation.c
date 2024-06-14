@@ -3,6 +3,7 @@
 
 #include "generation.h"
 #include "gc/gc.h"
+#include "heap/heap.h"
 #include "memory/arena.h"
 
 struct generation* generation_new(size_t sz) {
