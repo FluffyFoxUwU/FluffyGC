@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <math.h>
 
 #include <flup/data_structs/list_head.h>
 #include <flup/core/logger.h>
@@ -27,9 +28,10 @@ int main() {
   // heap_alloc(heap, 5 * 1024 * 1024);
   // Try to allocate and release 256 MiB worth of items
   size_t bytesToAlloc = 256 * 1024 * 1024;
-  size_t perItemSize = 0;
-  for (size_t i = 0; i < bytesToAlloc; i++) {
-    struct root_ref* ref = heap_alloc(heap, perItemSize);
+  size_t perItemSize = 64;
+  for (size_t i = 0; i < bytesToAlloc / perItemSize; i++) {
+    size_t sz = (size_t) (((float) rand() / (float) RAND_MAX) * (float) 1024);
+    struct root_ref* ref = heap_alloc(heap, sz);
     heap_root_unref(heap, ref);
   }
   

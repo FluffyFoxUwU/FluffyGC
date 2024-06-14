@@ -1,6 +1,7 @@
 #ifndef UWU_F15ECD4B_1EE0_482D_8E14_3B523A879538_UWU
 #define UWU_F15ECD4B_1EE0_482D_8E14_3B523A879538_UWU
 
+#include <stdatomic.h>
 #include <stddef.h>
 
 #include <flup/data_structs/list_head.h>
@@ -17,11 +18,12 @@ struct arena {
   size_t maxBlocksCount;
   
   size_t numBlocksCreated;
-  struct arena_block** blocks;
+  _Atomic(struct arena_block*)* blocks;
   flup_list_head freeList;
 };
 
 struct arena_block {
+  size_t index;
   size_t size;
   bool used;
   struct gc_block_metadata gcMetadata;
