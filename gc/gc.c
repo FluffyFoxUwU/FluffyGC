@@ -25,7 +25,7 @@
 #include "gc.h"
 
 void gc_on_allocate(struct arena_block* block, struct generation* gen) {
-  block->gcMetadata.markBit = !atomic_load(&gen->gcState->mutatorMarkedBitValue);
+  block->gcMetadata.markBit = !gen->gcState->mutatorMarkedBitValue;
   block->gcMetadata.owningGeneration = gen;
   
   atomic_store(&block->gcMetadata.isValid, true);
@@ -133,6 +133,8 @@ struct cycle_state {
   struct gc_stats stats;
   
   struct timespec pauseBegin, pauseEnd;
+  
+  struct arena_block* detachedHeadToBeSwept;
 };
 
 // Must be STW once GC has own thread
@@ -178,25 +180,34 @@ static void sweepPhase(struct cycle_state* state) {
   uint64_t liveObjectCount = 0;
   size_t liveObjectSize = 0;
   
-  for (size_t i = 0; i < state->arena->numBlocksCreated; i++) {
-    struct arena_block* block = atomic_load(&state->arena->blocks[i]);
-    // If block is invalid that mean it has to be recently allocated
-    // so treat it as marked
-    if (!block || !atomic_load(&block->gcMetadata.isValid))
-      continue;
+  struct arena_block* next = state->detachedHeadToBeSwept;
+  while (1) {
+    struct arena_block* block = next;
+    next = atomic_load(&next->next);
+    bool isEndReached = block == next;
     
     count++;
     totalSize += block->size;
+    // Mark must be invalid because when head is detached app is blocked from
+    // creating new objects
     // Object is alive continuing
     if (atomic_load(&block->gcMetadata.markBit) == state->self->GCMarkedBitValue) {
       liveObjectCount++;
       liveObjectSize += block->size;
-      continue;
+      
+      // Add the same block back to real head
+      arena_move_one_block_from_detached_to_real_head(state->arena, block);
+      goto continue_to_next;
     }
     
     sweepedCount++;
     sweepSize += block->size;
+    
     arena_dealloc(state->arena, block);
+
+continue_to_next:
+    if (isEndReached)
+      break;
   }
   
   state->stats.lifetimeTotalSweepedObjectCount += sweepedCount;
@@ -225,15 +236,12 @@ static void unpauseAppThreads(struct cycle_state* state) {
 }
 
 static void cycleRunner(struct gc_per_generation_state* self) {
-  struct arena* arena = self->ownerGen->arena;
-  struct heap* heap = self->ownerGen->ownerHeap;
-  
   // pr_info("Before cycle mem usage: %f MiB", (float) atomic_load(&arena->currentUsage) / 1024.0f / 1024.0f);
   
   struct cycle_state state = {
-    .arena = arena,
+    .arena = self->ownerGen->arena,
     .self = self,
-    .heap = heap
+    .heap = self->ownerGen->ownerHeap
   };
   
   flup_mutex_lock(self->statsLock);
@@ -245,10 +253,11 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
   
   pauseAppThreads(&state);
-  atomic_store(&self->mutatorMarkedBitValue, !atomic_load(&self->mutatorMarkedBitValue));
+  self->mutatorMarkedBitValue = !self->mutatorMarkedBitValue;
   atomic_store(&self->cycleInProgress, true);
   
   takeRootSnapshotPhase(&state);
+  state.detachedHeadToBeSwept = arena_detach_head(state.arena);
   unpauseAppThreads(&state);
   
   markingPhase(&state);
@@ -270,18 +279,21 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   
   flup_mutex_lock(self->statsLock);
   static struct timespec deadline = {};
+  static struct gc_stats prevStats;
   if (deadline.tv_sec == 0) {
     clock_gettime(CLOCK_REALTIME, &deadline);
     deadline.tv_sec -= 1;
+    prevStats = state.stats;
   }
   
   struct timespec current;
   clock_gettime(CLOCK_REALTIME, &current);
   if (current.tv_sec >= deadline.tv_sec) {
-    pr_info("STW (last second): %lf sec", state.stats.lifetimeSTWTime - self->stats.lifetimeSTWTime);
+    pr_info("STW (last second): %lf sec", state.stats.lifetimeSTWTime - prevStats.lifetimeSTWTime);
     pr_info("STW (lifetime)   : %lf sec", state.stats.lifetimeSTWTime);
-    pr_info("GC rate          : %lf MiB/sec", (double) (state.stats.lifetimeTotalSweepedObjectSize - self->stats.lifetimeTotalSweepedObjectSize) / 1024.0f / 1024.0f);
+    pr_info("GC rate          : %lf MiB/sec", (double) (state.stats.lifetimeTotalSweepedObjectSize - prevStats.lifetimeTotalSweepedObjectSize) / 1024.0f / 1024.0f);
     deadline.tv_sec++;
+    prevStats = state.stats;
   }
   
   self->stats = state.stats;

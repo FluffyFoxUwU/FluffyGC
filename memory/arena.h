@@ -11,23 +11,22 @@
 
 struct arena {
   atomic_size_t currentUsage;
-  atomic_size_t objectCount;
   size_t maxSize;
-  size_t maxBlocksCount;
   
-  flup_mutex* allocLock;
-  atomic_size_t numBlocksCreated;
-  _Atomic(struct arena_block*)* blocks;
-  flup_list_head freeList;
+  _Atomic(struct arena_block*) head;
 };
 
 struct arena_block {
-  size_t index;
+  // If current->next == current then its end of detached head :3
+  _Atomic(struct arena_block*) next;
   size_t size;
   struct gc_block_metadata gcMetadata;
-  flup_list_head node;
   void* data;
 };
+
+struct arena_block* arena_detach_head(struct arena* self);
+bool arena_is_end_of_detached_head(struct arena_block* blk);
+void arena_move_one_block_from_detached_to_real_head(struct arena* self, struct arena_block* blk);
 
 struct arena* arena_new(size_t size);
 void arena_free(struct arena* self);
