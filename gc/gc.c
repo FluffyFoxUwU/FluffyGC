@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <flup/thread/thread.h>
 #include <stddef.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -47,6 +48,7 @@ void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten)
   flup_buffer_write_no_fail(gcState->mutatorMarkQueue, &objectWhichIsGoingToBeOverwritten, sizeof(void*));
 }
 
+static void gcThread(void* _self);
 struct gc_per_generation_state* gc_per_generation_state_new(struct generation* gen) {
   struct gc_per_generation_state* self = malloc(sizeof(*self));
   if (!self)
@@ -66,6 +68,12 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     goto failure;
   if (!(self->invokeCycleDoneEvent = flup_cond_new()))
     goto failure;
+  if (!(self->gcRequestLock = flup_mutex_new()))
+    goto failure;
+  if (!(self->gcRequestedCond = flup_cond_new()))
+    goto failure;
+  if (!(self->thread = flup_thread_new(gcThread, self)))
+    goto failure;
   return self;
 
 failure:
@@ -73,10 +81,24 @@ failure:
   return NULL;
 }
 
+static void callGCAsync(struct gc_per_generation_state* self, enum gc_request request) {
+  flup_mutex_lock(self->gcRequestLock);
+  self->gcRequest = request;
+  flup_mutex_unlock(self->gcRequestLock);
+  flup_cond_wake_one(self->gcRequestedCond);
+}
+
 void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   if (!self)
     return;
   
+  if (self->thread) {
+    callGCAsync(self, GC_SHUTDOWN);
+    flup_thread_wait(self->thread);
+    flup_thread_free(self->thread);
+  }
+  flup_cond_free(self->gcRequestedCond);
+  flup_mutex_free(self->gcRequestLock);
   flup_cond_free(self->invokeCycleDoneEvent);
   flup_mutex_free(self->invokeCycleLock);
   flup_rwlock_free(self->gcLock);
@@ -212,6 +234,37 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   self->cycleWasInvoked = false;
   flup_cond_wake_all(self->invokeCycleDoneEvent);
   flup_mutex_unlock(self->invokeCycleLock);
+  
+  flup_mutex_lock(self->gcRequestLock);
+  self->gcRequest = GC_NOOP;
+  flup_mutex_unlock(self->gcRequestLock);
+}
+
+static void gcThread(void* _self) {
+  struct gc_per_generation_state* self = _self;
+  while (1) {
+    flup_mutex_lock(self->gcRequestLock);
+    self->gcRequest = GC_NOOP;
+    while (self->gcRequest == GC_NOOP)
+      flup_cond_wait(self->gcRequestedCond, self->gcRequestLock, NULL);
+    enum gc_request request = self->gcRequest;
+    flup_mutex_unlock(self->gcRequestLock);
+    
+    switch (request) {
+      case GC_NOOP:
+        flup_panic("Unreachable");
+      case GC_SHUTDOWN:
+        pr_info("Shutting down GC thread");
+        goto shutdown_gc_thread;
+      case GC_START_CYCLE:
+        pr_info("Starting GC cycle!");
+        flup_rwlock_wrlock(self->gcLock);
+        cycleRunner(self);
+        flup_rwlock_unlock(self->gcLock);
+        break;
+    }
+  }
+shutdown_gc_thread:
 }
 
 void gc_start_cycle(struct gc_per_generation_state* self) {
@@ -224,7 +277,8 @@ void gc_start_cycle(struct gc_per_generation_state* self) {
   self->cycleWasInvoked = true;
   flup_mutex_unlock(self->invokeCycleLock);
   
-  cycleRunner(self);
+  // Wake GC thread
+  callGCAsync(self, GC_START_CYCLE);
   
   flup_mutex_lock(self->invokeCycleLock);
 no_need_to_wake_gc:

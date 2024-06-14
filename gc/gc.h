@@ -103,9 +103,21 @@ struct gc_block_metadata {
   atomic_bool markBit;
 };
 
+enum gc_request {
+  GC_NOOP,
+  GC_START_CYCLE,
+  GC_SHUTDOWN
+};
+
 struct gc_per_generation_state {
   struct generation* ownerGen;
   flup_rwlock* gcLock;
+  
+  flup_thread* thread;
+  
+  enum gc_request gcRequest;
+  flup_mutex* gcRequestLock;
+  flup_cond* gcRequestedCond;
   
   bool cycleWasInvoked;
   uint64_t cycleID;
