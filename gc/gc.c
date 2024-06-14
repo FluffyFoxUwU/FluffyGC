@@ -193,42 +193,14 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   };
   
   struct timespec start, end;
-  struct timespec start2, end2;
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
   atomic_store(&self->mutatorMarkedBitValue, !atomic_load(&self->mutatorMarkedBitValue));
   atomic_store(&self->cycleInProgress, true);
   
-  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start2);
   takeRootSnapshotPhase(&state);
-  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end2);
-  double duration2 =
-    ((double) end2.tv_sec + ((double) end2.tv_nsec) / 1'000'000'000.0f) -
-    ((double) start2.tv_sec + ((double) start2.tv_nsec) / 1'000'000'000.0f);
-  pr_info("Taking root snapshot was : %lf ms", duration2 * 1000.f);
-  
-  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start2);
   markingPhase(&state);
-  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end2);
-  duration2 =
-    ((double) end2.tv_sec + ((double) end2.tv_nsec) / 1'000'000'000.0f) -
-    ((double) start2.tv_sec + ((double) start2.tv_nsec) / 1'000'000'000.0f);
-  pr_info("Marking time was         : %lf ms", duration2 * 1000.f);
-  
-  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start2);
   processMutatorMarkQueuePhase(&state);
-  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end2);
-  duration2 =
-    ((double) end2.tv_sec + ((double) end2.tv_nsec) / 1'000'000'000.0f) -
-    ((double) start2.tv_sec + ((double) start2.tv_nsec) / 1'000'000'000.0f);
-  pr_info("Finalizing mark time was : %lf ms", duration2 * 1000.f);
-  
-  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start2);
   sweepPhase(&state);
-  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end2);
-  duration2 =
-    ((double) end2.tv_sec + ((double) end2.tv_nsec) / 1'000'000'000.0f) -
-    ((double) start2.tv_sec + ((double) start2.tv_nsec) / 1'000'000'000.0f);
-  pr_info("Sweep time was           : %lf ms", duration2 * 1000.f);
   
   self->GCMarkedBitValue = !self->GCMarkedBitValue;
   atomic_store(&self->cycleInProgress, false);
