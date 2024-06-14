@@ -34,7 +34,7 @@ struct arena* arena_new(size_t size) {
   pr_info("Maximum blocks can be stored is %zu", self->maxBlocksCount);
   if (!(self->blocks = calloc(self->maxBlocksCount, sizeof(void*))))
     goto failure;
-  self->currentUsage += self->maxBlocksCount * sizeof(void*);
+  atomic_fetch_add(&self->currentUsage, self->maxBlocksCount * sizeof(void*));
   return self;
 
 failure:
@@ -64,7 +64,7 @@ struct arena_block* arena_alloc(struct arena* self, size_t allocSize) {
   if (flup_list_is_empty(&self->freeList))
     totalSize += sizeof(struct arena_block);
   
-  if (self->currentUsage + totalSize > self->maxSize) {
+  if (atomic_load(&self->currentUsage) + totalSize > self->maxSize) {
     flup_mutex_unlock(self->lock);
     return NULL;
   }
@@ -86,8 +86,7 @@ struct arena_block* arena_alloc(struct arena* self, size_t allocSize) {
   if (!blockMetadata)
     goto failure;
   
-  blockIndex = self->numBlocksCreated;
-  self->numBlocksCreated++;
+  blockIndex = atomic_fetch_add(&self->numBlocksCreated, 1);
 free_block_exist:
   
   *blockMetadata = (struct arena_block) {
@@ -100,7 +99,7 @@ free_block_exist:
   
   // Only add the block to array and update stats if ready to use
   atomic_store(&self->blocks[blockMetadata->index], blockMetadata);
-  self->currentUsage += totalSize;
+  atomic_fetch_add(&self->currentUsage, totalSize);
   flup_mutex_unlock(self->lock);
   return blockMetadata;
 
@@ -118,7 +117,7 @@ void arena_wipe(struct arena* self) {
     struct arena_block* block = self->blocks[i];
     if (!block)
       continue;
-    self->currentUsage -= block->size + sizeof(*block);
+    atomic_fetch_sub(&self->currentUsage, block->size + sizeof(*block));
     freeBlock(block);
   }
   
@@ -131,7 +130,7 @@ void arena_wipe(struct arena* self) {
   
   // Clear the array
   memset(self->blocks, 0, sizeof(void*) * self->maxBlocksCount);
-  self->numBlocksCreated = 0;
+  atomic_store(&self->numBlocksCreated, 0);
   flup_mutex_unlock(self->lock);
 }
 
@@ -141,7 +140,7 @@ void arena_dealloc(struct arena* self, struct arena_block* blk) {
   blk->data = NULL;
   
   atomic_store(&self->blocks[blk->index], NULL);
-  self->currentUsage -= blk->size;
+  atomic_fetch_sub(&self->currentUsage, blk->size);
   flup_list_add_head(&self->freeList, &blk->node);
   flup_mutex_unlock(self->lock);
 }

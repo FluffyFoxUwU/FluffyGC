@@ -12,12 +12,12 @@
 struct arena {
   flup_mutex* lock;
   
-  size_t currentUsage;
+  atomic_size_t currentUsage;
+  atomic_size_t objectCount;
   size_t maxSize;
-  size_t objectCount;
   size_t maxBlocksCount;
   
-  size_t numBlocksCreated;
+  atomic_size_t numBlocksCreated;
   _Atomic(struct arena_block*)* blocks;
   flup_list_head freeList;
 };
