@@ -44,6 +44,9 @@ void gc_on_allocate(struct arena_block* block, struct generation* gen) {
 }
 
 void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten) {
+  if (!objectWhichIsGoingToBeOverwritten)
+    return;
+  
   struct gc_block_metadata* metadata = &objectWhichIsGoingToBeOverwritten->gcMetadata;
   struct gc_per_generation_state* gcState = metadata->owningGeneration->gcState;
   
