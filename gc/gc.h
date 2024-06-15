@@ -80,6 +80,7 @@ Extra notes:
 3. Phase 2, 3 and 4 each can be executed in parallel
 */
 
+#include <flup/data_structs/buffer/circular_buffer.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -92,6 +93,8 @@ Extra notes:
 #include <flup/thread/thread.h>
 
 // 8 MiB mutator mark queue size
+#define GC_MUTATOR_MARK_QUEUE_SIZE (8 * 1024 * 1024)
+// 8 MiB mark queue for GC only
 #define GC_MARK_QUEUE_SIZE (8 * 1024 * 1024)
 
 struct generation;
@@ -155,6 +158,8 @@ struct gc_per_generation_state {
   
   flup_buffer* mutatorMarkQueue;
   flup_dyn_array* snapshotOfRootSet;
+  
+  flup_circular_buffer* gcMarkQueueUwU;
 };
 
 void gc_start_cycle(struct gc_per_generation_state* self);

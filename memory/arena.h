@@ -8,6 +8,7 @@
 #include <flup/concurrency/mutex.h>
 
 #include "gc/gc.h"
+#include "object/descriptor.h"
 
 struct arena {
   atomic_size_t currentUsage;
@@ -20,6 +21,7 @@ struct arena_block {
   // If current->next == NULL then its end of detached head :3
   struct arena_block* next;
   size_t size;
+  struct descriptor* desc;
   struct gc_block_metadata gcMetadata;
   void* data;
 };

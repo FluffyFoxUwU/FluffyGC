@@ -15,12 +15,14 @@
 #include <flup/data_structs/list_head.h>
 #include <flup/core/panic.h>
 #include <flup/core/logger.h>
+#include <flup/data_structs/buffer/circular_buffer.h>
 #include <flup/data_structs/dyn_array.h>
 #include <flup/data_structs/buffer.h>
 
 #include "heap/heap.h"
 #include "memory/arena.h"
 #include "heap/generation.h"
+#include "object/descriptor.h"
 
 #include "gc.h"
 
@@ -73,7 +75,7 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     goto failure;
   if (!(self->snapshotOfRootSet = flup_dyn_array_new(sizeof(void*), 0)))
     goto failure;
-  if (!(self->mutatorMarkQueue = flup_buffer_new(GC_MARK_QUEUE_SIZE)))
+  if (!(self->mutatorMarkQueue = flup_buffer_new(GC_MUTATOR_MARK_QUEUE_SIZE)))
     goto failure;
   if (!(self->invokeCycleLock = flup_mutex_new()))
     goto failure;
@@ -84,6 +86,8 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
   if (!(self->gcRequestedCond = flup_cond_new()))
     goto failure;
   if (!(self->statsLock = flup_mutex_new()))
+    goto failure;
+  if (!(self->gcMarkQueueUwU = flup_circular_buffer_new(GC_MARK_QUEUE_SIZE)))
     goto failure;
   if (!(self->thread = flup_thread_new(gcThread, self)))
     goto failure;
@@ -110,6 +114,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
     flup_thread_wait(self->thread);
     flup_thread_free(self->thread);
   }
+  flup_circular_buffer_free(self->gcMarkQueueUwU);
   flup_mutex_free(self->statsLock);
   flup_cond_free(self->gcRequestedCond);
   flup_mutex_free(self->gcRequestLock);
@@ -121,8 +126,37 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   free(self);
 }
 
-static void doMark(struct gc_per_generation_state* state, struct arena_block* block) {
+static void doMarkInner(struct gc_per_generation_state* state, struct arena_block* block) {
   atomic_store(&block->gcMetadata.markBit, state->GCMarkedBitValue);
+  
+  struct descriptor* desc = block->desc;
+  // Object have no data or zero fields
+  if (!desc || desc->fieldCount == 0)
+    return;
+  
+  // Uses breadth first search
+  for (size_t i = 0; i < desc->fieldCount; i++) {
+    size_t offset = desc->fields[i].offset;
+    _Atomic(struct arena_block*)* fieldPtr = (_Atomic(struct arena_block*)*) ((void*) (((char*) block->data) + offset));
+    struct arena_block* fieldContent = atomic_load(fieldPtr);
+    
+    int ret;
+    if ((ret = flup_circular_buffer_write(state->gcMarkQueueUwU, &fieldContent, sizeof(void*))) < 0)
+      flup_panic("Cannot enqueue to GC mark queue (configured queue size was %zu bytes): %d", (size_t) GC_MARK_QUEUE_SIZE, ret);
+  }
+}
+
+static void doMark(struct gc_per_generation_state* state, struct arena_block* block) {
+  int ret;
+  if ((ret = flup_circular_buffer_write(state->gcMarkQueueUwU, &block, sizeof(void*))) < 0)
+    flup_panic("Cannot enqueue to GC mark queue (configured queue size was %zu bytes): %d", (size_t) GC_MARK_QUEUE_SIZE, ret);
+  
+  struct arena_block* current;
+  while ((ret = flup_circular_buffer_read(state->gcMarkQueueUwU, &current, sizeof(void*))) == 0)
+    doMarkInner(state, current);
+  
+  if (ret != -ENODATA)
+    flup_panic("Error reading GC mark queue: %d", ret);
 }
 
 struct cycle_state {

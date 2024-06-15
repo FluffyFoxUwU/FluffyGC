@@ -3,6 +3,13 @@
 
 #include <stddef.h>
 
+#include <flup/util/refcount.h>
+
+// Simplified system where programs
+// manage the descriptors' memory instead
+// of GC system, while GC system only
+// queue the descriptor to be free'd
+
 struct field {
   size_t offset;
 };
@@ -10,6 +17,10 @@ struct field {
 struct descriptor {
   size_t objectSize;
   size_t fieldCount;
+  
+  // Intend to cover structures which has GC-able pointers
+  // in flexible array at the end of structs
+  bool hasFlexArrayField;
   struct field fields[];
 };
 
