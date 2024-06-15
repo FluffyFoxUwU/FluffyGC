@@ -211,7 +211,7 @@ static void markingPhase(struct cycle_state* state) {
 static void processMutatorMarkQueuePhase(struct cycle_state* state) {
   struct arena_block* current;
   int ret;
-  while ((ret = flup_buffer_read2(state->self->mutatorMarkQueue, &current, sizeof(current), FLUP_BUFFER_READ2_DONT_WAIT_FOR_DATA)) >= 0)
+  while ((ret = flup_buffer_read2(state->self->mutatorMarkQueue, &current, sizeof(void*), FLUP_BUFFER_READ2_DONT_WAIT_FOR_DATA)) >= 0)
     doMark(state->self, current);
   BUG_ON(ret == -EMSGSIZE);
 }
