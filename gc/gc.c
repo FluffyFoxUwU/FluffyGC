@@ -166,20 +166,23 @@ static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_st
   
   // Uses breadth first search but if failed
   // queue current state to process later
-  size_t i = 0;
-  for (i = markState->fieldIndex; i < desc->fieldCount; i++) {
-    size_t offset = desc->fields[i].offset;
+  size_t fieldIndex = 0;
+  for (fieldIndex = markState->fieldIndex; fieldIndex < desc->fieldCount; fieldIndex++) {
+    size_t offset = desc->fields[fieldIndex].offset;
     _Atomic(struct arena_block*)* fieldPtr = (_Atomic(struct arena_block*)*) ((void*) (((char*) block->data) + offset));
-    if (!markOneItem(state, block, i, atomic_load(fieldPtr)))
+    if (!markOneItem(state, block, fieldIndex, atomic_load(fieldPtr)))
       break;
   }
   
-  // TODO: Treat flex array specially as they *can* overflow the mark queue size easily
-  // one way could be mark array using DFS (depth first search) rather than BFS
-  // (breadth first search) as space needed DFS increase based on depth rather than
-  // amount of refs in an object
-  if (desc->hasFlexArrayField)
-    flup_panic("Flex array unsupported yet");
+  if (!desc->hasFlexArrayField)
+    return;
+  
+  size_t flexArrayCount = (block->size - desc->objectSize) / sizeof(void*);
+  for (size_t i = 0; i < flexArrayCount; i++) {
+    _Atomic(struct arena_block*)* fieldPtr = (_Atomic(struct arena_block*)*) ((void*) (((char*) block->data) + desc->objectSize + i * sizeof(void*)));
+    if (!markOneItem(state, block, fieldIndex + i, atomic_load(fieldPtr)))
+      break;
+  }
 }
 
 static void doMarkInitial(struct gc_per_generation_state* state, struct arena_block* block) {
