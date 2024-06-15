@@ -92,6 +92,8 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     goto failure;
   if (!(self->gcMarkQueueUwU = flup_circular_buffer_new(GC_MARK_QUEUE_SIZE)))
     goto failure;
+  if (!(self->deferredMarkQueue = flup_circular_buffer_new(GC_DEFERRED_MARK_QUEUE_SIZE)))
+    goto failure;
   if (!(self->thread = flup_thread_new(gcThread, self)))
     goto failure;
   return self;
@@ -118,6 +120,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
     flup_thread_free(self->thread);
   }
   flup_circular_buffer_free(self->gcMarkQueueUwU);
+  flup_circular_buffer_free(self->deferredMarkQueue);
   flup_mutex_free(self->statsLock);
   flup_cond_free(self->gcRequestedCond);
   flup_mutex_free(self->gcRequestLock);
@@ -129,7 +132,8 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   free(self);
 }
 
-static void doMarkInner(struct gc_per_generation_state* state, struct arena_block* block) {
+static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_state* markState) {
+  struct arena_block* block = markState->block;
   if (atomic_exchange(&block->gcMetadata.markBit, state->GCMarkedBitValue) == state->GCMarkedBitValue)
     return;
   
@@ -138,15 +142,31 @@ static void doMarkInner(struct gc_per_generation_state* state, struct arena_bloc
   if (!desc || desc->fieldCount == 0)
     return;
   
-  // Uses breadth first search
-  for (size_t i = 0; i < desc->fieldCount; i++) {
+  // Uses breadth first search but if failed
+  // queue current state to process later
+  for (size_t i = markState->fieldIndex; i < desc->fieldCount; i++) {
     size_t offset = desc->fields[i].offset;
     _Atomic(struct arena_block*)* fieldPtr = (_Atomic(struct arena_block*)*) ((void*) (((char*) block->data) + offset));
     struct arena_block* fieldContent = atomic_load(fieldPtr);
     
     int ret;
-    if ((ret = flup_circular_buffer_write(state->gcMarkQueueUwU, &fieldContent, sizeof(void*))) < 0)
-      flup_panic("Cannot enqueue to GC mark queue (configured queue size was %zu bytes): %d", (size_t) GC_MARK_QUEUE_SIZE, ret);
+    if ((ret = flup_circular_buffer_write(state->gcMarkQueueUwU, &fieldContent, sizeof(void*))) < 0) {
+      struct gc_mark_state savedState = {
+        .block = block,
+        .fieldIndex = i
+      };
+      
+      // If mark queue can't fit just put it in deferred mark queue
+      if ((ret = flup_circular_buffer_write(state->deferredMarkQueue, &savedState, sizeof(savedState))) < 0) {
+        size_t numOfFieldsToTriggerMarkQueueOverflow = (GC_MARK_QUEUE_SIZE / sizeof(void*)) + 1;
+        size_t numOfObjectsToTriggerRemarkQueueOverflow = (GC_DEFERRED_MARK_QUEUE_SIZE / sizeof(struct gc_mark_state)) + 1;
+        size_t perObjectBytesToTriggerMarkQueueOverflow = numOfFieldsToTriggerMarkQueueOverflow * sizeof(void*);
+        size_t totalBytesToTriggerRemarkQueueOverflow = numOfObjectsToTriggerRemarkQueueOverflow * perObjectBytesToTriggerMarkQueueOverflow;
+        flup_panic("!!Congrat!! You found very absurb condition with ~%lf TiB worth of bytes composed from %zu objects sized %zu bytes each (or %zu fields/array entries each) UwU", ((double) totalBytesToTriggerRemarkQueueOverflow) / 1024.0f / 1024.0f / 1024.0f / 1024.0f, numOfObjectsToTriggerRemarkQueueOverflow, perObjectBytesToTriggerMarkQueueOverflow, numOfFieldsToTriggerMarkQueueOverflow);
+      }
+      
+      break;
+    }
   }
   
   // TODO: Treat flex array specially as they *can* overflow the mark queue size easily
@@ -157,17 +177,34 @@ static void doMarkInner(struct gc_per_generation_state* state, struct arena_bloc
     flup_panic("Flex array unsupported yet");
 }
 
-static void doMark(struct gc_per_generation_state* state, struct arena_block* block) {
+static void doMarkInitial(struct gc_per_generation_state* state, struct arena_block* block) {
   int ret;
   if ((ret = flup_circular_buffer_write(state->gcMarkQueueUwU, &block, sizeof(void*))) < 0)
     flup_panic("Cannot enqueue to GC mark queue (configured queue size was %zu bytes): %d", (size_t) GC_MARK_QUEUE_SIZE, ret);
   
   struct arena_block* current;
-  while ((ret = flup_circular_buffer_read(state->gcMarkQueueUwU, &current, sizeof(void*))) == 0)
-    doMarkInner(state, current);
+  while ((ret = flup_circular_buffer_read(state->gcMarkQueueUwU, &current, sizeof(void*))) == 0) {
+    struct gc_mark_state markState = {
+      .block = current,
+      .fieldIndex = 0
+    };
+    doMarkInner(state, &markState);
+  }
   
   if (ret != -ENODATA)
     flup_panic("Error reading GC mark queue: %d", ret);
+}
+
+static void doMark(struct gc_per_generation_state* state, struct arena_block* block) {
+  int ret;
+  doMarkInitial(state, block);
+  
+  struct gc_mark_state current;
+  while ((ret = flup_circular_buffer_read(state->deferredMarkQueue, &current, sizeof(current))) == 0)
+    doMarkInner(state, &current);
+  
+  if (ret != -ENODATA)
+    flup_panic("Error reading GC deferred mark queue: %d", ret);
 }
 
 struct cycle_state {

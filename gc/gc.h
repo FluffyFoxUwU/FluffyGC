@@ -94,8 +94,10 @@ Extra notes:
 
 // 8 MiB mutator mark queue size
 #define GC_MUTATOR_MARK_QUEUE_SIZE (8 * 1024 * 1024)
-// 8 MiB mark queue for GC only
-#define GC_MARK_QUEUE_SIZE (8 * 1024 * 1024)
+// 16 MiB mark queue for GC only
+#define GC_MARK_QUEUE_SIZE (16 * 1024 * 1024)
+// 16 MiB deferred mark queue for when objects can't fit into one mark queue
+#define GC_DEFERRED_MARK_QUEUE_SIZE (16 * 1024 * 1024)
 
 struct generation;
 struct arena_block;
@@ -129,6 +131,11 @@ struct gc_stats {
   double lifetimeSTWTime;
 };
 
+struct gc_mark_state {
+  struct arena_block* block;
+  size_t fieldIndex;
+};
+
 struct gc_per_generation_state {
   flup_mutex* statsLock;
   struct gc_stats stats;
@@ -160,6 +167,12 @@ struct gc_per_generation_state {
   flup_dyn_array* snapshotOfRootSet;
   
   flup_circular_buffer* gcMarkQueueUwU;
+  
+  // For storing objects which cannot be
+  // fully enqueued to the mark queue
+  // so save it for later after mark queue
+  // is empty
+  flup_circular_buffer* deferredMarkQueue;
 };
 
 void gc_start_cycle(struct gc_per_generation_state* self);
