@@ -1,4 +1,4 @@
-UwUMaker-dirs-y += test memory heap util gc
+UwUMaker-dirs-y += test memory heap util gc object
 
 UwUMaker-c-flags-y += -std=c2x -g -O0 \
 		-Wall -Wshadow -Wpointer-arith \

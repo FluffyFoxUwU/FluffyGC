@@ -21,7 +21,12 @@ struct arena_block {
   // If current->next == NULL then its end of detached head :3
   struct arena_block* next;
   size_t size;
-  struct descriptor* desc;
+  // Atomic so that new object would have NULL value
+  // and can be atomically set the corresponding descriptor
+  // without blocking GC too long if descriptor so happen
+  // to have insanely large amount of fields and it takes
+  // to initialize those fields
+  _Atomic(struct descriptor*) desc;
   struct gc_block_metadata gcMetadata;
   void* data;
 };

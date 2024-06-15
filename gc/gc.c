@@ -130,7 +130,7 @@ static void doMarkInner(struct gc_per_generation_state* state, struct arena_bloc
   if (atomic_exchange(&block->gcMetadata.markBit, state->GCMarkedBitValue) == state->GCMarkedBitValue)
     return;
   
-  struct descriptor* desc = block->desc;
+  struct descriptor* desc = atomic_load(&block->desc);
   // Object have no data or zero fields
   if (!desc || desc->fieldCount == 0)
     return;
@@ -145,6 +145,13 @@ static void doMarkInner(struct gc_per_generation_state* state, struct arena_bloc
     if ((ret = flup_circular_buffer_write(state->gcMarkQueueUwU, &fieldContent, sizeof(void*))) < 0)
       flup_panic("Cannot enqueue to GC mark queue (configured queue size was %zu bytes): %d", (size_t) GC_MARK_QUEUE_SIZE, ret);
   }
+  
+  // TODO: Treat flex array specially as they *can* overflow the mark queue size easily
+  // one way could be mark array using DFS (depth first search) rather than BFS
+  // (breadth first search) as space needed DFS increase based on depth rather than
+  // amount of refs in an object
+  if (desc->hasFlexArrayField)
+    flup_panic("Flex array unsupported yet");
 }
 
 static void doMark(struct gc_per_generation_state* state, struct arena_block* block) {

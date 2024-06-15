@@ -8,6 +8,9 @@
 
 #include "heap/generation.h"
 #include "memory/arena.h"
+#include "object/descriptor.h"
+
+struct descriptor;
 
 struct heap {
   struct generation* gen;
@@ -26,6 +29,7 @@ struct heap* heap_new(size_t size);
 void heap_free(struct heap* self);
 
 struct root_ref* heap_alloc(struct heap* self, size_t size);
+struct root_ref* heap_alloc_with_descriptor(struct heap* self, struct descriptor* desc, size_t extraSize);
 
 struct root_ref* heap_root_dup(struct heap* self, struct root_ref* ref);
 void heap_root_unref(struct heap* self, struct root_ref* ref);

@@ -24,4 +24,6 @@ struct descriptor {
   struct field fields[];
 };
 
+void descriptor_init_object(struct descriptor* desc, size_t extraSize, void* data);
+
 #endif

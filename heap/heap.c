@@ -1,3 +1,4 @@
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <stddef.h>
 
@@ -11,6 +12,7 @@
 #include "gc/gc.h"
 #include "heap/generation.h"
 #include "memory/arena.h"
+#include "object/descriptor.h"
 
 #define HEAP_ALLOC_RETRY_COUNT 5
 
@@ -75,6 +77,16 @@ void heap_root_unref(struct heap* self, struct root_ref* ref) {
   gc_on_reference_lost(ref->obj);
   heap_unblock_gc(self);
   free(ref);
+}
+
+struct root_ref* heap_alloc_with_descriptor(struct heap* self, struct descriptor* desc, size_t extraSize) {
+  struct root_ref* ref = heap_alloc(self, desc->objectSize + extraSize);
+  if (!ref)
+    return NULL;
+  
+  descriptor_init_object(desc, extraSize, ref->obj->data);
+  atomic_store(&ref->obj->desc, desc);
+  return ref;
 }
 
 struct root_ref* heap_alloc(struct heap* self, size_t size) {
