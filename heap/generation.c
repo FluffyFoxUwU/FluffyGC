@@ -27,8 +27,8 @@ failure:
 void generation_free(struct generation* self) {
   if (!self)
     return;
-  arena_free(self->arena);
   gc_per_generation_state_free(self->gcState);
+  arena_free(self->arena);
   free(self);
 }
 
