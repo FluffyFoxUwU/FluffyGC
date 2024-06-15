@@ -147,7 +147,7 @@ static void takeRootSnapshotPhase(struct cycle_state* state) {
   flup_list_head* current;
   flup_list_for_each(&state->heap->root, current) {
     struct root_ref* ref = container_of(current, struct root_ref, node);
-    if (flup_dyn_array_append(state->self->snapshotOfRootSet, &ref) < 0)
+    if (flup_dyn_array_append(state->self->snapshotOfRootSet, &ref->obj) < 0)
       flup_panic("This can't occur TwT");
   }
   flup_mutex_unlock(state->heap->rootLock);
@@ -155,10 +155,10 @@ static void takeRootSnapshotPhase(struct cycle_state* state) {
 
 static void markingPhase(struct cycle_state* state) {
   for (size_t i = 0; i < state->self->snapshotOfRootSet->length; i++) {
-    struct root_ref** ref;
-    int ret = flup_dyn_array_get(state->self->snapshotOfRootSet, i, (void**) &ref);
+    struct arena_block** obj;
+    int ret = flup_dyn_array_get(state->self->snapshotOfRootSet, i, (void**) &obj);
     BUG_ON(ret < 0);
-    doMark(state->self, (*ref)->obj);
+    doMark(state->self, *obj);
   }
 }
 
