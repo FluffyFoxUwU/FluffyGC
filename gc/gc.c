@@ -127,7 +127,8 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
 }
 
 static void doMarkInner(struct gc_per_generation_state* state, struct arena_block* block) {
-  atomic_store(&block->gcMetadata.markBit, state->GCMarkedBitValue);
+  if (atomic_exchange(&block->gcMetadata.markBit, state->GCMarkedBitValue) == state->GCMarkedBitValue)
+    return;
   
   struct descriptor* desc = block->desc;
   // Object have no data or zero fields
