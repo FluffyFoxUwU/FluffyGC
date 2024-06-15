@@ -31,6 +31,8 @@ void heap_free(struct heap* self);
 struct root_ref* heap_alloc(struct heap* self, size_t size);
 struct root_ref* heap_alloc_with_descriptor(struct heap* self, struct descriptor* desc, size_t extraSize);
 
+struct root_ref* heap_new_root_ref(struct heap* self, struct arena_block* obj);
+
 struct root_ref* heap_root_dup(struct heap* self, struct root_ref* ref);
 void heap_root_unref(struct heap* self, struct root_ref* ref);
 

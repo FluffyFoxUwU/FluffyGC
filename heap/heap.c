@@ -48,12 +48,12 @@ void heap_free(struct heap* self) {
   free(self);
 }
 
-struct root_ref* heap_root_dup(struct heap* self, struct root_ref* ref) {
+struct root_ref* heap_new_root_ref(struct heap* self, struct arena_block* obj) {
   struct root_ref* newRef = malloc(sizeof(*self));
   if (!newRef)
     return NULL;
   
-  newRef->obj = ref->obj;
+  newRef->obj = obj;
   
   heap_block_gc(self);
   flup_mutex_lock(self->rootLock);
@@ -64,6 +64,11 @@ struct root_ref* heap_root_dup(struct heap* self, struct root_ref* ref) {
   flup_mutex_unlock(self->rootLock);
   heap_unblock_gc(self);
   return newRef;
+  
+}
+
+struct root_ref* heap_root_dup(struct heap* self, struct root_ref* ref) {
+  return heap_new_root_ref(self, ref->obj);
 }
 
 void heap_root_unref(struct heap* self, struct root_ref* ref) {

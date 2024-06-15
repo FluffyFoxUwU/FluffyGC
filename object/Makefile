@@ -1,1 +1,1 @@
-UwUMaker-c-sources-y += descriptor.c
+UwUMaker-c-sources-y += descriptor.c helper.c
