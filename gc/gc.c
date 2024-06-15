@@ -32,7 +32,7 @@ void gc_on_allocate(struct arena_block* block, struct generation* gen) {
   
   size_t usage = atomic_load(&gen->arena->currentUsage);
   size_t maxSize = gen->arena->maxSize;
-  size_t softLimit = (size_t) ((float) maxSize * 0.4f);
+  size_t softLimit = (size_t) ((float) maxSize * gen->gcState->asyncTriggerThreshold);
   
   // Start GC cycle so memory freed before mutator has to start
   // waiting on GC 
@@ -65,7 +65,8 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     return NULL;
   
   *self = (struct gc_per_generation_state) {
-    .ownerGen = gen
+    .ownerGen = gen,
+    .asyncTriggerThreshold = 0.4f
   };
   
   if (!(self->gcLock = flup_rwlock_new()))
@@ -234,13 +235,13 @@ static void unpauseAppThreads(struct cycle_state* state) {
 }
 
 static void cycleRunner(struct gc_per_generation_state* self) {
-  // pr_info("Before cycle mem usage: %f MiB", (float) atomic_load(&arena->currentUsage) / 1024.0f / 1024.0f);
-  
   struct cycle_state state = {
     .arena = self->ownerGen->arena,
     .self = self,
     .heap = self->ownerGen->ownerHeap
   };
+  
+  // pr_info("Before cycle mem usage: %f MiB", (float) atomic_load(&state.arena->currentUsage) / 1024.0f / 1024.0f);
   
   flup_mutex_lock(self->statsLock);
   self->stats.cycleIsRunning = true;
@@ -303,6 +304,8 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   self->cycleWasInvoked = false;
   flup_cond_wake_all(self->invokeCycleDoneEvent);
   flup_mutex_unlock(self->invokeCycleLock);
+  
+  // pr_info("After cycle mem usage: %f MiB", (float) atomic_load(&state.arena->currentUsage) / 1024.0f / 1024.0f);
 }
 
 static void gcThread(void* _self) {

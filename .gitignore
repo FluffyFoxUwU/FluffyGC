@@ -30,3 +30,4 @@ saved.vim
 .config.*
 .cache
 a.out
+benches
