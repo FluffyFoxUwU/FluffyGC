@@ -17,8 +17,8 @@ struct arena {
 };
 
 struct arena_block {
-  // If current->next == current then its end of detached head :3
-  _Atomic(struct arena_block*) next;
+  // If current->next == NULL then its end of detached head :3
+  struct arena_block* next;
   size_t size;
   struct gc_block_metadata gcMetadata;
   void* data;

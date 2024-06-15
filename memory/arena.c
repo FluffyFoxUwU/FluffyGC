@@ -79,13 +79,8 @@ void arena_wipe(struct arena* self) {
   // Detach head so can be independently wiped
   struct arena_block* current = arena_detach_head(self);
   struct arena_block* next;
-  while (1) {
-    next = atomic_load(&current->next);
-    if (next == current) {
-      arena_dealloc(self, current);
-      break;
-    }
-    
+  while (current) {
+    next = current->next;
     arena_dealloc(self, current);
     current = next;
   }
@@ -98,16 +93,13 @@ void arena_dealloc(struct arena* self, struct arena_block* blk) {
 }
 
 bool arena_is_end_of_detached_head(struct arena_block* blk) {
-  return atomic_load(&blk->next) == blk;
+  return blk->next == NULL;
 }
 
 void arena_move_one_block_from_detached_to_real_head(struct arena* self, struct arena_block* blk) {
   struct arena_block* oldHead = atomic_load(&self->head);
   do {
-    if (oldHead == NULL)
-      blk->next = blk;
-    else
-      blk->next = oldHead;
+    blk->next = oldHead;
   } while (!atomic_compare_exchange_weak(&self->head, &oldHead, blk));
 }
 

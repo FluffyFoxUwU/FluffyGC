@@ -180,11 +180,10 @@ static void sweepPhase(struct cycle_state* state) {
   uint64_t liveObjectCount = 0;
   size_t liveObjectSize = 0;
   
-  struct arena_block* next = state->detachedHeadToBeSwept;
-  while (1) {
-    struct arena_block* block = next;
-    next = atomic_load(&next->next);
-    bool isEndReached = block == next;
+  struct arena_block* block = state->detachedHeadToBeSwept;
+  struct arena_block* next;
+  while (block) {
+    next = block->next;
     
     count++;
     totalSize += block->size;
@@ -204,10 +203,9 @@ static void sweepPhase(struct cycle_state* state) {
     sweepSize += block->size;
     
     arena_dealloc(state->arena, block);
-
+    
 continue_to_next:
-    if (isEndReached)
-      break;
+    block = next;
   }
   
   state->stats.lifetimeTotalSweepedObjectCount += sweepedCount;
