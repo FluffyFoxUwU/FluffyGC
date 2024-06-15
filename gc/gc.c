@@ -132,6 +132,28 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   free(self);
 }
 
+static bool markOneItem(struct gc_per_generation_state* state, struct arena_block* parent, size_t parentIndex, struct arena_block* fieldContent) {
+  int ret;
+  if ((ret = flup_circular_buffer_write(state->gcMarkQueueUwU, &fieldContent, sizeof(void*))) < 0) {
+    struct gc_mark_state savedState = {
+      .block = parent,
+      .fieldIndex = parentIndex
+    };
+    
+    // If mark queue can't fit just put it in deferred mark queue
+    if ((ret = flup_circular_buffer_write(state->deferredMarkQueue, &savedState, sizeof(savedState))) < 0) {
+      size_t numOfFieldsToTriggerMarkQueueOverflow = (GC_MARK_QUEUE_SIZE / sizeof(void*)) + 1;
+      size_t numOfObjectsToTriggerRemarkQueueOverflow = (GC_DEFERRED_MARK_QUEUE_SIZE / sizeof(struct gc_mark_state)) + 1;
+      size_t perObjectBytesToTriggerMarkQueueOverflow = numOfFieldsToTriggerMarkQueueOverflow * sizeof(void*);
+      size_t totalBytesToTriggerRemarkQueueOverflow = numOfObjectsToTriggerRemarkQueueOverflow * perObjectBytesToTriggerMarkQueueOverflow;
+      flup_panic("!!Congrat!! You found very absurb condition with ~%lf TiB worth of bytes composed from %zu objects sized %zu bytes each (or %zu fields/array entries each) UwU", ((double) totalBytesToTriggerRemarkQueueOverflow) / 1024.0f / 1024.0f / 1024.0f / 1024.0f, numOfObjectsToTriggerRemarkQueueOverflow, perObjectBytesToTriggerMarkQueueOverflow, numOfFieldsToTriggerMarkQueueOverflow);
+    }
+    
+    return false;
+  }
+  return true;
+}
+
 static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_state* markState) {
   struct arena_block* block = markState->block;
   if (atomic_exchange(&block->gcMetadata.markBit, state->GCMarkedBitValue) == state->GCMarkedBitValue)
@@ -144,29 +166,12 @@ static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_st
   
   // Uses breadth first search but if failed
   // queue current state to process later
-  for (size_t i = markState->fieldIndex; i < desc->fieldCount; i++) {
+  size_t i = 0;
+  for (i = markState->fieldIndex; i < desc->fieldCount; i++) {
     size_t offset = desc->fields[i].offset;
     _Atomic(struct arena_block*)* fieldPtr = (_Atomic(struct arena_block*)*) ((void*) (((char*) block->data) + offset));
-    struct arena_block* fieldContent = atomic_load(fieldPtr);
-    
-    int ret;
-    if ((ret = flup_circular_buffer_write(state->gcMarkQueueUwU, &fieldContent, sizeof(void*))) < 0) {
-      struct gc_mark_state savedState = {
-        .block = block,
-        .fieldIndex = i
-      };
-      
-      // If mark queue can't fit just put it in deferred mark queue
-      if ((ret = flup_circular_buffer_write(state->deferredMarkQueue, &savedState, sizeof(savedState))) < 0) {
-        size_t numOfFieldsToTriggerMarkQueueOverflow = (GC_MARK_QUEUE_SIZE / sizeof(void*)) + 1;
-        size_t numOfObjectsToTriggerRemarkQueueOverflow = (GC_DEFERRED_MARK_QUEUE_SIZE / sizeof(struct gc_mark_state)) + 1;
-        size_t perObjectBytesToTriggerMarkQueueOverflow = numOfFieldsToTriggerMarkQueueOverflow * sizeof(void*);
-        size_t totalBytesToTriggerRemarkQueueOverflow = numOfObjectsToTriggerRemarkQueueOverflow * perObjectBytesToTriggerMarkQueueOverflow;
-        flup_panic("!!Congrat!! You found very absurb condition with ~%lf TiB worth of bytes composed from %zu objects sized %zu bytes each (or %zu fields/array entries each) UwU", ((double) totalBytesToTriggerRemarkQueueOverflow) / 1024.0f / 1024.0f / 1024.0f / 1024.0f, numOfObjectsToTriggerRemarkQueueOverflow, perObjectBytesToTriggerMarkQueueOverflow, numOfFieldsToTriggerMarkQueueOverflow);
-      }
-      
+    if (!markOneItem(state, block, i, atomic_load(fieldPtr)))
       break;
-    }
   }
   
   // TODO: Treat flex array specially as they *can* overflow the mark queue size easily
