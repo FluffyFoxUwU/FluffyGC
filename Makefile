@@ -1,21 +1,21 @@
 UwUMaker-dirs-y += test memory heap util gc object
 
 UwUMaker-c-flags-y += -std=c2x -g -O0 \
-		-Wall -Wshadow -Wpointer-arith \
-		-Wmissing-prototypes \
 		-fpic -fblocks -Wextra \
 		-D_POSIX_C_SOURCE=200809L \
-		-fvisibility=hidden -fno-common \
-		-Wmissing-field-initializers \
-		-Wstrict-prototypes \
-		-Waddress -Wconversion -Wunused \
-		-Wcast-align -Wfloat-equal -Wformat=2 \
-		-fstrict-flex-arrays=3 -Warray-bounds \
-		-Wno-initializer-overrides \
-		-Wundef -fno-omit-frame-pointer
+		-fvisibility=hidden -fno-common
+# -Wall -Wshadow -Wpointer-arith \
+# -Wmissing-prototypes \
+# -Wmissing-field-initializers \
+# -Wstrict-prototypes \
+# -Waddress -Wconversion -Wunused \
+# -Wcast-align -Wfloat-equal -Wformat=2 \
+# -fstrict-flex-arrays=3 -Warray-bounds \
+# -Wno-initializer-overrides \
+# -Wundef -fno-omit-frame-pointer
 
-#UwUMaker-c-flags-y += -flto=full -O3
-#UwUMaker-linker-flags-y += -flto=full -O3
+# UwUMaker-c-flags-y += -flto=full -O3
+# UwUMaker-linker-flags-y += -flto=full -O3
 UwUMaker-c-flags-y += -fsanitize=address
 UwUMaker-linker-flags-y += -fsanitize=address
 UwUMaker-c-flags-y += -fsanitize=undefined
