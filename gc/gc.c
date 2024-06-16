@@ -30,6 +30,10 @@ void gc_on_allocate(struct arena_block* block, struct generation* gen) {
   block->gcMetadata.markBit = !gen->gcState->mutatorMarkedBitValue;
   block->gcMetadata.owningGeneration = gen;
   
+  // Don't start async cycle if one in progress
+  if (atomic_load(&gen->gcState->cycleInProgress))
+    return;
+  
   size_t usage = atomic_load(&gen->arena->currentUsage);
   size_t maxSize = gen->arena->maxSize;
   size_t softLimit = (size_t) ((float) maxSize * gen->gcState->asyncTriggerThreshold);
