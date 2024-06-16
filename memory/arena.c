@@ -65,6 +65,8 @@ struct arena_block* arena_alloc(struct arena* self, size_t allocSize) {
     newSize = oldSize + totalSize;
   } while (!atomic_compare_exchange_weak(&self->currentUsage, &oldSize, newSize));
   
+  atomic_fetch_add(&self->metadataUsage, sizeof(struct arena_block));
+  atomic_fetch_add(&self->nonMetadataUsage, allocSize);
   arena_move_one_block_from_detached_to_real_head(self, blockMetadata);
   return blockMetadata;
 
@@ -88,6 +90,8 @@ void arena_wipe(struct arena* self) {
 
 void arena_dealloc(struct arena* self, struct arena_block* blk) {
   atomic_fetch_sub(&self->currentUsage, blk->size + sizeof(*blk));
+  atomic_fetch_sub(&self->metadataUsage, sizeof(*blk));
+  atomic_fetch_sub(&self->nonMetadataUsage, blk->size);
   free(blk->data);
   free(blk);
 }

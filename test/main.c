@@ -38,7 +38,7 @@ int main() {
     flup_panic("Cannot open ./benches/stat.csv file for appending!");
   if (setvbuf(statCSVFile, fwuffyAndLargeBufferUwU, _IOFBF, sizeof(fwuffyAndLargeBufferUwU)) != 0)
     flup_panic("Error on setvbuf for ./benches/stat.csv");
-  fprintf(statCSVFile, "timestamp_sec,timestamp_nanosec,heap_usage,gc_trigger_threshold,heap_total_size\n");
+  fprintf(statCSVFile, "timestamp_sec,timestamp_nanosec,heap_usage,gc_trigger_threshold,heap_metadata_usage,heap_non_metadata_usage,heap_total_size\n");
   
   static atomic_bool shutdownRequested = false;
   flup_thread* statWriter = flup_thread_new_with_block(^(void) {
@@ -56,9 +56,12 @@ int main() {
       clock_gettime(CLOCK_REALTIME, &now);
       
       size_t usage = atomic_load(&heap->gen->arena->currentUsage);
+      size_t metadataUsage = atomic_load(&heap->gen->arena->metadataUsage);
+      size_t nonMetadataUsage = atomic_load(&heap->gen->arena->nonMetadataUsage);
+      
       size_t maxSize = heap->gen->arena->maxSize;
       size_t asyncCycleTriggerThreshold = (size_t) ((float) maxSize * heap->gen->gcState->asyncTriggerThreshold);
-      fprintf(statCSVFile, "%llu,%llu,%zu,%zu,%zu\n", (unsigned long long) now.tv_sec, (unsigned long long) now.tv_nsec, usage, asyncCycleTriggerThreshold, maxSize);
+      fprintf(statCSVFile, "%llu,%llu,%zu,%zu,%zu,%zu,%zu\n", (unsigned long long) now.tv_sec, (unsigned long long) now.tv_nsec, usage, asyncCycleTriggerThreshold, metadataUsage, nonMetadataUsage, maxSize);
       
       while (clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &deadline, NULL) == EINTR)
         ;
@@ -108,7 +111,12 @@ int main() {
   
   static void (^appendArray)(struct heap* heap, struct root_ref** arrayRef, struct root_ref* data) = ^(struct heap* heap, struct root_ref** arrayRef, struct root_ref* data) {
     struct array* array = (*arrayRef)->obj->data;
-    reserveArray(heap, arrayRef, array->length + 1);
+    
+    if (array->length + 1 > array->capacity) {
+      flup_panic("Cant occur");
+      reserveArray(heap, arrayRef, array->length + 1);
+    }
+    
     array = (*arrayRef)->obj->data;
     // Actually write to array
     object_helper_write_ref(heap, (*arrayRef)->obj, offsetof(struct array, array[array->length]), data);
@@ -145,64 +153,90 @@ int main() {
   end
   */
   
-  for (size_t n = 0; n < 5; n++) {
+  for (size_t n = 0; n < 1; n++) {
     // local t = {}
     struct root_ref* t = newArray(heap);
+    reserveArray(heap, &t, 1000);
     for (size_t i = 0; i < 1000; i++) {
       // t[i] = {}
       struct root_ref* temp0 = newArray(heap);
-      reserveArray(heap, &t, i + 1);
+      reserveArray(heap, &temp0, 100);
       object_helper_write_ref(heap, t->obj, offsetof(struct array, array[i]), temp0);
+      heap_root_unref(heap, temp0);
       
       for (size_t j = 0; j < 100; j++) {
         // local var = {}
         struct root_ref* var = newArray(heap);
+        reserveArray(heap, &var, 1000);
         
         // var[1] = {812}
-        struct root_ref* temp1 = newArray(heap);
-        struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
-        struct number* num = temp2->obj->data;
-        num->content = 812;
-        appendArray(heap, &temp1, temp2);
+        {
+          struct root_ref* temp1 = newArray(heap);
+          reserveArray(heap, &temp1, 1);
+          
+          // {812}
+          {
+            struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
+            reserveArray(heap, &temp2, 1);
+            struct number* num = temp2->obj->data;
+            num->content = 812;
+            appendArray(heap, &temp1, temp2);
+            heap_root_unref(heap, temp2);
+          }
+          
+          appendArray(heap, &var, temp1);
+          heap_root_unref(heap, temp1);
+        }
         
         // var[1000] = {var}
-        reserveArray(heap, &var, 1000);
         object_helper_write_ref(heap, var->obj, offsetof(struct array, array[999]), var);
         
         // local var2 = {}
         struct root_ref* var2 = newArray(heap);
+        reserveArray(heap, &var2, 1000);
         
         // var2[1] = {1, 2, 3}
-        struct root_ref* temp3 = newArray(heap);
-        for (int numCounter = 1; numCounter <= 3; numCounter++) {
-          struct root_ref* temp4 = heap_alloc(heap, sizeof(struct number));
-          struct number* num = temp2->obj->data;
-          num->content = numCounter;
-          appendArray(heap, &temp3, temp4);
-          heap_root_unref(heap, temp4);
+        {
+          struct root_ref* temp1 = newArray(heap);
+          reserveArray(heap, &temp1, 3);
+          
+          for (int numCounter = 1; numCounter <= 3; numCounter++) {
+            struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
+            struct number* num = temp2->obj->data;
+            num->content = numCounter;
+            appendArray(heap, &temp1, temp2);
+            heap_root_unref(heap, temp2);
+          }
+          
+          appendArray(heap, &var2, temp1);
+          heap_root_unref(heap, temp1);
         }
-        appendArray(heap, &var2, temp3);
         
         // var2[1000] = {452}
-        reserveArray(heap, &var2, 1000);
-        struct root_ref* temp4 = heap_alloc(heap, sizeof(struct number));
-        struct number* num2 = temp2->obj->data;
-        num2->content = 452;
-        object_helper_write_ref(heap, var2->obj, offsetof(struct array, array[999]), temp4);
+        {
+          struct root_ref* temp1 = newArray(heap);
+          reserveArray(heap, &temp1, 1);
+          
+          struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
+          struct number* num = temp2->obj->data;
+          num->content = 452;
+          object_helper_write_ref(heap, var2->obj, offsetof(struct array, array[999]), temp1);
+          
+          heap_root_unref(heap, temp2);
+          heap_root_unref(heap, temp1);
+        }
+        
+        heap_root_unref(heap, var2);
         
         // t[i][j] = var
-        struct root_ref* temp5 = object_helper_read_ref(heap, t->obj, offsetof(struct array, array[i]));
-        appendArray(heap, &temp5, var);
+        {
+          struct root_ref* temp5 = object_helper_read_ref(heap, t->obj, offsetof(struct array, array[i]));
+          appendArray(heap, &temp5, var);
+          heap_root_unref(heap, temp5);
+        }
         
-        heap_root_unref(heap, temp5);
-        heap_root_unref(heap, temp4);
-        heap_root_unref(heap, temp3);
-        heap_root_unref(heap, var2);
-        heap_root_unref(heap, temp2);
-        heap_root_unref(heap, temp1);
         heap_root_unref(heap, var);
       }
-      heap_root_unref(heap, temp0);
     }
     heap_root_unref(heap, t);
   }
