@@ -104,7 +104,6 @@ struct arena_block;
 
 struct gc_block_metadata {
   struct generation* owningGeneration;
-  atomic_bool isValid;
   // Meaning changes based on flipColor on per generation state
   atomic_bool markBit;
 };
