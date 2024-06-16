@@ -1,0 +1,6 @@
+#ifndef UWU_F7363D7B_AFEE_40F2_A4C7_CDED37184930_UWU
+#define UWU_F7363D7B_AFEE_40F2_A4C7_CDED37184930_UWU
+
+int runLua(int argc, char** argv);
+
+#endif

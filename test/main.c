@@ -13,12 +13,27 @@
 
 #include "heap/heap.h"
 #include "memory/arena.h"
-#include "object/descriptor.h"
-#include "object/helper.h"
+#include "lua.h"
 
 static char fwuffyAndLargeBufferUwU[16 * 1024 * 1024];
 
-int main() {
+struct heap* heap;
+static atomic_bool shutdownRequested = false;
+FILE* statCSVFile;
+flup_thread* statWriter;
+static void cleanup() {
+  pr_info("Exiting... UwU");
+  
+  atomic_store(&shutdownRequested, true);
+  flup_thread_wait(statWriter);
+  flup_thread_free(statWriter);
+  
+  fclose(statCSVFile);
+  heap_free(heap);
+  flup_thread_free(flup_detach_thread());
+}
+
+int main(int argc, char** argv) {
   if (!flup_attach_thread("Main-Thread")) {
     fputs("Failed to attach thread\n", stderr);
     return EXIT_FAILURE;
@@ -27,21 +42,20 @@ int main() {
   pr_info("Hello World!");
   
   // Create 128 MiB heap
-  struct heap* heap = heap_new(128 * 1024 * 1024);
+  heap = heap_new(128 * 1024 * 1024);
   if (!heap) {
     pr_error("Error creating heap");
     return EXIT_FAILURE;
   }
   
-  FILE* statCSVFile = fopen("./benches/stat.csv", "a");
+  statCSVFile = fopen("./benches/stat.csv", "a");
   if (!statCSVFile)
     flup_panic("Cannot open ./benches/stat.csv file for appending!");
   if (setvbuf(statCSVFile, fwuffyAndLargeBufferUwU, _IOFBF, sizeof(fwuffyAndLargeBufferUwU)) != 0)
     flup_panic("Error on setvbuf for ./benches/stat.csv");
   fprintf(statCSVFile, "timestamp_sec,timestamp_nanosec,heap_usage,gc_trigger_threshold,heap_total_size\n");
   
-  static atomic_bool shutdownRequested = false;
-  flup_thread* statWriter = flup_thread_new_with_block(^(void) {
+  statWriter = flup_thread_new_with_block(^(void) {
     struct timespec deadline;
     clock_gettime(CLOCK_REALTIME, &deadline);
     while (!atomic_load(&shutdownRequested)) {
@@ -65,189 +79,6 @@ int main() {
     }
   });
   
-  struct array {
-    size_t length;
-    size_t capacity;
-    _Atomic(struct arena_block*) array[];
-  };
-  
-  struct number {
-    int content;
-  };
-  
-  static struct descriptor arrayDesc = {
-    .fieldCount = 0,
-    .hasFlexArrayField = true,
-    .objectSize = sizeof(struct array)
-  };
-  
-  static void (^reserveArray)(struct heap* heap, struct root_ref** arrayRef, size_t length) = ^(struct heap* heap, struct root_ref** arrayRef, size_t length) {
-    struct array* array = (*arrayRef)->obj->data;
-    
-    // Expand the array
-    if (length > array->capacity) {
-      size_t capacityNeeded = 1;
-      while (capacityNeeded < length)
-        capacityNeeded *=2;
-      
-      struct root_ref* copyOfArrayRef = heap_alloc_with_descriptor(heap, &arrayDesc, capacityNeeded * sizeof(void*));
-      struct array* copyOfArray = copyOfArrayRef->obj->data;
-      copyOfArray->length = array->length;
-      copyOfArray->capacity = capacityNeeded;
-      
-      for (size_t i = 0; i < array->length; i++) {
-        struct root_ref* currentRef = object_helper_read_ref(heap, (*arrayRef)->obj, offsetof(struct array, array[i]));
-        object_helper_write_ref(heap, copyOfArrayRef->obj, offsetof(struct array, array[i]), currentRef);
-        heap_root_unref(heap, currentRef);
-      }
-      
-      heap_root_unref(heap, *arrayRef);
-      *arrayRef = copyOfArrayRef;
-    }
-  };
-  
-  static void (^appendArray)(struct heap* heap, struct root_ref** arrayRef, struct root_ref* data) = ^(struct heap* heap, struct root_ref** arrayRef, struct root_ref* data) {
-    struct array* array = (*arrayRef)->obj->data;
-    reserveArray(heap, arrayRef, array->length + 1);
-    array = (*arrayRef)->obj->data;
-    // Actually write to array
-    object_helper_write_ref(heap, (*arrayRef)->obj, offsetof(struct array, array[array->length]), data);
-    array->length++;
-  };
-  
-  static struct root_ref* (^newArray)(struct heap* heap) = ^struct root_ref* (struct heap* heap) {
-    struct root_ref* arrayRef = heap_alloc_with_descriptor(heap, &arrayDesc, 0);
-    struct array* array = arrayRef->obj->data;
-    array->length = 0;
-    array->capacity = 0;
-    return arrayRef;
-  };
-  
-  // Roughly like in Lua (ported from https://github.com/zenkj/luagctest/blob/master/src/main.lua)
-  // and removed/substitute some which not available
-  /*
-  function test()
-    local t = {}
-
-    for i=1,1000 do
-      t[i] = {}
-      for j=1,100 do
-        local var = {}
-        var[1] = {812}
-        var[1000] = {var}
-        
-        local var2 = {}
-        var2[1] = {1, 2, 3}
-        var2[1000] = {452}
-        t[i][j] = var
-      end
-    end
-  end
-  */
-  
-  for (size_t n = 0; n < 5; n++) {
-    // local t = {}
-    struct root_ref* t = newArray(heap);
-    for (size_t i = 0; i < 1000; i++) {
-      // t[i] = {}
-      struct root_ref* temp0 = newArray(heap);
-      reserveArray(heap, &t, i + 1);
-      object_helper_write_ref(heap, t->obj, offsetof(struct array, array[i]), temp0);
-      
-      for (size_t j = 0; j < 100; j++) {
-        // local var = {}
-        struct root_ref* var = newArray(heap);
-        
-        // var[1] = {812}
-        struct root_ref* temp1 = newArray(heap);
-        struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
-        struct number* num = temp2->obj->data;
-        num->content = 812;
-        appendArray(heap, &temp1, temp2);
-        
-        // var[1000] = {var}
-        reserveArray(heap, &var, 1000);
-        object_helper_write_ref(heap, var->obj, offsetof(struct array, array[999]), var);
-        
-        // local var2 = {}
-        struct root_ref* var2 = newArray(heap);
-        
-        // var2[1] = {1, 2, 3}
-        struct root_ref* temp3 = newArray(heap);
-        for (int numCounter = 1; numCounter <= 3; numCounter++) {
-          struct root_ref* temp4 = heap_alloc(heap, sizeof(struct number));
-          struct number* num = temp2->obj->data;
-          num->content = numCounter;
-          appendArray(heap, &temp3, temp4);
-          heap_root_unref(heap, temp4);
-        }
-        appendArray(heap, &var2, temp3);
-        
-        // var2[1000] = {452}
-        reserveArray(heap, &var2, 1000);
-        struct root_ref* temp4 = heap_alloc(heap, sizeof(struct number));
-        struct number* num2 = temp2->obj->data;
-        num2->content = 452;
-        object_helper_write_ref(heap, var2->obj, offsetof(struct array, array[999]), temp4);
-        
-        // t[i][j] = var
-        struct root_ref* temp5 = object_helper_read_ref(heap, t->obj, offsetof(struct array, array[i]));
-        appendArray(heap, &temp5, var);
-        
-        heap_root_unref(heap, temp5);
-        heap_root_unref(heap, temp4);
-        heap_root_unref(heap, temp3);
-        heap_root_unref(heap, var2);
-        heap_root_unref(heap, temp2);
-        heap_root_unref(heap, temp1);
-        heap_root_unref(heap, var);
-      }
-      heap_root_unref(heap, temp0);
-    }
-    heap_root_unref(heap, t);
-  }
-  
-  pr_info("Exiting... UwU");
-  
-  atomic_store(&shutdownRequested, true);
-  flup_thread_wait(statWriter);
-  flup_thread_free(statWriter);
-  
-  fclose(statCSVFile);
-  heap_free(heap);
-  flup_thread_free(flup_detach_thread());
-  // mimalloc_play();
+  atexit(cleanup);
+  return runLua(argc, argv);
 }
-
-// struct timespec start, end;
-  // size_t numberOfItem = 10'000'000;
-  
-  // clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
-  // flup_list_head head = FLUP_LIST_HEAD_INIT(head);
-  
-  // for (size_t i = 0; i < numberOfItem; i++) {
-  //   flup_list_head* node = malloc(64);
-  //   flup_list_add_tail(&head, node);
-  // }
-  // clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
-  
-  // double startTime, endTime;
-  // startTime = (double) start.tv_sec + ((double) start.tv_nsec) / 1'000'000'000;
-  // endTime = (double) end.tv_sec + ((double) end.tv_nsec) / 1'000'000'000;
-  // pr_info("Created %zu nodes in %lf seconds", numberOfItem, endTime - startTime);
-  
-  // clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
-  // flup_list_head* current;
-  // flup_list_head* next;
-  // flup_list_for_each_safe(&head, current, next) {
-  //   if (current->next != NULL) {
-  //     flup_list_del(current);
-  //     free(current);
-  //   }
-  // }
-  // clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
-  
-  // startTime = (double) start.tv_sec + ((double) start.tv_nsec) / 1'000'000'000;
-  // endTime = (double) end.tv_sec + ((double) end.tv_nsec) / 1'000'000'000;
-  // pr_info("Freeing %zu nodes took %lf seconds", numberOfItem, endTime - startTime);
-
