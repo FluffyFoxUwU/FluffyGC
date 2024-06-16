@@ -1,5 +1,4 @@
 #include <errno.h>
-#include <flup/util/min_max.h>
 #include <stddef.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -10,10 +9,12 @@
 #include <flup/core/panic.h>
 #include <flup/core/logger.h>
 
-#include <flup/data_structs/list_head.h>
 #include <flup/thread/thread.h>
 
 #include "heap/heap.h"
+#include "memory/arena.h"
+#include "object/descriptor.h"
+#include "object/helper.h"
 
 static char fwuffyAndLargeBufferUwU[16 * 1024 * 1024];
 
@@ -64,25 +65,146 @@ int main() {
     }
   });
   
-  struct data {
-    int temp;
+  struct array {
+    size_t length;
+    size_t capacity;
+    _Atomic(struct arena_block*) array[];
   };
   
-  static_assert(sizeof(struct data) < 64);
+  struct number {
+    int content;
+  };
   
-  // Intentionally leak 5 MiB for testing
-  heap_alloc(heap, 5 * 1024 * 1024);
-  // Try to allocate 8.5 millions of item
-  for (size_t i = 0; i < 8'500'000; i++) {
-    size_t sz = (size_t) (((float) rand() / (float) RAND_MAX) * (float) 1024);
-    sz = flup_max(sz, sizeof(struct data));
-    struct root_ref* ref = heap_alloc(heap, sz);
-    struct data* data = ref->obj->data;
-    data->temp = 0x8086;
-    heap_root_unref(heap, ref);
+  static struct descriptor arrayDesc = {
+    .fieldCount = 0,
+    .hasFlexArrayField = true,
+    .objectSize = sizeof(struct array)
+  };
+  
+  static void (^reserveArray)(struct heap* heap, struct root_ref** arrayRef, size_t length) = ^(struct heap* heap, struct root_ref** arrayRef, size_t length) {
+    struct array* array = (*arrayRef)->obj->data;
     
-    // if (i % 1000 == 0)
-    //   pr_info("Progress: %zu out of %zu items", i, bytesToAlloc / perItemSize);
+    // Expand the array
+    if (length > array->capacity) {
+      size_t capacityNeeded = 1;
+      while (capacityNeeded < length)
+        capacityNeeded *=2;
+      
+      struct root_ref* copyOfArrayRef = heap_alloc_with_descriptor(heap, &arrayDesc, capacityNeeded * sizeof(void*));
+      struct array* copyOfArray = copyOfArrayRef->obj->data;
+      copyOfArray->length = array->length;
+      copyOfArray->capacity = capacityNeeded;
+      
+      for (size_t i = 0; i < array->length; i++) {
+        struct root_ref* currentRef = object_helper_read_ref(heap, (*arrayRef)->obj, offsetof(struct array, array[i]));
+        object_helper_write_ref(heap, copyOfArrayRef->obj, offsetof(struct array, array[i]), currentRef);
+        heap_root_unref(heap, currentRef);
+      }
+      
+      heap_root_unref(heap, *arrayRef);
+      *arrayRef = copyOfArrayRef;
+    }
+  };
+  
+  static void (^appendArray)(struct heap* heap, struct root_ref** arrayRef, struct root_ref* data) = ^(struct heap* heap, struct root_ref** arrayRef, struct root_ref* data) {
+    struct array* array = (*arrayRef)->obj->data;
+    reserveArray(heap, arrayRef, array->length + 1);
+    array = (*arrayRef)->obj->data;
+    // Actually write to array
+    object_helper_write_ref(heap, (*arrayRef)->obj, offsetof(struct array, array[array->length]), data);
+    array->length++;
+  };
+  
+  static struct root_ref* (^newArray)(struct heap* heap) = ^struct root_ref* (struct heap* heap) {
+    struct root_ref* arrayRef = heap_alloc_with_descriptor(heap, &arrayDesc, 0);
+    struct array* array = arrayRef->obj->data;
+    array->length = 0;
+    array->capacity = 0;
+    return arrayRef;
+  };
+  
+  // Roughly like in Lua (ported from https://github.com/zenkj/luagctest/blob/master/src/main.lua)
+  // and removed/substitute some which not available
+  /*
+  function test()
+    local t = {}
+
+    for i=1,1000 do
+      t[i] = {}
+      for j=1,100 do
+        local var = {}
+        var[1] = {812}
+        var[1000] = {var}
+        
+        local var2 = {}
+        var2[1] = {1, 2, 3}
+        var2[1000] = {452}
+        t[i][j] = var
+      end
+    end
+  end
+  */
+  
+  for (size_t n = 0; n < 5; n++) {
+    // local t = {}
+    struct root_ref* t = newArray(heap);
+    for (size_t i = 0; i < 1000; i++) {
+      // t[i] = {}
+      struct root_ref* temp0 = newArray(heap);
+      reserveArray(heap, &t, i + 1);
+      object_helper_write_ref(heap, t->obj, offsetof(struct array, array[i]), temp0);
+      
+      for (size_t j = 0; j < 100; j++) {
+        // local var = {}
+        struct root_ref* var = newArray(heap);
+        
+        // var[1] = {812}
+        struct root_ref* temp1 = newArray(heap);
+        struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
+        struct number* num = temp2->obj->data;
+        num->content = 812;
+        appendArray(heap, &temp1, temp2);
+        
+        // var[1000] = {var}
+        reserveArray(heap, &var, 1000);
+        object_helper_write_ref(heap, var->obj, offsetof(struct array, array[999]), var);
+        
+        // local var2 = {}
+        struct root_ref* var2 = newArray(heap);
+        
+        // var2[1] = {1, 2, 3}
+        struct root_ref* temp3 = newArray(heap);
+        for (int numCounter = 1; numCounter <= 3; numCounter++) {
+          struct root_ref* temp4 = heap_alloc(heap, sizeof(struct number));
+          struct number* num = temp2->obj->data;
+          num->content = numCounter;
+          appendArray(heap, &temp3, temp4);
+          heap_root_unref(heap, temp4);
+        }
+        appendArray(heap, &var2, temp3);
+        
+        // var2[1000] = {452}
+        reserveArray(heap, &var2, 1000);
+        struct root_ref* temp4 = heap_alloc(heap, sizeof(struct number));
+        struct number* num2 = temp2->obj->data;
+        num2->content = 452;
+        object_helper_write_ref(heap, var2->obj, offsetof(struct array, array[999]), temp4);
+        
+        // t[i][j] = var
+        struct root_ref* temp5 = object_helper_read_ref(heap, t->obj, offsetof(struct array, array[i]));
+        appendArray(heap, &temp5, var);
+        
+        heap_root_unref(heap, temp5);
+        heap_root_unref(heap, temp4);
+        heap_root_unref(heap, temp3);
+        heap_root_unref(heap, var2);
+        heap_root_unref(heap, temp2);
+        heap_root_unref(heap, temp1);
+        heap_root_unref(heap, var);
+      }
+      heap_root_unref(heap, temp0);
+    }
+    heap_root_unref(heap, t);
   }
   
   pr_info("Exiting... UwU");
