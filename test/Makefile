@@ -1,1 +1,1 @@
-UwUMaker-c-sources-y += main.c lua.c
+UwUMaker-c-sources-y += main.c lua.c common.c
