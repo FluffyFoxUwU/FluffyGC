@@ -41,7 +41,7 @@ void gc_on_allocate(struct arena_block* block, struct generation* gen) {
   // Start GC cycle so memory freed before mutator has to start
   // waiting on GC 
   if (usage > softLimit) {
-    gc_start_cycle(gen->gcState);
+    gc_start_cycle_async(gen->gcState);
   }
 }
 
@@ -132,6 +132,9 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
 }
 
 static bool markOneItem(struct gc_per_generation_state* state, struct arena_block* parent, size_t parentIndex, struct arena_block* fieldContent) {
+  if (!fieldContent)
+    return true;
+  
   int ret;
   if ((ret = flup_circular_buffer_write(state->gcMarkQueueUwU, &fieldContent, sizeof(void*))) < 0) {
     struct gc_mark_state savedState = {

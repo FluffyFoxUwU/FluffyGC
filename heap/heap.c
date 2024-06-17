@@ -126,8 +126,8 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
   self->rootEntryCount++;
   flup_mutex_unlock(self->rootLock);
   
-  heap_unblock_gc(self);
   gc_on_allocate(newObj, self->gen);
+  heap_unblock_gc(self);
   return ref;
 }
 
