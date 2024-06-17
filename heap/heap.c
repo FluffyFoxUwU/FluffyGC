@@ -1,3 +1,4 @@
+#include <flup/core/panic.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -48,38 +49,42 @@ void heap_free(struct heap* self) {
   free(self);
 }
 
-struct root_ref* heap_new_root_ref(struct heap* self, struct arena_block* obj) {
+struct root_ref* heap_new_root_ref_unlocked(struct heap* self, struct arena_block* obj) {
   struct root_ref* newRef = malloc(sizeof(*self));
   if (!newRef)
     return NULL;
   
   newRef->obj = obj;
-  
-  heap_block_gc(self);
-  flup_mutex_lock(self->rootLock);
-  
   flup_list_add_tail(&self->root, &newRef->node);
   self->rootEntryCount++;
-  
+  return newRef;
+}  
+
+struct root_ref* heap_new_root_ref(struct heap* self, struct arena_block* obj) {
+  heap_block_gc(self);
+  flup_mutex_lock(self->rootLock);
+  struct root_ref* newRef = heap_new_root_ref_unlocked(self, obj);
   flup_mutex_unlock(self->rootLock);
   heap_unblock_gc(self);
   return newRef;
-  
 }
 
 struct root_ref* heap_root_dup(struct heap* self, struct root_ref* ref) {
+  flup_panic("WIP");
   return heap_new_root_ref(self, ref->obj);
 }
 
 void heap_root_unref(struct heap* self, struct root_ref* ref) {
   heap_block_gc(self);
   flup_mutex_lock(self->rootLock);
+  
   self->rootEntryCount--;
   flup_list_del(&ref->node);
+  
+  gc_need_remark(ref->obj);
+  
   flup_mutex_unlock(self->rootLock);
   heap_unblock_gc(self);
-  
-  gc_on_reference_lost(ref->obj);
   free(ref);
 }
 
@@ -120,7 +125,9 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
   ref->obj = newObj;
   self->rootEntryCount++;
   flup_mutex_unlock(self->rootLock);
+  
   heap_unblock_gc(self);
+  gc_on_allocate(newObj, self->gen);
   return ref;
 }
 

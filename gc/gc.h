@@ -161,8 +161,9 @@ struct gc_per_generation_state {
   bool mutatorMarkedBitValue;
   bool GCMarkedBitValue;
   atomic_bool cycleInProgress;
+  atomic_bool markingInProgress;
   
-  flup_buffer* mutatorMarkQueue;
+  flup_buffer* needRemarkQueue;
   
   size_t snapshotOfRootSetSize;
   struct arena_block** snapshotOfRootSet;
@@ -186,7 +187,7 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
 void gc_per_generation_state_free(struct gc_per_generation_state* self);
 
 void gc_on_allocate(struct arena_block* block, struct generation* gen);
-void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten);
+void gc_need_remark(struct arena_block* obj);
 
 // These can't be nested
 void gc_block(struct gc_per_generation_state* self);

@@ -27,7 +27,7 @@ int main() {
   pr_info("Hello World!");
   
   // Create 128 MiB heap
-  struct heap* heap = heap_new(128 * 1024 * 1024);
+  struct heap* heap = heap_new(100 * 1024 * 1024);
   if (!heap) {
     pr_error("Error creating heap");
     return EXIT_FAILURE;
@@ -164,7 +164,7 @@ int main() {
       // t[i] = {}
       struct root_ref* temp0 = newArray(heap);
       reserveArray(heap, &temp0, 100);
-      object_helper_write_ref(heap, t->obj, offsetof(struct array, array[i]), temp0);
+      appendArray(heap, &t, temp0);
       heap_root_unref(heap, temp0);
       
       for (size_t j = 0; j < 100; j++) {
@@ -172,65 +172,69 @@ int main() {
         struct root_ref* var = newArray(heap);
         reserveArray(heap, &var, 2);
         
-        // var[1] = {812}
-        {
-          struct root_ref* temp1 = newArray(heap);
-          reserveArray(heap, &temp1, 1);
-          
-          // {812}
-          {
-            struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
-            struct number* num = temp2->obj->data;
-            num->content = 812;
-            appendArray(heap, &temp1, temp2);
-            heap_root_unref(heap, temp2);
-          }
-          
-          appendArray(heap, &var, temp1);
-          heap_root_unref(heap, temp1);
+        for (size_t i = 0; i < 1; i++) {
+          heap_root_unref(heap, heap_alloc(heap, 70 * 1024 * 1024));
         }
         
-        // var[2] = {var}
-        object_helper_write_ref(heap, var->obj, offsetof(struct array, array[1]), var);
+        // // var[1] = {812}
+        // {
+        //   struct root_ref* temp1 = newArray(heap);
+        //   reserveArray(heap, &temp1, 1);
+          
+        //   // {812}
+        //   {
+        //     struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
+        //     struct number* num = temp2->obj->data;
+        //     num->content = 812;
+        //     appendArray(heap, &temp1, temp2);
+        //     heap_root_unref(heap, temp2);
+        //   }
+          
+        //   appendArray(heap, &var, temp1);
+        //   heap_root_unref(heap, temp1);
+        // }
         
-        // local var2 = {}
-        struct root_ref* var2 = newArray(heap);
-        reserveArray(heap, &var2, 2);
+        // // var[2] = {var}
+        // appendArray(heap, &var, var);
         
-        // var2[1] = {1, 2, 3}
-        {
-          struct root_ref* temp1 = newArray(heap);
-          reserveArray(heap, &temp1, 3);
-          
-          for (int numCounter = 1; numCounter <= 3; numCounter++) {
-            struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
-            struct number* num = temp2->obj->data;
-            num->content = numCounter;
-            appendArray(heap, &temp1, temp2);
-            heap_root_unref(heap, temp2);
-          }
-          
-          appendArray(heap, &var2, temp1);
-          heap_root_unref(heap, temp1);
-        }
+        // // local var2 = {}
+        // struct root_ref* var2 = newArray(heap);
+        // reserveArray(heap, &var2, 2);
         
-        // var2[2] = {452}
-        {
-          struct root_ref* temp1 = newArray(heap);
-          reserveArray(heap, &temp1, 1);
+        // // var2[1] = {1, 2, 3}
+        // {
+        //   struct root_ref* temp1 = newArray(heap);
+        //   reserveArray(heap, &temp1, 3);
           
-          struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
-          struct number* num = temp2->obj->data;
-          num->content = 452;
-          appendArray(heap, &temp1, temp2);
+        //   for (int numCounter = 1; numCounter <= 3; numCounter++) {
+        //     struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
+        //     struct number* num = temp2->obj->data;
+        //     num->content = numCounter;
+        //     appendArray(heap, &temp1, temp2);
+        //     heap_root_unref(heap, temp2);
+        //   }
           
-          heap_root_unref(heap, temp2);
-          
-          appendArray(heap, &var2, temp1);
-          heap_root_unref(heap, temp1);
-        }
+        //   appendArray(heap, &var2, temp1);
+        //   heap_root_unref(heap, temp1);
+        // }
         
-        heap_root_unref(heap, var2);
+        // // var2[2] = {452}
+        // {
+        //   struct root_ref* temp1 = newArray(heap);
+        //   reserveArray(heap, &temp1, 1);
+          
+        //   struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
+        //   struct number* num = temp2->obj->data;
+        //   num->content = 452;
+        //   appendArray(heap, &temp1, temp2);
+          
+        //   heap_root_unref(heap, temp2);
+          
+        //   appendArray(heap, &var2, temp1);
+        //   heap_root_unref(heap, temp1);
+        // }
+        
+        // heap_root_unref(heap, var2);
         
         // t[i][j] = var
         {

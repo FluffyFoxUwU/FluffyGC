@@ -37,7 +37,6 @@ struct arena_block* generation_alloc(struct generation* self, size_t size) {
   if (!block)
     return NULL;
   
-  gc_on_allocate(block, self);
   return block;
 }
 

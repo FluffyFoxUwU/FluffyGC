@@ -41,15 +41,15 @@ void gc_on_allocate(struct arena_block* block, struct generation* gen) {
   // Start GC cycle so memory freed before mutator has to start
   // waiting on GC 
   if (usage > softLimit) {
-    gc_start_cycle_async(gen->gcState);
+    gc_start_cycle(gen->gcState);
   }
 }
 
-void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten) {
-  if (!objectWhichIsGoingToBeOverwritten)
+void gc_need_remark(struct arena_block* obj) {
+  if (!obj)
     return;
   
-  struct gc_block_metadata* metadata = &objectWhichIsGoingToBeOverwritten->gcMetadata;
+  struct gc_block_metadata* metadata = &obj->gcMetadata;
   struct gc_per_generation_state* gcState = metadata->owningGeneration->gcState;
   
   // Add to queue if marking in progress
@@ -61,7 +61,7 @@ void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten)
     return;
   
   // Enqueue an pointer
-  flup_buffer_write_no_fail(gcState->mutatorMarkQueue, &objectWhichIsGoingToBeOverwritten, sizeof(void*));
+  flup_buffer_write_no_fail(gcState->needRemarkQueue, &obj, sizeof(void*));
 }
 
 static void gcThread(void* _self);
@@ -77,7 +77,7 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
   
   if (!(self->gcLock = flup_rwlock_new()))
     goto failure;
-  if (!(self->mutatorMarkQueue = flup_buffer_new(GC_MUTATOR_MARK_QUEUE_SIZE)))
+  if (!(self->needRemarkQueue = flup_buffer_new(GC_MUTATOR_MARK_QUEUE_SIZE)))
     goto failure;
   if (!(self->invokeCycleLock = flup_mutex_new()))
     goto failure;
@@ -127,7 +127,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   flup_mutex_free(self->invokeCycleLock);
   flup_rwlock_free(self->gcLock);
   free(self->snapshotOfRootSet);
-  flup_buffer_free(self->mutatorMarkQueue);
+  flup_buffer_free(self->needRemarkQueue);
   free(self);
 }
 
@@ -153,13 +153,11 @@ static bool markOneItem(struct gc_per_generation_state* state, struct arena_bloc
   return true;
 }
 
-static void doMarkInner(struct gc_per_generation_state* state, bool ignoreMarkBit, struct gc_mark_state* markState) {
+static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_state* markState) {
   struct arena_block* block = markState->block;
-  if (atomic_exchange(&block->gcMetadata.markBit, state->GCMarkedBitValue) == state->GCMarkedBitValue) {
-    // Check it later because we still want mark bit to set if unset
-    if (!ignoreMarkBit)
-      return;
-  }
+  bool markBit = atomic_exchange(&block->gcMetadata.markBit, state->GCMarkedBitValue);
+  if (markState->fieldIndex == 0 && markBit == state->GCMarkedBitValue)
+    return;
   
   struct descriptor* desc = atomic_load(&block->desc);
   // Object have no data or zero fields
@@ -173,7 +171,7 @@ static void doMarkInner(struct gc_per_generation_state* state, bool ignoreMarkBi
     size_t offset = desc->fields[fieldIndex].offset;
     _Atomic(struct arena_block*)* fieldPtr = (_Atomic(struct arena_block*)*) ((void*) (((char*) block->data) + offset));
     if (!markOneItem(state, block, fieldIndex, atomic_load(fieldPtr)))
-      break;
+      return;
   }
   
   if (!desc->hasFlexArrayField)
@@ -183,11 +181,11 @@ static void doMarkInner(struct gc_per_generation_state* state, bool ignoreMarkBi
   for (size_t i = 0; i < flexArrayCount; i++) {
     _Atomic(struct arena_block*)* fieldPtr = (_Atomic(struct arena_block*)*) ((void*) (((char*) block->data) + desc->objectSize + i * sizeof(void*)));
     if (!markOneItem(state, block, fieldIndex + i, atomic_load(fieldPtr)))
-      break;
+      return;
   }
 }
 
-static void processMarkQueue(struct gc_per_generation_state* state, bool ignoreMarkBitOnFirst) {
+static void processMarkQueue(struct gc_per_generation_state* state) {
   int ret;
   struct arena_block* current;
   while ((ret = flup_circular_buffer_read(state->gcMarkQueueUwU, &current, sizeof(void*))) == 0) {
@@ -195,25 +193,24 @@ static void processMarkQueue(struct gc_per_generation_state* state, bool ignoreM
       .block = current,
       .fieldIndex = 0
     };
-    doMarkInner(state, ignoreMarkBitOnFirst, &markState);
-    ignoreMarkBitOnFirst = false;
+    doMarkInner(state, &markState);
   }
   
   if (ret != -ENODATA)
     flup_panic("Error reading GC mark queue: %d", ret);
 }
 
-static void doMark(struct gc_per_generation_state* state, bool ignoreMarkBit, struct arena_block* block) {
+static void doMark(struct gc_per_generation_state* state, struct arena_block* block) {
   int ret;
   if ((ret = flup_circular_buffer_write(state->gcMarkQueueUwU, &block, sizeof(void*))) < 0)
     flup_panic("Cannot enqueue to GC mark queue (configured queue size was %zu bytes): %d", (size_t) GC_MARK_QUEUE_SIZE, ret);
   
-  processMarkQueue(state, ignoreMarkBit);
+  processMarkQueue(state);
   
   struct gc_mark_state current;
   while ((ret = flup_circular_buffer_read(state->deferredMarkQueue, &current, sizeof(current))) == 0) {
-    doMarkInner(state, true, &current);
-    processMarkQueue(state, false);
+    doMarkInner(state, &current);
+    processMarkQueue(state);
   }
   
   if (ret != -ENODATA)
@@ -252,14 +249,16 @@ static void takeRootSnapshotPhase(struct cycle_state* state) {
 
 static void markingPhase(struct cycle_state* state) {
   for (size_t i = 0; i < state->self->snapshotOfRootSetSize; i++)
-    doMark(state->self, false, state->self->snapshotOfRootSet[i]);
+    doMark(state->self, state->self->snapshotOfRootSet[i]);
 }
 
 static void processMutatorMarkQueuePhase(struct cycle_state* state) {
   struct arena_block* current;
   int ret;
-  while ((ret = flup_buffer_read2(state->self->mutatorMarkQueue, &current, sizeof(void*), FLUP_BUFFER_READ2_DONT_WAIT_FOR_DATA)) >= 0)
-    doMark(state->self, true, current);
+  while ((ret = flup_buffer_read2(state->self->needRemarkQueue, &current, sizeof(void*), FLUP_BUFFER_READ2_DONT_WAIT_FOR_DATA)) >= 0) {
+    atomic_store(&current->gcMetadata.markBit, !state->self->GCMarkedBitValue);
+    doMark(state->self, current);
+  }
   BUG_ON(ret == -EMSGSIZE);
 }
 
