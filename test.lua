@@ -19,9 +19,10 @@ function test()
 end
 
 local startTime = os.clock()
-for i=1,10 do
+for i=1,20 do
   test()
 end
+collectgarbage("collect")
 local endTime = os.clock()
 print("Time taken was", endTime - startTime)
 
