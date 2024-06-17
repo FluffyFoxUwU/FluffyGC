@@ -252,7 +252,7 @@ static void takeRootSnapshotPhase(struct cycle_state* state) {
 
 static void markingPhase(struct cycle_state* state) {
   for (size_t i = 0; i < state->self->snapshotOfRootSetSize; i++)
-    doMark(state->self, true, state->self->snapshotOfRootSet[i]);
+    doMark(state->self, false, state->self->snapshotOfRootSet[i]);
 }
 
 static void processMutatorMarkQueuePhase(struct cycle_state* state) {
