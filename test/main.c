@@ -38,7 +38,7 @@ int main() {
     flup_panic("Cannot open ./benches/stat.csv file for appending!");
   if (setvbuf(statCSVFile, fwuffyAndLargeBufferUwU, _IOFBF, sizeof(fwuffyAndLargeBufferUwU)) != 0)
     flup_panic("Error on setvbuf for ./benches/stat.csv");
-  fprintf(statCSVFile, "timestamp_sec,timestamp_nanosec,heap_usage,gc_trigger_threshold,heap_metadata_usage,heap_non_metadata_usage,heap_total_size\n");
+  fprintf(statCSVFile, "timestamp_sec,heap_usage,gc_trigger_threshold,heap_metadata_usage,heap_non_metadata_usage,heap_total_size\n");
   
   static atomic_bool shutdownRequested = false;
   flup_thread* statWriter = flup_thread_new_with_block(^(void) {
@@ -54,6 +54,7 @@ int main() {
       
       struct timespec now;
       clock_gettime(CLOCK_REALTIME, &now);
+      double time = (double) now.tv_sec + (double) now.tv_nsec / 1e9f;
       
       size_t usage = atomic_load(&heap->gen->arena->currentUsage);
       size_t metadataUsage = atomic_load(&heap->gen->arena->metadataUsage);
@@ -61,7 +62,7 @@ int main() {
       
       size_t maxSize = heap->gen->arena->maxSize;
       size_t asyncCycleTriggerThreshold = (size_t) ((float) maxSize * heap->gen->gcState->asyncTriggerThreshold);
-      fprintf(statCSVFile, "%llu,%llu,%zu,%zu,%zu,%zu,%zu\n", (unsigned long long) now.tv_sec, (unsigned long long) now.tv_nsec, usage, asyncCycleTriggerThreshold, metadataUsage, nonMetadataUsage, maxSize);
+      fprintf(statCSVFile, "%lf,%zu,%zu,%zu,%zu,%zu\n", time, usage, asyncCycleTriggerThreshold, metadataUsage, nonMetadataUsage, maxSize);
       
       while (clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &deadline, NULL) == EINTR)
         ;
@@ -142,18 +143,20 @@ int main() {
       for j=1,100 do
         local var = {}
         var[1] = {812}
-        var[1000] = {var}
+        var[2] = {var}
         
         local var2 = {}
         var2[1] = {1, 2, 3}
-        var2[1000] = {452}
+        var2[2] = {452}
         t[i][j] = var
       end
     end
   end
   */
   
-  for (size_t n = 0; n < 1; n++) {
+  struct timespec start, end;
+  clock_gettime(CLOCK_REALTIME, &start);
+  for (size_t n = 0; n < 10; n++) {
     // local t = {}
     struct root_ref* t = newArray(heap);
     reserveArray(heap, &t, 1000);
@@ -167,7 +170,7 @@ int main() {
       for (size_t j = 0; j < 100; j++) {
         // local var = {}
         struct root_ref* var = newArray(heap);
-        reserveArray(heap, &var, 1000);
+        reserveArray(heap, &var, 2);
         
         // var[1] = {812}
         {
@@ -177,7 +180,6 @@ int main() {
           // {812}
           {
             struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
-            reserveArray(heap, &temp2, 1);
             struct number* num = temp2->obj->data;
             num->content = 812;
             appendArray(heap, &temp1, temp2);
@@ -188,12 +190,12 @@ int main() {
           heap_root_unref(heap, temp1);
         }
         
-        // var[1000] = {var}
-        object_helper_write_ref(heap, var->obj, offsetof(struct array, array[999]), var);
+        // var[2] = {var}
+        object_helper_write_ref(heap, var->obj, offsetof(struct array, array[1]), var);
         
         // local var2 = {}
         struct root_ref* var2 = newArray(heap);
-        reserveArray(heap, &var2, 1000);
+        reserveArray(heap, &var2, 2);
         
         // var2[1] = {1, 2, 3}
         {
@@ -212,7 +214,7 @@ int main() {
           heap_root_unref(heap, temp1);
         }
         
-        // var2[1000] = {452}
+        // var2[2] = {452}
         {
           struct root_ref* temp1 = newArray(heap);
           reserveArray(heap, &temp1, 1);
@@ -220,9 +222,11 @@ int main() {
           struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
           struct number* num = temp2->obj->data;
           num->content = 452;
-          object_helper_write_ref(heap, var2->obj, offsetof(struct array, array[999]), temp1);
+          appendArray(heap, &temp1, temp2);
           
           heap_root_unref(heap, temp2);
+          
+          appendArray(heap, &var2, temp1);
           heap_root_unref(heap, temp1);
         }
         
@@ -240,6 +244,12 @@ int main() {
     }
     heap_root_unref(heap, t);
   }
+  clock_gettime(CLOCK_REALTIME, &end);
+  
+  double startTime = (double) start.tv_sec + (double) start.tv_nsec / 1e9;
+  double endTime = (double) end.tv_sec + (double) end.tv_nsec / 1e9;
+  pr_info("Test duration was %lf sec", endTime - startTime);
+  pr_info("And %lf MiB allocated during lifetime", ((double) atomic_load(&heap->gen->arena->lifetimeBytesAllocated)) / 1024.0f / 1024.0f);
   
   pr_info("Exiting... UwU");
   
