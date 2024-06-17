@@ -160,8 +160,8 @@ static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_st
     return;
   
   struct descriptor* desc = atomic_load(&block->desc);
-  // Object have no data or zero fields
-  if (!desc || desc->fieldCount == 0)
+  // Object have no GC-able references
+  if (!desc)
     return;
   
   // Uses breadth first search but if failed
