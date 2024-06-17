@@ -73,14 +73,13 @@ struct root_ref* heap_root_dup(struct heap* self, struct root_ref* ref) {
 
 void heap_root_unref(struct heap* self, struct root_ref* ref) {
   heap_block_gc(self);
-  
   flup_mutex_lock(self->rootLock);
   self->rootEntryCount--;
   flup_list_del(&ref->node);
   flup_mutex_unlock(self->rootLock);
+  heap_unblock_gc(self);
   
   gc_on_reference_lost(ref->obj);
-  heap_unblock_gc(self);
   free(ref);
 }
 
