@@ -67,6 +67,7 @@ struct arena_block* arena_alloc(struct arena* self, size_t allocSize) {
   
   atomic_fetch_add(&self->metadataUsage, sizeof(struct arena_block));
   atomic_fetch_add(&self->nonMetadataUsage, allocSize);
+  atomic_fetch_add(&self->lifetimeBytesAllocated, totalSize);
   arena_move_one_block_from_detached_to_real_head(self, blockMetadata);
   return blockMetadata;
 
