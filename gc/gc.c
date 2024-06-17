@@ -73,12 +73,10 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
   
   *self = (struct gc_per_generation_state) {
     .ownerGen = gen,
-    .asyncTriggerThreshold = 0.8f
+    .asyncTriggerThreshold = 0.5f
   };
   
   if (!(self->gcLock = flup_rwlock_new()))
-    goto failure;
-  if (!(self->snapshotOfRootSet = flup_dyn_array_new(sizeof(void*), 0)))
     goto failure;
   if (!(self->mutatorMarkQueue = flup_buffer_new(GC_MUTATOR_MARK_QUEUE_SIZE)))
     goto failure;
@@ -129,7 +127,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   flup_cond_free(self->invokeCycleDoneEvent);
   flup_mutex_free(self->invokeCycleLock);
   flup_rwlock_free(self->gcLock);
-  flup_dyn_array_free(self->snapshotOfRootSet);
+  free(self->snapshotOfRootSet);
   flup_buffer_free(self->mutatorMarkQueue);
   free(self);
 }
@@ -237,27 +235,25 @@ struct cycle_state {
 };
 
 static void takeRootSnapshotPhase(struct cycle_state* state) {
-  int ret;
   flup_mutex_lock(state->heap->rootLock);
-  if ((ret = flup_dyn_array_reserve(state->self->snapshotOfRootSet, state->heap->rootEntryCount)) < 0)
-    flup_panic("Error reserving memory for root set snapshot: flup_dyn_array_reserve: %d", ret);
+  struct arena_block** rootSnapshot = realloc(state->self->snapshotOfRootSet, state->heap->rootEntryCount * sizeof(void*));
+  if (!rootSnapshot)
+    flup_panic("Error reserving memory for root set snapshot");
+  state->self->snapshotOfRootSet = rootSnapshot;
+  state->self->snapshotOfRootSetSize = state->heap->rootEntryCount;
   
+  size_t index = 0;
   flup_list_head* current;
   flup_list_for_each(&state->heap->root, current) {
-    struct root_ref* ref = container_of(current, struct root_ref, node);
-    if (flup_dyn_array_append(state->self->snapshotOfRootSet, &ref->obj) < 0)
-      flup_panic("This can't occur TwT");
+    rootSnapshot[index] = container_of(current, struct root_ref, node)->obj;
+    index++;
   }
   flup_mutex_unlock(state->heap->rootLock);
 }
 
 static void markingPhase(struct cycle_state* state) {
-  for (size_t i = 0; i < state->self->snapshotOfRootSet->length; i++) {
-    struct arena_block** obj;
-    int ret = flup_dyn_array_get(state->self->snapshotOfRootSet, i, (void**) &obj);
-    BUG_ON(ret < 0);
-    doMark(state->self, true, *obj);
-  }
+  for (size_t i = 0; i < state->self->snapshotOfRootSetSize; i++)
+    doMark(state->self, true, state->self->snapshotOfRootSet[i]);
 }
 
 static void processMutatorMarkQueuePhase(struct cycle_state* state) {
@@ -317,13 +313,13 @@ continue_to_next:
 }
 
 static void pauseAppThreads(struct cycle_state* state) {
-  clock_gettime(CLOCK_REALTIME, &state->pauseBegin);
   flup_rwlock_wrlock(state->self->gcLock);
+  clock_gettime(CLOCK_REALTIME, &state->pauseBegin);
 }
 
 static void unpauseAppThreads(struct cycle_state* state) {
-  flup_rwlock_unlock(state->self->gcLock);
   clock_gettime(CLOCK_REALTIME, &state->pauseEnd);
+  flup_rwlock_unlock(state->self->gcLock);
   
   double duration = 
     ((double) state->pauseEnd.tv_sec + ((double) state->pauseEnd.tv_nsec/ 1'000'000'000.0f)) -
@@ -364,8 +360,6 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   self->GCMarkedBitValue = !self->GCMarkedBitValue;
   atomic_store(&self->cycleInProgress, false);
   unpauseAppThreads(&state);
-  
-  flup_dyn_array_remove(self->snapshotOfRootSet, 0, self->snapshotOfRootSet->length);
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
   
   double duration =

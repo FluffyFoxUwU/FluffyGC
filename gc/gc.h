@@ -163,7 +163,9 @@ struct gc_per_generation_state {
   atomic_bool cycleInProgress;
   
   flup_buffer* mutatorMarkQueue;
-  flup_dyn_array* snapshotOfRootSet;
+  
+  size_t snapshotOfRootSetSize;
+  struct arena_block** snapshotOfRootSet;
   
   flup_circular_buffer* gcMarkQueueUwU;
   
