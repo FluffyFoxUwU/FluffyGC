@@ -52,9 +52,8 @@ void gc_on_reference_lost(struct arena_block* objectWhichIsGoingToBeOverwritten)
   struct gc_block_metadata* metadata = &objectWhichIsGoingToBeOverwritten->gcMetadata;
   struct gc_per_generation_state* gcState = metadata->owningGeneration->gcState;
   
-  // Doesn't need to enqueue to mark queue as its
-  // purpose is for queuing unmarked objects when GC running
-  if (!atomic_load(&gcState->cycleInProgress))
+  // Add to queue if marking in progress
+  if (!atomic_load(&gcState->markingInProgress))
     return;
   
   bool prevMarkBit = atomic_exchange(&metadata->markBit, gcState->GCMarkedBitValue);
@@ -348,11 +347,13 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   self->mutatorMarkedBitValue = self->GCMarkedBitValue;
   atomic_store(&self->cycleInProgress, true);
   
+  atomic_store(&self->markingInProgress, true);
   takeRootSnapshotPhase(&state);
   state.detachedHeadToBeSwept = arena_detach_head(state.arena);
   unpauseAppThreads(&state);
   
   markingPhase(&state);
+  atomic_store(&self->markingInProgress, false);
   processMutatorMarkQueuePhase(&state);
   sweepPhase(&state);
   
