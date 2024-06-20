@@ -15,9 +15,7 @@ struct descriptor;
 struct heap {
   struct generation* gen;
   
-  flup_mutex* rootLock;
-  flup_list_head root;
-  size_t rootEntryCount;
+  struct thread* mainThread;
 };
 
 struct root_ref {

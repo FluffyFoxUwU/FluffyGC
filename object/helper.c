@@ -17,13 +17,9 @@ void object_helper_write_ref(struct heap* heap, struct arena_block* block, size_
 
 struct root_ref* object_helper_read_ref(struct heap* heap, struct arena_block* block, size_t offset) {
   heap_block_gc(heap);
-  flup_mutex_lock(heap->rootLock);
-  
   _Atomic(struct arena_block*)* fieldPtr = (_Atomic(struct arena_block*)*) ((void*) (((char*) block->data) + offset));
   struct root_ref* new = heap_new_root_ref_unlocked(heap, atomic_load(fieldPtr));
   gc_need_remark(block);
-  
-  flup_mutex_unlock(heap->rootLock);
   heap_unblock_gc(heap);
   return new;
 }

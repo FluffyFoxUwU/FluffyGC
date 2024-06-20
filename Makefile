@@ -14,12 +14,12 @@ UwUMaker-c-flags-y += -std=c2x -g -O0 \
 		-Wno-initializer-overrides \
 		-Wundef -fno-omit-frame-pointer
 
-UwUMaker-c-flags-y += -flto=full -O3
-UwUMaker-linker-flags-y += -flto=full -O3
-# UwUMaker-c-flags-y += -fsanitize=address
-# UwUMaker-linker-flags-y += -fsanitize=address
-# UwUMaker-c-flags-y += -fsanitize=undefined
-# UwUMaker-linker-flags-y += -fsanitize=undefined
+# UwUMaker-c-flags-y += -flto=full -O3
+# UwUMaker-linker-flags-y += -flto=full -O3
+UwUMaker-c-flags-y += -fsanitize=address
+UwUMaker-linker-flags-y += -fsanitize=address
+UwUMaker-c-flags-y += -fsanitize=undefined
+UwUMaker-linker-flags-y += -fsanitize=undefined
 UwUMaker-linker-flags-y += -lFlup -lBlocksRuntime
 
 UwUMaker-pkg-config-libs-y += mimalloc

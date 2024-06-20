@@ -20,6 +20,7 @@
 #include <flup/data_structs/buffer.h>
 
 #include "heap/heap.h"
+#include "heap/thread.h"
 #include "memory/arena.h"
 #include "heap/generation.h"
 #include "object/descriptor.h"
@@ -234,20 +235,18 @@ struct cycle_state {
 };
 
 static void takeRootSnapshotPhase(struct cycle_state* state) {
-  flup_mutex_lock(state->heap->rootLock);
-  struct arena_block** rootSnapshot = realloc(state->self->snapshotOfRootSet, state->heap->rootEntryCount * sizeof(void*));
+  struct arena_block** rootSnapshot = realloc(state->self->snapshotOfRootSet, state->heap->mainThread->rootSize * sizeof(void*));
   if (!rootSnapshot)
     flup_panic("Error reserving memory for root set snapshot");
   state->self->snapshotOfRootSet = rootSnapshot;
-  state->self->snapshotOfRootSetSize = state->heap->rootEntryCount;
+  state->self->snapshotOfRootSetSize = state->heap->mainThread->rootSize;
   
   size_t index = 0;
   flup_list_head* current;
-  flup_list_for_each(&state->heap->root, current) {
+  flup_list_for_each(&state->heap->mainThread->rootEntries, current) {
     rootSnapshot[index] = container_of(current, struct root_ref, node)->obj;
     index++;
   }
-  flup_mutex_unlock(state->heap->rootLock);
 }
 
 static void markingPhase(struct cycle_state* state) {

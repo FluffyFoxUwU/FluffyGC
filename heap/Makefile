@@ -1,1 +1,1 @@
-UwUMaker-c-sources-y += generation.c heap.c
+UwUMaker-c-sources-y += generation.c heap.c thread.c

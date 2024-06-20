@@ -1,4 +1,5 @@
 #include <flup/core/panic.h>
+#include <flup/thread/thread.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -12,6 +13,7 @@
 #include "heap.h"
 #include "gc/gc.h"
 #include "heap/generation.h"
+#include "heap/thread.h"
 #include "memory/arena.h"
 #include "object/descriptor.h"
 
@@ -23,15 +25,14 @@ struct heap* heap_new(size_t size) {
     return NULL;
   
   *self = (struct heap) {
-    .root = FLUP_LIST_HEAD_INIT(self->root),
-    .rootEntryCount = 0
   };
   
   if (!(self->gen = generation_new(size)))
     goto failure;
-  if (!(self->rootLock = flup_mutex_new()))
-    goto failure;
   self->gen->ownerHeap = self;
+  
+  if (!(self->mainThread = thread_new(self)))
+    goto failure;
   return self;
 
 failure:
@@ -40,38 +41,19 @@ failure:
 }
 
 void heap_free(struct heap* self) {
-  flup_list_head* current;
-  flup_list_head* next;
-  flup_list_for_each_safe(&self->root, current, next)
-    heap_root_unref(self, container_of(current, struct root_ref, node));
+  thread_free(self->mainThread);
   generation_free(self->gen);
-  flup_mutex_free(self->rootLock);
   free(self);
 }
 
 struct root_ref* heap_new_root_ref_unlocked(struct heap* self, struct arena_block* obj) {
-  struct root_ref* newRef = malloc(sizeof(*self));
-  if (!newRef)
-    return NULL;
-  
-  newRef->obj = obj;
-  flup_list_add_tail(&self->root, &newRef->node);
-  self->rootEntryCount++;
-  return newRef;
+  return thread_new_root_ref_no_gc_block(self->mainThread, obj);
 }
 
 void heap_root_unref(struct heap* self, struct root_ref* ref) {
   heap_block_gc(self);
-  flup_mutex_lock(self->rootLock);
-  
-  self->rootEntryCount--;
-  flup_list_del(&ref->node);
-  
-  gc_need_remark(ref->obj);
-  
-  flup_mutex_unlock(self->rootLock);
+  thread_unref_root_no_gc_block(self->mainThread, ref);
   heap_unblock_gc(self);
-  free(ref);
 }
 
 struct root_ref* heap_alloc_with_descriptor(struct heap* self, struct descriptor* desc, size_t extraSize) {
@@ -85,7 +67,7 @@ struct root_ref* heap_alloc_with_descriptor(struct heap* self, struct descriptor
 }
 
 struct root_ref* heap_alloc(struct heap* self, size_t size) {
-  struct root_ref* ref = malloc(sizeof(*ref));
+  struct root_ref* ref = thread_prealloc_root_ref(self->mainThread);
   if (!ref)
     return NULL;
   
@@ -106,12 +88,7 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
     return NULL;
   }
   
-  flup_mutex_lock(self->rootLock);
-  flup_list_add_tail(&self->root, &ref->node);
-  ref->obj = newObj;
-  self->rootEntryCount++;
-  flup_mutex_unlock(self->rootLock);
-  
+  thread_new_root_ref_from_prealloc_no_gc_block(self->mainThread, ref, newObj);
   gc_on_allocate(newObj, self->gen);
   heap_unblock_gc(self);
   return ref;
