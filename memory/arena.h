@@ -12,6 +12,13 @@
 
 struct arena {
   atomic_size_t currentUsage;
+  // Bytes occupied for purely metadata
+  atomic_size_t metadataUsage;
+  // Bytes occupied for actual data
+  atomic_size_t nonMetadataUsage;
+  
+  // Number of bytes ever allocated
+  atomic_size_t lifetimeBytesAllocated;
   size_t maxSize;
   
   _Atomic(struct arena_block*) head;

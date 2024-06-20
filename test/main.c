@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <pthread.h>
 #include <stddef.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -57,11 +58,33 @@ int main(int argc, char** argv) {
     flup_panic("Cannot open ./benches/stat.csv file for appending!");
   if (setvbuf(statCSVFile, fwuffyAndLargeBufferUwU, _IOFBF, sizeof(fwuffyAndLargeBufferUwU)) != 0)
     flup_panic("Error on setvbuf for ./benches/stat.csv");
-  fprintf(statCSVFile, "timestamp_sec,timestamp_nanosec,heap_usage,gc_trigger_threshold,heap_total_size\n");
+  fprintf(statCSVFile, "Timestamp,Usage,Async Threshold,Metadata Usage,Non-metadata Usage,Max size,Mutator utilization,GC utilization\n");
+  
+  static clockid_t mutatorCPUClock;
+  static clockid_t gcCPUClock;
+  
+  struct timespec testStartTimeSpec;
+  clock_gettime(CLOCK_REALTIME, &testStartTimeSpec);
+  static double testStartTime;
+  testStartTime = (double) testStartTimeSpec.tv_sec + (double) testStartTimeSpec.tv_nsec / 1e9;
+  
+  pthread_getcpuclockid(pthread_self(), &mutatorCPUClock);
+  pthread_getcpuclockid(testHeap->gen->gcState->thread->thread, &gcCPUClock);
   
   statWriter = flup_thread_new_with_block(^(void) {
     struct timespec deadline;
     clock_gettime(CLOCK_REALTIME, &deadline);
+    
+    struct timespec prevMutatorCPUTimeSpec;
+    struct timespec prevGCCPUTimeSpec;
+    clock_gettime(mutatorCPUClock, &prevMutatorCPUTimeSpec);
+    clock_gettime(gcCPUClock, &prevGCCPUTimeSpec);
+    
+    double prevMutatorCPUTime;
+    double prevGCCPUTime;
+    prevGCCPUTime = (double) prevGCCPUTimeSpec.tv_sec + (double) prevGCCPUTimeSpec.tv_nsec / 1e9;
+    prevMutatorCPUTime = (double) prevMutatorCPUTimeSpec.tv_sec + (double) prevMutatorCPUTimeSpec.tv_nsec / 1e9;
+    
     while (!atomic_load(&shutdownRequested)) {
       // Collect in 10 ms interval
       deadline.tv_nsec += 10 * 1'000'000;
@@ -72,11 +95,33 @@ int main(int argc, char** argv) {
       
       struct timespec now;
       clock_gettime(CLOCK_REALTIME, &now);
+      double time = (double) now.tv_sec + (double) now.tv_nsec / 1e9f;
+      
+      struct timespec mutatorCPUTimeSpec;
+      struct timespec gcCPUTimeSpec;
+      clock_gettime(mutatorCPUClock, &mutatorCPUTimeSpec);
+      clock_gettime(gcCPUClock, &gcCPUTimeSpec);
+      
+      double mutatorCPUTime = (double)  mutatorCPUTimeSpec.tv_sec + (double) mutatorCPUTimeSpec.tv_nsec / 1e9;
+      double gcCPUTime = (double)  gcCPUTimeSpec.tv_sec + (double) gcCPUTimeSpec.tv_nsec / 1e9;
+      
+      double mutatorCPUUtilization = (mutatorCPUTime - prevMutatorCPUTime) / 0.01f;
+      double gcCPUUtilization =  (gcCPUTime - prevGCCPUTime) / 0.01f;
+      if (mutatorCPUUtilization > 1.0f)
+        mutatorCPUUtilization = 1.0f;
+      if (gcCPUUtilization > 1.0f)
+        gcCPUUtilization = 1.0f;
       
       size_t usage = atomic_load(&testHeap->gen->arena->currentUsage);
+      size_t metadataUsage = atomic_load(&testHeap->gen->arena->metadataUsage);
+      size_t nonMetadataUsage = atomic_load(&testHeap->gen->arena->nonMetadataUsage);
+      
       size_t maxSize = testHeap->gen->arena->maxSize;
       size_t asyncCycleTriggerThreshold = (size_t) ((float) maxSize * testHeap->gen->gcState->asyncTriggerThreshold);
-      fprintf(statCSVFile, "%llu,%llu,%zu,%zu,%zu\n", (unsigned long long) now.tv_sec, (unsigned long long) now.tv_nsec, usage, asyncCycleTriggerThreshold, maxSize);
+      fprintf(statCSVFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", time - testStartTime, (double) usage / 1024 / 1024, (double) asyncCycleTriggerThreshold / 1024 / 1024, (double) metadataUsage / 1024 / 1024, (double) nonMetadataUsage / 1024 / 1024, (double) maxSize / 1024 / 1024, mutatorCPUUtilization * 100.0f, gcCPUUtilization * 100.0f);
+      
+      prevMutatorCPUTime = mutatorCPUTime;
+      prevGCCPUTime = gcCPUTime;
       
       while (clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &deadline, NULL) == EINTR)
         ;
