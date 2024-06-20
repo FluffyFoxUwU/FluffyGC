@@ -1,7 +1,7 @@
 #include "test/lua.h"
 
-#include "../FluffyGCLuaPort/onelua.c"
-
+// Referenced function in lua.c
+int runLuaInner (int argc, char **argv);
 int runLua(int argc, char** argv) {
   return runLuaInner(argc, argv);
 }

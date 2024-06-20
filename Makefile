@@ -1,4 +1,5 @@
 UwUMaker-dirs-y += test memory heap util gc object
+UwUMaker-dirs-y += FluffyGCLuaPort
 
 UwUMaker-c-flags-y += -std=c2x -g -O0 \
 		-fpic -fblocks -Wextra \
