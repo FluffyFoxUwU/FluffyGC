@@ -142,7 +142,7 @@ int main() {
       
       for (size_t i = 0; i < array->length; i++) {
         struct root_ref* currentRef = object_helper_read_ref(heap, (*arrayRef)->obj, offsetof(struct array, array[i]));
-        object_helper_write_ref(heap, copyOfArrayRef->obj, offsetof(struct array, array[i]), currentRef);
+        object_helper_write_ref(heap, copyOfArrayRef->obj, offsetof(struct array, array[i]), currentRef->obj);
         heap_root_unref(heap, currentRef);
       }
       
@@ -161,7 +161,7 @@ int main() {
     
     array = (*arrayRef)->obj->data;
     // Actually write to array
-    object_helper_write_ref(heap, (*arrayRef)->obj, offsetof(struct array, array[array->length]), data);
+    object_helper_write_ref(heap, (*arrayRef)->obj, offsetof(struct array, array[array->length]), data->obj);
     array->length++;
   };
   
