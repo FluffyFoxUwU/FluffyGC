@@ -10,7 +10,7 @@
 #include "gc/gc.h"
 #include "object/descriptor.h"
 
-struct arena {
+struct alloc_tracker {
   atomic_size_t currentUsage;
   // Bytes occupied for purely metadata
   atomic_size_t metadataUsage;
@@ -21,12 +21,12 @@ struct arena {
   atomic_size_t lifetimeBytesAllocated;
   size_t maxSize;
   
-  _Atomic(struct arena_block*) head;
+  _Atomic(struct alloc_unit*) head;
 };
 
-struct arena_block {
+struct alloc_unit {
   // If current->next == NULL then its end of detached head :3
-  struct arena_block* next;
+  struct alloc_unit* next;
   size_t size;
   // Atomic so that new object would have NULL value
   // and can be atomically set the corresponding descriptor
@@ -38,16 +38,16 @@ struct arena_block {
   void* data;
 };
 
-struct arena_block* arena_detach_head(struct arena* self);
-bool arena_is_end_of_detached_head(struct arena_block* blk);
-void arena_move_one_block_from_detached_to_real_head(struct arena* self, struct arena_block* blk);
+struct alloc_unit* arena_detach_head(struct alloc_tracker* self);
+bool arena_is_end_of_detached_head(struct alloc_unit* blk);
+void arena_move_one_block_from_detached_to_real_head(struct alloc_tracker* self, struct alloc_unit* blk);
 
-struct arena* arena_new(size_t size);
-void arena_free(struct arena* self);
+struct alloc_tracker* arena_new(size_t size);
+void arena_free(struct alloc_tracker* self);
 
-struct arena_block* arena_alloc(struct arena* self, size_t size);
-void arena_dealloc(struct arena* self, struct arena_block* blk);
+struct alloc_unit* arena_alloc(struct alloc_tracker* self, size_t size);
+void arena_dealloc(struct alloc_tracker* self, struct alloc_unit* blk);
 
-void arena_wipe(struct arena* self);
+void arena_wipe(struct alloc_tracker* self);
 
 #endif

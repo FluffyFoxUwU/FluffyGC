@@ -8,13 +8,13 @@
 
 struct generation {
   struct heap* ownerHeap;
-  struct arena* arena;
+  struct alloc_tracker* arena;
   struct gc_per_generation_state* gcState;
 };
 
 struct generation* generation_new(size_t size);
 void generation_free(struct generation* self);
 
-struct arena_block* generation_alloc(struct generation* self, size_t size);
+struct alloc_unit* generation_alloc(struct generation* self, size_t size);
 
 #endif

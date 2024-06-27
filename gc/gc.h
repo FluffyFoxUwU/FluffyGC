@@ -100,7 +100,7 @@ Extra notes:
 #define GC_DEFERRED_MARK_QUEUE_SIZE (16 * 1024 * 1024)
 
 struct generation;
-struct arena_block;
+struct alloc_unit;
 
 struct gc_block_metadata {
   struct generation* owningGeneration;
@@ -131,7 +131,7 @@ struct gc_stats {
 };
 
 struct gc_mark_state {
-  struct arena_block* block;
+  struct alloc_unit* block;
   size_t fieldIndex;
 };
 
@@ -166,7 +166,7 @@ struct gc_per_generation_state {
   flup_buffer* needRemarkQueue;
   
   size_t snapshotOfRootSetSize;
-  struct arena_block** snapshotOfRootSet;
+  struct alloc_unit** snapshotOfRootSet;
   
   flup_circular_buffer* gcMarkQueueUwU;
   
@@ -186,8 +186,8 @@ uint64_t gc_start_cycle_async(struct gc_per_generation_state* self);
 struct gc_per_generation_state* gc_per_generation_state_new(struct generation* gen);
 void gc_per_generation_state_free(struct gc_per_generation_state* self);
 
-void gc_on_allocate(struct arena_block* block, struct generation* gen);
-void gc_need_remark(struct arena_block* obj);
+void gc_on_allocate(struct alloc_unit* block, struct generation* gen);
+void gc_need_remark(struct alloc_unit* obj);
 
 // These can't be nested
 void gc_block(struct gc_per_generation_state* self);

@@ -28,7 +28,7 @@ void thread_free(struct thread* self) {
   free(self);
 }
 
-struct root_ref* thread_new_root_ref_no_gc_block(struct thread* self, struct arena_block* block) {
+struct root_ref* thread_new_root_ref_no_gc_block(struct thread* self, struct alloc_unit* block) {
   struct root_ref* ref = thread_prealloc_root_ref(self);
   if (!ref)
     return NULL;
@@ -51,7 +51,7 @@ struct root_ref* thread_prealloc_root_ref(struct thread* self) {
   return malloc(sizeof(struct root_ref));
 }
 
-void thread_new_root_ref_from_prealloc_no_gc_block(struct thread* self, struct root_ref* prealloc, struct arena_block* block) {
+void thread_new_root_ref_from_prealloc_no_gc_block(struct thread* self, struct root_ref* prealloc, struct alloc_unit* block) {
   prealloc->obj = block;
   self->rootSize++;
   flup_list_add_head(&self->rootEntries, &prealloc->node);

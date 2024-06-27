@@ -18,11 +18,11 @@ struct thread {
 struct thread* thread_new(struct heap* owner);
 void thread_free(struct thread* self);
 
-struct root_ref* thread_new_root_ref_no_gc_block(struct thread* self, struct arena_block* block);
+struct root_ref* thread_new_root_ref_no_gc_block(struct thread* self, struct alloc_unit* block);
 void thread_unref_root_no_gc_block(struct thread* self, struct root_ref* ref);
 
 // Preallocation
 struct root_ref* thread_prealloc_root_ref(struct thread* self);
-void thread_new_root_ref_from_prealloc_no_gc_block(struct thread* self, struct root_ref* prealloc, struct arena_block* block);
+void thread_new_root_ref_from_prealloc_no_gc_block(struct thread* self, struct root_ref* prealloc, struct alloc_unit* block);
 
 #endif

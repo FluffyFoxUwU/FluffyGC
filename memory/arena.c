@@ -13,12 +13,12 @@
 
 #include "arena.h"
 
-struct arena* arena_new(size_t size) {
-  struct arena* self = malloc(sizeof(*self));
+struct alloc_tracker* arena_new(size_t size) {
+  struct alloc_tracker* self = malloc(sizeof(*self));
   if (!self)
     return NULL;
   
-  *self = (struct arena) {
+  *self = (struct alloc_tracker) {
     .currentUsage = 0,
     .maxSize = size
   };
@@ -26,7 +26,7 @@ struct arena* arena_new(size_t size) {
   return self;
 }
 
-void arena_free(struct arena* self) {
+void arena_free(struct alloc_tracker* self) {
   if (!self)
     return;
   
@@ -34,19 +34,19 @@ void arena_free(struct arena* self) {
   free(self);
 }
 
-static void freeBlock(struct arena_block* block) {
+static void freeBlock(struct alloc_unit* block) {
   free(block->data);
   free(block);
 }
 
-struct arena_block* arena_alloc(struct arena* self, size_t allocSize) {
-  struct arena_block* blockMetadata;
+struct alloc_unit* arena_alloc(struct alloc_tracker* self, size_t allocSize) {
+  struct alloc_unit* blockMetadata;
   
   blockMetadata = malloc(sizeof(*blockMetadata));
   if (!blockMetadata)
     goto failure;
 
-  *blockMetadata = (struct arena_block) {
+  *blockMetadata = (struct alloc_unit) {
     .size = allocSize
   };
   
@@ -55,7 +55,7 @@ struct arena_block* arena_alloc(struct arena* self, size_t allocSize) {
   
   // Only add the block to array and update stats if ready to use
   // atomic_fetch_add(&self->currentUsage, totalSize);
-  size_t totalSize = allocSize + sizeof(struct arena_block);
+  size_t totalSize = allocSize + sizeof(struct alloc_unit);
   size_t oldSize = atomic_load(&self->currentUsage);
   size_t newSize;
   do {
@@ -65,7 +65,7 @@ struct arena_block* arena_alloc(struct arena* self, size_t allocSize) {
     newSize = oldSize + totalSize;
   } while (!atomic_compare_exchange_weak(&self->currentUsage, &oldSize, newSize));
   
-  atomic_fetch_add(&self->metadataUsage, sizeof(struct arena_block));
+  atomic_fetch_add(&self->metadataUsage, sizeof(struct alloc_unit));
   atomic_fetch_add(&self->nonMetadataUsage, allocSize);
   atomic_fetch_add(&self->lifetimeBytesAllocated, totalSize);
   arena_move_one_block_from_detached_to_real_head(self, blockMetadata);
@@ -76,12 +76,12 @@ failure:
   return NULL;
 }
 
-void arena_wipe(struct arena* self) {
+void arena_wipe(struct alloc_tracker* self) {
   self->currentUsage = 0;
   
   // Detach head so can be independently wiped
-  struct arena_block* current = arena_detach_head(self);
-  struct arena_block* next;
+  struct alloc_unit* current = arena_detach_head(self);
+  struct alloc_unit* next;
   while (current) {
     next = current->next;
     arena_dealloc(self, current);
@@ -89,7 +89,7 @@ void arena_wipe(struct arena* self) {
   }
 }
 
-void arena_dealloc(struct arena* self, struct arena_block* blk) {
+void arena_dealloc(struct alloc_tracker* self, struct alloc_unit* blk) {
   atomic_fetch_sub(&self->currentUsage, blk->size + sizeof(*blk));
   atomic_fetch_sub(&self->metadataUsage, sizeof(*blk));
   atomic_fetch_sub(&self->nonMetadataUsage, blk->size);
@@ -97,19 +97,19 @@ void arena_dealloc(struct arena* self, struct arena_block* blk) {
   free(blk);
 }
 
-bool arena_is_end_of_detached_head(struct arena_block* blk) {
+bool arena_is_end_of_detached_head(struct alloc_unit* blk) {
   return blk->next == NULL;
 }
 
-void arena_move_one_block_from_detached_to_real_head(struct arena* self, struct arena_block* blk) {
-  struct arena_block* oldHead = atomic_load(&self->head);
+void arena_move_one_block_from_detached_to_real_head(struct alloc_tracker* self, struct alloc_unit* blk) {
+  struct alloc_unit* oldHead = atomic_load(&self->head);
   do {
     blk->next = oldHead;
   } while (!atomic_compare_exchange_weak(&self->head, &oldHead, blk));
 }
 
 // Replace current head with NULL so alloc start new chain
-struct arena_block* arena_detach_head(struct arena* self) {
+struct alloc_unit* arena_detach_head(struct alloc_tracker* self) {
   return atomic_exchange(&self->head, NULL);
 }
 

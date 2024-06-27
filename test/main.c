@@ -113,7 +113,7 @@ int main() {
   struct array {
     size_t length;
     size_t capacity;
-    _Atomic(struct arena_block*) array[];
+    _Atomic(struct alloc_unit*) array[];
   };
   
   struct number {

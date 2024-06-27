@@ -27,7 +27,7 @@
 
 #include "gc.h"
 
-void gc_on_allocate(struct arena_block* block, struct generation* gen) {
+void gc_on_allocate(struct alloc_unit* block, struct generation* gen) {
   block->gcMetadata.markBit = !gen->gcState->mutatorMarkedBitValue;
   block->gcMetadata.owningGeneration = gen;
   
@@ -46,7 +46,7 @@ void gc_on_allocate(struct arena_block* block, struct generation* gen) {
   }
 }
 
-void gc_need_remark(struct arena_block* obj) {
+void gc_need_remark(struct alloc_unit* obj) {
   if (!obj)
     return;
   
@@ -132,7 +132,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   free(self);
 }
 
-static bool markOneItem(struct gc_per_generation_state* state, struct arena_block* parent, size_t parentIndex, struct arena_block* fieldContent) {
+static bool markOneItem(struct gc_per_generation_state* state, struct alloc_unit* parent, size_t parentIndex, struct alloc_unit* fieldContent) {
   if (!fieldContent)
     return true;
   
@@ -158,7 +158,7 @@ static bool markOneItem(struct gc_per_generation_state* state, struct arena_bloc
 }
 
 static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_state* markState) {
-  struct arena_block* block = markState->block;
+  struct alloc_unit* block = markState->block;
   bool markBit = atomic_exchange(&block->gcMetadata.markBit, state->GCMarkedBitValue);
   if (markState->fieldIndex == 0 && markBit == state->GCMarkedBitValue)
     return;
@@ -173,7 +173,7 @@ static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_st
   size_t fieldIndex = 0;
   for (fieldIndex = markState->fieldIndex; fieldIndex < desc->fieldCount; fieldIndex++) {
     size_t offset = desc->fields[fieldIndex].offset;
-    _Atomic(struct arena_block*)* fieldPtr = (_Atomic(struct arena_block*)*) ((void*) (((char*) block->data) + offset));
+    _Atomic(struct alloc_unit*)* fieldPtr = (_Atomic(struct alloc_unit*)*) ((void*) (((char*) block->data) + offset));
     if (!markOneItem(state, block, fieldIndex, atomic_load(fieldPtr)))
       return;
   }
@@ -183,7 +183,7 @@ static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_st
   
   size_t flexArrayCount = (block->size - desc->objectSize) / sizeof(void*);
   for (size_t i = 0; i < flexArrayCount; i++) {
-    _Atomic(struct arena_block*)* fieldPtr = (_Atomic(struct arena_block*)*) ((void*) (((char*) block->data) + desc->objectSize + i * sizeof(void*)));
+    _Atomic(struct alloc_unit*)* fieldPtr = (_Atomic(struct alloc_unit*)*) ((void*) (((char*) block->data) + desc->objectSize + i * sizeof(void*)));
     if (!markOneItem(state, block, fieldIndex + i, atomic_load(fieldPtr)))
       return;
   }
@@ -191,7 +191,7 @@ static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_st
 
 static void processMarkQueue(struct gc_per_generation_state* state) {
   int ret;
-  struct arena_block* current;
+  struct alloc_unit* current;
   while ((ret = flup_circular_buffer_read(state->gcMarkQueueUwU, &current, sizeof(void*))) == 0) {
     struct gc_mark_state markState = {
       .block = current,
@@ -204,7 +204,7 @@ static void processMarkQueue(struct gc_per_generation_state* state) {
     flup_panic("Error reading GC mark queue: %d", ret);
 }
 
-static void doMark(struct gc_per_generation_state* state, struct arena_block* block) {
+static void doMark(struct gc_per_generation_state* state, struct alloc_unit* block) {
   int ret;
   if ((ret = flup_circular_buffer_write(state->gcMarkQueueUwU, &block, sizeof(void*))) < 0)
     flup_panic("Cannot enqueue to GC mark queue (configured queue size was %zu bytes): %d", (size_t) GC_MARK_QUEUE_SIZE, ret);
@@ -223,7 +223,7 @@ static void doMark(struct gc_per_generation_state* state, struct arena_block* bl
 
 struct cycle_state {
   struct gc_per_generation_state* self;
-  struct arena* arena;
+  struct alloc_tracker* arena;
   struct heap* heap;
   
   // Temporary stats stored here before finally copied to per generation state
@@ -231,11 +231,11 @@ struct cycle_state {
   
   struct timespec pauseBegin, pauseEnd;
   
-  struct arena_block* detachedHeadToBeSwept;
+  struct alloc_unit* detachedHeadToBeSwept;
 };
 
 static void takeRootSnapshotPhase(struct cycle_state* state) {
-  struct arena_block** rootSnapshot = realloc(state->self->snapshotOfRootSet, state->heap->mainThread->rootSize * sizeof(void*));
+  struct alloc_unit** rootSnapshot = realloc(state->self->snapshotOfRootSet, state->heap->mainThread->rootSize * sizeof(void*));
   if (!rootSnapshot)
     flup_panic("Error reserving memory for root set snapshot");
   state->self->snapshotOfRootSet = rootSnapshot;
@@ -255,7 +255,7 @@ static void markingPhase(struct cycle_state* state) {
 }
 
 static void processMutatorMarkQueuePhase(struct cycle_state* state) {
-  struct arena_block* current;
+  struct alloc_unit* current;
   int ret;
   while ((ret = flup_buffer_read2(state->self->needRemarkQueue, &current, sizeof(void*), FLUP_BUFFER_READ2_DONT_WAIT_FOR_DATA)) >= 0) {
     atomic_store(&current->gcMetadata.markBit, !state->self->GCMarkedBitValue);
@@ -274,8 +274,8 @@ static void sweepPhase(struct cycle_state* state) {
   uint64_t liveObjectCount = 0;
   size_t liveObjectSize = 0;
   
-  struct arena_block* block = state->detachedHeadToBeSwept;
-  struct arena_block* next;
+  struct alloc_unit* block = state->detachedHeadToBeSwept;
+  struct alloc_unit* next;
   while (block) {
     next = block->next;
     

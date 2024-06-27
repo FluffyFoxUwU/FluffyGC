@@ -46,7 +46,7 @@ void heap_free(struct heap* self) {
   free(self);
 }
 
-struct root_ref* heap_new_root_ref_unlocked(struct heap* self, struct arena_block* obj) {
+struct root_ref* heap_new_root_ref_unlocked(struct heap* self, struct alloc_unit* obj) {
   return thread_new_root_ref_no_gc_block(self->mainThread, obj);
 }
 
@@ -72,7 +72,7 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
     return NULL;
   
   heap_block_gc(self);
-  struct arena_block* newObj = generation_alloc(self->gen, size);
+  struct alloc_unit* newObj = generation_alloc(self->gen, size);
   for (int i = 0; i < HEAP_ALLOC_RETRY_COUNT && newObj == NULL; i++) {
     pr_info("Allocation failed trying calling GC #%d", i + 1);
     heap_unblock_gc(self);

@@ -20,7 +20,7 @@ struct heap {
 
 struct root_ref {
   flup_list_head node;
-  struct arena_block* obj;
+  struct alloc_unit* obj;
 };
 
 struct heap* heap_new(size_t size);
@@ -29,7 +29,7 @@ void heap_free(struct heap* self);
 struct root_ref* heap_alloc(struct heap* self, size_t size);
 struct root_ref* heap_alloc_with_descriptor(struct heap* self, struct descriptor* desc, size_t extraSize);
 
-struct root_ref* heap_new_root_ref_unlocked(struct heap* self, struct arena_block* obj);
+struct root_ref* heap_new_root_ref_unlocked(struct heap* self, struct alloc_unit* obj);
 void heap_root_unref(struct heap* self, struct root_ref* ref);
 
 // These can't be nested
