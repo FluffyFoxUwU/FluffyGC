@@ -3,7 +3,6 @@
 
 #include "generation.h"
 #include "gc/gc.h"
-#include "heap/heap.h"
 #include "memory/arena.h"
 
 struct generation* generation_new(size_t sz) {
@@ -12,7 +11,7 @@ struct generation* generation_new(size_t sz) {
     return NULL;
   
   *self = (struct generation) {};
-  if (!(self->arena = arena_new(sz)))
+  if (!(self->allocTracker = arena_new(sz)))
     goto failure;
   
   if (!(self->gcState = gc_per_generation_state_new(self)))
@@ -28,12 +27,12 @@ void generation_free(struct generation* self) {
   if (!self)
     return;
   gc_per_generation_state_free(self->gcState);
-  arena_free(self->arena);
+  arena_free(self->allocTracker);
   free(self);
 }
 
 struct alloc_unit* generation_alloc(struct generation* self, size_t size) {
-  struct alloc_unit* block = arena_alloc(self->arena, size);
+  struct alloc_unit* block = arena_alloc(self->allocTracker, size);
   if (!block)
     return NULL;
   

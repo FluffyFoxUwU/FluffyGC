@@ -35,8 +35,8 @@ void gc_on_allocate(struct alloc_unit* block, struct generation* gen) {
   if (atomic_load(&gen->gcState->cycleInProgress))
     return;
   
-  size_t usage = atomic_load(&gen->arena->currentUsage);
-  size_t maxSize = gen->arena->maxSize;
+  size_t usage = atomic_load(&gen->allocTracker->currentUsage);
+  size_t maxSize = gen->allocTracker->maxSize;
   size_t softLimit = (size_t) ((float) maxSize * gen->gcState->asyncTriggerThreshold);
   
   // Start GC cycle so memory freed before mutator has to start
@@ -329,7 +329,7 @@ static void unpauseAppThreads(struct cycle_state* state) {
 
 static void cycleRunner(struct gc_per_generation_state* self) {
   struct cycle_state state = {
-    .arena = self->ownerGen->arena,
+    .arena = self->ownerGen->allocTracker,
     .self = self,
     .heap = self->ownerGen->ownerHeap
   };

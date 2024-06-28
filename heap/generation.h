@@ -8,7 +8,7 @@
 
 struct generation {
   struct heap* ownerHeap;
-  struct alloc_tracker* arena;
+  struct alloc_tracker* allocTracker;
   struct gc_per_generation_state* gcState;
 };
 

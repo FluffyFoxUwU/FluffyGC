@@ -94,11 +94,11 @@ int main() {
       if (gcCPUUtilization > 1.0f)
         gcCPUUtilization = 1.0f;
       
-      size_t usage = atomic_load(&heap->gen->arena->currentUsage);
-      size_t metadataUsage = atomic_load(&heap->gen->arena->metadataUsage);
-      size_t nonMetadataUsage = atomic_load(&heap->gen->arena->nonMetadataUsage);
+      size_t usage = atomic_load(&heap->gen->allocTracker->currentUsage);
+      size_t metadataUsage = atomic_load(&heap->gen->allocTracker->metadataUsage);
+      size_t nonMetadataUsage = atomic_load(&heap->gen->allocTracker->nonMetadataUsage);
       
-      size_t maxSize = heap->gen->arena->maxSize;
+      size_t maxSize = heap->gen->allocTracker->maxSize;
       size_t asyncCycleTriggerThreshold = (size_t) ((float) maxSize * heap->gen->gcState->asyncTriggerThreshold);
       fprintf(statCSVFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", time - testStartTime, (double) usage / 1024 / 1024, (double) asyncCycleTriggerThreshold / 1024 / 1024, (double) metadataUsage / 1024 / 1024, (double) nonMetadataUsage / 1024 / 1024, (double) maxSize / 1024 / 1024, mutatorCPUUtilization * 100.0f, gcCPUUtilization * 100.0f);
       
@@ -290,7 +290,7 @@ int main() {
   double startTime = (double) start.tv_sec + (double) start.tv_nsec / 1e9;
   double endTime = (double) end.tv_sec + (double) end.tv_nsec / 1e9;
   pr_info("Test duration was %lf sec", endTime - startTime);
-  pr_info("And %lf MiB allocated during lifetime", ((double) atomic_load(&heap->gen->arena->lifetimeBytesAllocated)) / 1024.0f / 1024.0f);
+  pr_info("And %lf MiB allocated during lifetime", ((double) atomic_load(&heap->gen->allocTracker->lifetimeBytesAllocated)) / 1024.0f / 1024.0f);
   
   pr_info("Exiting... UwU");
   
