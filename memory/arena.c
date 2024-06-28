@@ -80,7 +80,10 @@ void arena_wipe(struct alloc_tracker* self) {
   self->currentUsage = 0;
   
   // Detach head so can be independently wiped
-  struct alloc_unit* current = arena_detach_head(self);
+  struct alloc_unit* current;
+  struct alloc_tracker_detached_head detached;
+  arena_detach_head(self, &detached);
+  current = detached.head;
   struct alloc_unit* next;
   while (current) {
     next = current->next;
@@ -109,7 +112,7 @@ void arena_move_one_block_from_detached_to_real_head(struct alloc_tracker* self,
 }
 
 // Replace current head with NULL so alloc start new chain
-struct alloc_unit* arena_detach_head(struct alloc_tracker* self) {
-  return atomic_exchange(&self->head, NULL);
+void arena_detach_head(struct alloc_tracker* self, struct alloc_tracker_detached_head* detached) {
+  detached->head = atomic_exchange(&self->head, NULL);
 }
 

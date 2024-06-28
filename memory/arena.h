@@ -38,7 +38,11 @@ struct alloc_unit {
   void* data;
 };
 
-struct alloc_unit* arena_detach_head(struct alloc_tracker* self);
+struct alloc_tracker_detached_head {
+  struct alloc_unit* head;
+};
+
+void arena_detach_head(struct alloc_tracker* self, struct alloc_tracker_detached_head* detached);
 bool arena_is_end_of_detached_head(struct alloc_unit* blk);
 void arena_move_one_block_from_detached_to_real_head(struct alloc_tracker* self, struct alloc_unit* blk);
 

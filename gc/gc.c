@@ -350,7 +350,9 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   
   atomic_store(&self->markingInProgress, true);
   takeRootSnapshotPhase(&state);
-  state.detachedHeadToBeSwept = arena_detach_head(state.arena);
+  struct alloc_tracker_detached_head detached;
+  arena_detach_head(state.arena, &detached);
+  state.detachedHeadToBeSwept = detached.head;
   unpauseAppThreads(&state);
   
   markingPhase(&state);
