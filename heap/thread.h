@@ -6,7 +6,7 @@
 #include <flup/concurrency/mutex.h>
 #include <flup/data_structs/list_head.h>
 
-#include "memory/arena.h"
+#include "memory/alloc_tracker.h"
 
 struct thread {
   struct heap* ownerHeap;

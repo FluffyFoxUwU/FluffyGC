@@ -7,7 +7,7 @@
 #include <flup/data_structs/list_head.h>
 
 #include "heap/generation.h"
-#include "memory/arena.h"
+#include "memory/alloc_tracker.h"
 #include "object/descriptor.h"
 
 struct descriptor;

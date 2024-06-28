@@ -4,7 +4,7 @@
 #include <flup/concurrency/mutex.h>
 
 #include "gc/gc.h"
-#include "memory/arena.h"
+#include "memory/alloc_tracker.h"
 #include "helper.h"
 #include "heap/heap.h"
 

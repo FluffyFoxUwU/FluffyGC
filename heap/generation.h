@@ -4,7 +4,6 @@
 #include <stddef.h>
 
 #include "gc/gc.h"
-#include "memory/arena.h"
 
 struct generation {
   struct heap* ownerHeap;

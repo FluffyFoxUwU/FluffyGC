@@ -4,7 +4,7 @@
 
 #include "gc/gc.h"
 #include "heap/heap.h"
-#include "memory/arena.h"
+#include "memory/alloc_tracker.h"
 #include "thread.h"
 
 struct thread* thread_new(struct heap* owner) {

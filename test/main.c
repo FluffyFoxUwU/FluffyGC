@@ -13,7 +13,7 @@
 #include <flup/thread/thread.h>
 
 #include "heap/heap.h"
-#include "memory/arena.h"
+#include "memory/alloc_tracker.h"
 #include "object/descriptor.h"
 #include "object/helper.h"
 

@@ -14,7 +14,7 @@
 #include "gc/gc.h"
 #include "heap/generation.h"
 #include "heap/thread.h"
-#include "memory/arena.h"
+#include "memory/alloc_tracker.h"
 #include "object/descriptor.h"
 
 #define HEAP_ALLOC_RETRY_COUNT 5

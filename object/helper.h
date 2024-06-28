@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #include "heap/heap.h"
-#include "memory/arena.h"
+#include "memory/alloc_tracker.h"
 
 // A little helpers to read/write refs in object
 // and triggering necessary barriers

@@ -11,7 +11,7 @@
 #include <flup/core/logger.h>
 #include <flup/util/min_max.h>
 
-#include "arena.h"
+#include "alloc_tracker.h"
 
 struct alloc_tracker* alloc_tracker_new(size_t size) {
   struct alloc_tracker* self = malloc(sizeof(*self));

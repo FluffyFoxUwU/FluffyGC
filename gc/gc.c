@@ -21,7 +21,7 @@
 
 #include "heap/heap.h"
 #include "heap/thread.h"
-#include "memory/arena.h"
+#include "memory/alloc_tracker.h"
 #include "heap/generation.h"
 #include "object/descriptor.h"
 

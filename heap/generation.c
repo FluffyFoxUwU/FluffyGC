@@ -3,7 +3,7 @@
 
 #include "generation.h"
 #include "gc/gc.h"
-#include "memory/arena.h"
+#include "memory/alloc_tracker.h"
 
 struct generation* generation_new(size_t sz) {
   struct generation* self = malloc(sizeof(*self));
