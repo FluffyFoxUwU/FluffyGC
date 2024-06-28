@@ -231,7 +231,7 @@ struct cycle_state {
   
   struct timespec pauseBegin, pauseEnd;
   
-  struct alloc_unit* detachedHeadToBeSwept;
+  struct alloc_tracker_snapshot objectsListSnapshot;
 };
 
 static void takeRootSnapshotPhase(struct cycle_state* state) {
@@ -274,7 +274,7 @@ static void sweepPhase(struct cycle_state* state) {
   uint64_t liveObjectCount = 0;
   size_t liveObjectSize = 0;
   
-  struct alloc_unit* block = state->detachedHeadToBeSwept;
+  struct alloc_unit* block = state->objectsListSnapshot.head;
   struct alloc_unit* next;
   while (block) {
     next = block->next;
@@ -289,7 +289,7 @@ static void sweepPhase(struct cycle_state* state) {
       liveObjectSize += block->size;
       
       // Add the same block back to real head
-      arena_move_one_block_from_detached_to_real_head(state->arena, block);
+      arena_unsnapshot(state->arena, &state->objectsListSnapshot, block);
       goto continue_to_next;
     }
     
@@ -350,9 +350,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   
   atomic_store(&self->markingInProgress, true);
   takeRootSnapshotPhase(&state);
-  struct alloc_tracker_detached_head detached;
-  arena_detach_head(state.arena, &detached);
-  state.detachedHeadToBeSwept = detached.head;
+  arena_take_snapshot(state.arena, &state.objectsListSnapshot);
   unpauseAppThreads(&state);
   
   markingPhase(&state);

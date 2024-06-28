@@ -39,6 +39,13 @@ static void freeBlock(struct alloc_unit* block) {
   free(block);
 }
 
+static void addBlock(struct alloc_tracker* self, struct alloc_unit* block) {
+  struct alloc_unit* oldHead = atomic_load(&self->head);
+  do {
+    block->next = oldHead;
+  } while (!atomic_compare_exchange_weak(&self->head, &oldHead, block));
+}
+
 struct alloc_unit* arena_alloc(struct alloc_tracker* self, size_t allocSize) {
   struct alloc_unit* blockMetadata;
   
@@ -68,7 +75,7 @@ struct alloc_unit* arena_alloc(struct alloc_tracker* self, size_t allocSize) {
   atomic_fetch_add(&self->metadataUsage, sizeof(struct alloc_unit));
   atomic_fetch_add(&self->nonMetadataUsage, allocSize);
   atomic_fetch_add(&self->lifetimeBytesAllocated, totalSize);
-  arena_move_one_block_from_detached_to_real_head(self, blockMetadata);
+  addBlock(self, blockMetadata);
   return blockMetadata;
 
 failure:
@@ -81,8 +88,8 @@ void arena_wipe(struct alloc_tracker* self) {
   
   // Detach head so can be independently wiped
   struct alloc_unit* current;
-  struct alloc_tracker_detached_head detached;
-  arena_detach_head(self, &detached);
+  struct alloc_tracker_snapshot detached;
+  arena_take_snapshot(self, &detached);
   current = detached.head;
   struct alloc_unit* next;
   while (current) {
@@ -104,15 +111,12 @@ bool arena_is_end_of_detached_head(struct alloc_unit* blk) {
   return blk->next == NULL;
 }
 
-void arena_move_one_block_from_detached_to_real_head(struct alloc_tracker* self, struct alloc_unit* blk) {
-  struct alloc_unit* oldHead = atomic_load(&self->head);
-  do {
-    blk->next = oldHead;
-  } while (!atomic_compare_exchange_weak(&self->head, &oldHead, blk));
+void arena_unsnapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, struct alloc_unit* blk) {
+  (void) snapshot;
+  addBlock(self, blk);
 }
 
-// Replace current head with NULL so alloc start new chain
-void arena_detach_head(struct alloc_tracker* self, struct alloc_tracker_detached_head* detached) {
+void arena_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* detached) {
   detached->head = atomic_exchange(&self->head, NULL);
 }
 

@@ -38,13 +38,15 @@ struct alloc_unit {
   void* data;
 };
 
-struct alloc_tracker_detached_head {
+// Snapshot of list of heap objects
+// at the time of snapshot for GC traversal
+struct alloc_tracker_snapshot {
   struct alloc_unit* head;
 };
 
-void arena_detach_head(struct alloc_tracker* self, struct alloc_tracker_detached_head* detached);
+void arena_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot);
 bool arena_is_end_of_detached_head(struct alloc_unit* blk);
-void arena_move_one_block_from_detached_to_real_head(struct alloc_tracker* self, struct alloc_unit* blk);
+void arena_unsnapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, struct alloc_unit* blk);
 
 struct alloc_tracker* arena_new(size_t size);
 void arena_free(struct alloc_tracker* self);
