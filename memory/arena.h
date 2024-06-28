@@ -45,7 +45,6 @@ struct alloc_tracker_snapshot {
 };
 
 void arena_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot);
-bool arena_is_end_of_detached_head(struct alloc_unit* blk);
 void arena_unsnapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, struct alloc_unit* blk);
 
 struct alloc_tracker* arena_new(size_t size);

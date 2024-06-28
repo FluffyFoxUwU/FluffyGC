@@ -107,10 +107,6 @@ void arena_dealloc(struct alloc_tracker* self, struct alloc_unit* blk) {
   free(blk);
 }
 
-bool arena_is_end_of_detached_head(struct alloc_unit* blk) {
-  return blk->next == NULL;
-}
-
 void arena_unsnapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, struct alloc_unit* blk) {
   (void) snapshot;
   addBlock(self, blk);
