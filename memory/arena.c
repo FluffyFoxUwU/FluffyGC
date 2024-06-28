@@ -30,7 +30,12 @@ void arena_free(struct alloc_tracker* self) {
   if (!self)
     return;
   
-  arena_wipe(self);
+  struct alloc_unit* next = self->head;
+  while (next) {
+    struct alloc_unit* current = next;
+    next = next->next;
+    arena_dealloc(self, current);
+  }
   free(self);
 }
 
@@ -81,22 +86,6 @@ struct alloc_unit* arena_alloc(struct alloc_tracker* self, size_t allocSize) {
 failure:
   freeBlock(blockMetadata);
   return NULL;
-}
-
-void arena_wipe(struct alloc_tracker* self) {
-  self->currentUsage = 0;
-  
-  // Detach head so can be independently wiped
-  struct alloc_unit* current;
-  struct alloc_tracker_snapshot detached;
-  arena_take_snapshot(self, &detached);
-  current = detached.head;
-  struct alloc_unit* next;
-  while (current) {
-    next = current->next;
-    arena_dealloc(self, current);
-    current = next;
-  }
 }
 
 void arena_dealloc(struct alloc_tracker* self, struct alloc_unit* blk) {

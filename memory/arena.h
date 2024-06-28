@@ -53,6 +53,4 @@ void arena_free(struct alloc_tracker* self);
 struct alloc_unit* arena_alloc(struct alloc_tracker* self, size_t size);
 void arena_dealloc(struct alloc_tracker* self, struct alloc_unit* blk);
 
-void arena_wipe(struct alloc_tracker* self);
-
 #endif
