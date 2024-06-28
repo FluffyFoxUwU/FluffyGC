@@ -44,13 +44,13 @@ struct alloc_tracker_snapshot {
   struct alloc_unit* head;
 };
 
-void arena_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot);
-void arena_unsnapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, struct alloc_unit* blk);
+void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot);
+void alloc_tracker_unsnapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, struct alloc_unit* blk);
 
-struct alloc_tracker* arena_new(size_t size);
-void arena_free(struct alloc_tracker* self);
+struct alloc_tracker* alloc_tracker_new(size_t size);
+void alloc_tracker_free(struct alloc_tracker* self);
 
-struct alloc_unit* arena_alloc(struct alloc_tracker* self, size_t size);
-void arena_dealloc(struct alloc_tracker* self, struct alloc_unit* blk);
+struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, size_t size);
+void alloc_tracker_dealloc(struct alloc_tracker* self, struct alloc_unit* blk);
 
 #endif

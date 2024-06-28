@@ -289,14 +289,14 @@ static void sweepPhase(struct cycle_state* state) {
       liveObjectSize += block->size;
       
       // Add the same block back to real head
-      arena_unsnapshot(state->arena, &state->objectsListSnapshot, block);
+      alloc_tracker_unsnapshot(state->arena, &state->objectsListSnapshot, block);
       goto continue_to_next;
     }
     
     sweepedCount++;
     sweepSize += block->size;
     
-    arena_dealloc(state->arena, block);
+    alloc_tracker_dealloc(state->arena, block);
     
 continue_to_next:
     block = next;
@@ -350,7 +350,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   
   atomic_store(&self->markingInProgress, true);
   takeRootSnapshotPhase(&state);
-  arena_take_snapshot(state.arena, &state.objectsListSnapshot);
+  alloc_tracker_take_snapshot(state.arena, &state.objectsListSnapshot);
   unpauseAppThreads(&state);
   
   markingPhase(&state);

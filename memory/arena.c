@@ -13,7 +13,7 @@
 
 #include "arena.h"
 
-struct alloc_tracker* arena_new(size_t size) {
+struct alloc_tracker* alloc_tracker_new(size_t size) {
   struct alloc_tracker* self = malloc(sizeof(*self));
   if (!self)
     return NULL;
@@ -26,7 +26,7 @@ struct alloc_tracker* arena_new(size_t size) {
   return self;
 }
 
-void arena_free(struct alloc_tracker* self) {
+void alloc_tracker_free(struct alloc_tracker* self) {
   if (!self)
     return;
   
@@ -34,7 +34,7 @@ void arena_free(struct alloc_tracker* self) {
   while (next) {
     struct alloc_unit* current = next;
     next = next->next;
-    arena_dealloc(self, current);
+    alloc_tracker_dealloc(self, current);
   }
   free(self);
 }
@@ -51,7 +51,7 @@ static void addBlock(struct alloc_tracker* self, struct alloc_unit* block) {
   } while (!atomic_compare_exchange_weak(&self->head, &oldHead, block));
 }
 
-struct alloc_unit* arena_alloc(struct alloc_tracker* self, size_t allocSize) {
+struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, size_t allocSize) {
   struct alloc_unit* blockMetadata;
   
   blockMetadata = malloc(sizeof(*blockMetadata));
@@ -88,7 +88,7 @@ failure:
   return NULL;
 }
 
-void arena_dealloc(struct alloc_tracker* self, struct alloc_unit* blk) {
+void alloc_tracker_dealloc(struct alloc_tracker* self, struct alloc_unit* blk) {
   atomic_fetch_sub(&self->currentUsage, blk->size + sizeof(*blk));
   atomic_fetch_sub(&self->metadataUsage, sizeof(*blk));
   atomic_fetch_sub(&self->nonMetadataUsage, blk->size);
@@ -96,12 +96,12 @@ void arena_dealloc(struct alloc_tracker* self, struct alloc_unit* blk) {
   free(blk);
 }
 
-void arena_unsnapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, struct alloc_unit* blk) {
+void alloc_tracker_unsnapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, struct alloc_unit* blk) {
   (void) snapshot;
   addBlock(self, blk);
 }
 
-void arena_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* detached) {
+void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* detached) {
   detached->head = atomic_exchange(&self->head, NULL);
 }
 
