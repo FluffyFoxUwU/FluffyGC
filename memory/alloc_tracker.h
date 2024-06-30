@@ -45,12 +45,15 @@ struct alloc_tracker_snapshot {
 };
 
 void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot);
-void alloc_tracker_unsnapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, struct alloc_unit* blk);
+
+// Return true if the block going to be unsnapshotted
+// or false if not
+typedef bool (^alloc_tracker_snapshot_filter_func)(struct alloc_unit* blk);
+void alloc_tracker_filter_snapshot_and_delete_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, alloc_tracker_snapshot_filter_func filter);
 
 struct alloc_tracker* alloc_tracker_new(size_t size);
 void alloc_tracker_free(struct alloc_tracker* self);
 
 struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, size_t size);
-void alloc_tracker_dealloc(struct alloc_tracker* self, struct alloc_unit* blk);
 
 #endif

@@ -265,42 +265,29 @@ static void processMutatorMarkQueuePhase(struct cycle_state* state) {
 }
 
 static void sweepPhase(struct cycle_state* state) {
-  uint64_t count = 0;
-  size_t totalSize = 0;
+  __block uint64_t count = 0;
+  __block size_t totalSize = 0;
   
-  uint64_t sweepedCount = 0;
-  size_t sweepSize = 0;
+  __block uint64_t sweepedCount = 0;
+  __block size_t sweepSize = 0;
   
-  uint64_t liveObjectCount = 0;
-  size_t liveObjectSize = 0;
+  __block uint64_t liveObjectCount = 0;
+  __block size_t liveObjectSize = 0;
   
-  struct alloc_unit* block = state->objectsListSnapshot.head;
-  struct alloc_unit* next;
-  while (block) {
-    next = block->next;
-    
+  alloc_tracker_filter_snapshot_and_delete_snapshot(state->arena, &state->objectsListSnapshot, ^bool (struct alloc_unit* block) {
     count++;
     totalSize += block->size;
-    // Mark must be invalid because when head is detached app is blocked from
-    // creating new objects
     // Object is alive continuing
     if (atomic_load(&block->gcMetadata.markBit) == state->self->GCMarkedBitValue) {
       liveObjectCount++;
       liveObjectSize += block->size;
-      
-      // Add the same block back to real head
-      alloc_tracker_unsnapshot(state->arena, &state->objectsListSnapshot, block);
-      goto continue_to_next;
+      return true;
     }
     
     sweepedCount++;
     sweepSize += block->size;
-    
-    alloc_tracker_dealloc(state->arena, block);
-    
-continue_to_next:
-    block = next;
-  }
+    return false;
+  });
   
   state->stats.lifetimeTotalSweepedObjectCount += sweepedCount;
   state->stats.lifetimeTotalSweepedObjectSize += sweepSize;

@@ -30,13 +30,30 @@ void alloc_tracker_free(struct alloc_tracker* self) {
   if (!self)
     return;
   
-  struct alloc_unit* next = self->head;
+  // Riding on the behaviour lol
+  struct alloc_tracker_snapshot snapshot;
+  alloc_tracker_take_snapshot(self, &snapshot);
+  alloc_tracker_filter_snapshot_and_delete_snapshot(self, &snapshot, ^bool(struct alloc_unit*) {
+    return false;
+  });
+  
+  free(self);
+}
+
+static void deallocBlock(struct alloc_tracker* self, struct alloc_unit* blk);
+static void addBlock(struct alloc_tracker* self, struct alloc_unit* block);
+void alloc_tracker_filter_snapshot_and_delete_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, alloc_tracker_snapshot_filter_func filter) {
+  struct alloc_unit* next = snapshot->head;
   while (next) {
     struct alloc_unit* current = next;
     next = next->next;
-    alloc_tracker_dealloc(self, current);
+    
+    if (filter(current))
+      addBlock(self, current);
+    else
+      deallocBlock(self, current);
   }
-  free(self);
+  snapshot->head = NULL;
 }
 
 static void freeBlock(struct alloc_unit* block) {
@@ -88,17 +105,12 @@ failure:
   return NULL;
 }
 
-void alloc_tracker_dealloc(struct alloc_tracker* self, struct alloc_unit* blk) {
+static void deallocBlock(struct alloc_tracker* self, struct alloc_unit* blk) {
   atomic_fetch_sub(&self->currentUsage, blk->size + sizeof(*blk));
   atomic_fetch_sub(&self->metadataUsage, sizeof(*blk));
   atomic_fetch_sub(&self->nonMetadataUsage, blk->size);
   free(blk->data);
   free(blk);
-}
-
-void alloc_tracker_unsnapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, struct alloc_unit* blk) {
-  (void) snapshot;
-  addBlock(self, blk);
 }
 
 void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* detached) {
