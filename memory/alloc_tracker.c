@@ -41,7 +41,7 @@ void alloc_tracker_free(struct alloc_tracker* self) {
 }
 
 static void deallocBlock(struct alloc_tracker* self, struct alloc_unit* blk);
-static void addBlock(struct alloc_tracker* self, struct alloc_unit* block);
+static void addBlockToGloalList(struct alloc_tracker* self, struct alloc_unit* block);
 void alloc_tracker_filter_snapshot_and_delete_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, alloc_tracker_snapshot_filter_func filter) {
   struct alloc_unit* next = snapshot->head;
   while (next) {
@@ -49,7 +49,7 @@ void alloc_tracker_filter_snapshot_and_delete_snapshot(struct alloc_tracker* sel
     next = next->next;
     
     if (filter(current))
-      addBlock(self, current);
+      addBlockToGloalList(self, current);
     else
       deallocBlock(self, current);
   }
@@ -61,7 +61,7 @@ static void freeBlock(struct alloc_unit* block) {
   free(block);
 }
 
-static void addBlock(struct alloc_tracker* self, struct alloc_unit* block) {
+static void addBlockToGloalList(struct alloc_tracker* self, struct alloc_unit* block) {
   struct alloc_unit* oldHead = atomic_load(&self->head);
   do {
     block->next = oldHead;
@@ -97,7 +97,7 @@ struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, size_t allocS
   atomic_fetch_add(&self->metadataUsage, sizeof(struct alloc_unit));
   atomic_fetch_add(&self->nonMetadataUsage, allocSize);
   atomic_fetch_add(&self->lifetimeBytesAllocated, totalSize);
-  addBlock(self, blockMetadata);
+  addBlockToGloalList(self, blockMetadata);
   return blockMetadata;
 
 failure:
@@ -142,7 +142,7 @@ void alloc_tracker_free_context(struct alloc_tracker* self, struct alloc_context
     struct alloc_unit* current = next;
     next = next->next;
     
-    addBlock(self, current);
+    addBlockToGloalList(self, current);
   }
   
   flup_mutex_unlock(ctx->contextLock);
