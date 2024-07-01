@@ -11,14 +11,7 @@
 #include "gc/gc.h"
 #include "object/descriptor.h"
 
-struct alloc_context {
-  flup_mutex* contextLock;
-  
-  // Head and tail to allow appending at both ends
-  // in snapshot function
-  struct alloc_unit* allocListHead;
-  struct alloc_unit* allocListTail;
-};
+#include "alloc_context.h"
 
 struct alloc_tracker {
   atomic_size_t currentUsage;
@@ -70,6 +63,7 @@ struct alloc_context* alloc_tracker_new_context(struct alloc_tracker* self);
 void alloc_tracker_free_context(struct alloc_tracker* self, struct alloc_context* ctx);
 
 void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot);
+void alloc_tracker_add_block_to_global_list(struct alloc_tracker* self, struct alloc_unit* block);
 
 // Return true if the block going to be unsnapshotted
 // or false if not
