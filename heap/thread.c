@@ -17,14 +17,23 @@ struct thread* thread_new(struct heap* owner) {
     .rootEntries = FLUP_LIST_HEAD_INIT(self->rootEntries),
     .rootSize = 0
   };
+  
+  if (!(self->allocContext = alloc_tracker_new_context(self->ownerHeap->gen->allocTracker))) {
+    thread_free(self);
+    return NULL;
+  }
   return self;
 }
 
 void thread_free(struct thread* self) {
+  if (!self)
+    return;
+  
   flup_list_head* current;
   flup_list_head* next;
   flup_list_for_each_safe(&self->rootEntries, current, next)
     thread_unref_root_no_gc_block(self, flup_list_entry(current, struct root_ref, node));
+  alloc_tracker_free_context(self->ownerHeap->gen->allocTracker, self->allocContext);
   free(self);
 }
 

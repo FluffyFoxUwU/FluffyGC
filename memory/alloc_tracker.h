@@ -6,9 +6,19 @@
 
 #include <flup/data_structs/list_head.h>
 #include <flup/concurrency/mutex.h>
+#include <flup/thread/thread_local.h>
 
 #include "gc/gc.h"
 #include "object/descriptor.h"
+
+struct alloc_context {
+  flup_mutex* contextLock;
+  
+  // Head and tail to allow appending at both ends
+  // in snapshot function
+  struct alloc_unit* allocListHead;
+  struct alloc_unit* allocListTail;
+};
 
 struct alloc_tracker {
   atomic_size_t currentUsage;
@@ -21,7 +31,19 @@ struct alloc_tracker {
   atomic_size_t lifetimeBytesAllocated;
   size_t maxSize;
   
+  // List of "global" blocks which wont
+  // be inserted back to per context's list
+  // of blocks because there simply no reason
+  // to and remove the need of blocking the context
+  //
+  // this is where unsnapshot put blocks to
   _Atomic(struct alloc_unit*) head;
+  
+  // Catch all context to catch all blocks which whose
+  // context is gone (e.g deallocated)
+  struct alloc_context catchAllContext;
+  
+  flup_thread_local* currentContext;
 };
 
 struct alloc_unit {
@@ -43,6 +65,9 @@ struct alloc_unit {
 struct alloc_tracker_snapshot {
   struct alloc_unit* head;
 };
+
+struct alloc_context* alloc_tracker_new_context(struct alloc_tracker* self);
+void alloc_tracker_free_context(struct alloc_tracker* self, struct alloc_context* ctx);
 
 void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot);
 

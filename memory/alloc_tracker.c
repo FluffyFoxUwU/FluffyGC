@@ -117,3 +117,36 @@ void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracke
   detached->head = atomic_exchange(&self->head, NULL);
 }
 
+struct alloc_context* alloc_tracker_new_context(struct alloc_tracker* self) {
+  struct alloc_context* ctx = malloc(sizeof(*ctx));
+  if (!ctx)
+    return NULL;
+  
+  *ctx = (struct alloc_context) {};
+  
+  if (!(ctx->contextLock = flup_mutex_new())) {
+    alloc_tracker_free_context(self, ctx);
+    return NULL;
+  }
+  return ctx;
+}
+
+void alloc_tracker_free_context(struct alloc_tracker* self, struct alloc_context* ctx) {
+  if (!self)
+    return;
+  
+  flup_mutex_lock(ctx->contextLock);
+  
+  struct alloc_unit* next = ctx->allocListHead;
+  while (next) {
+    struct alloc_unit* current = next;
+    next = next->next;
+    
+    addBlock(self, current);
+  }
+  
+  flup_mutex_unlock(ctx->contextLock);
+  flup_mutex_free(ctx->contextLock);
+  free(ctx);
+}
+

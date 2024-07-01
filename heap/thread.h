@@ -13,6 +13,8 @@ struct thread {
   
   flup_list_head rootEntries;
   size_t rootSize;
+  
+  struct alloc_context* allocContext;
 };
 
 struct thread* thread_new(struct heap* owner);
