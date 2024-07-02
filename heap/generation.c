@@ -4,6 +4,7 @@
 #include "generation.h"
 #include "gc/gc.h"
 #include "memory/alloc_tracker.h"
+#include "heap/heap.h"
 
 struct generation* generation_new(size_t sz) {
   struct generation* self = malloc(sizeof(*self));
@@ -32,7 +33,7 @@ void generation_free(struct generation* self) {
 }
 
 struct alloc_unit* generation_alloc(struct generation* self, size_t size) {
-  struct alloc_unit* block = alloc_tracker_alloc(self->allocTracker, size);
+  struct alloc_unit* block = alloc_tracker_alloc(self->allocTracker, heap_get_alloc_context(self->ownerHeap), size);
   if (!block)
     return NULL;
   

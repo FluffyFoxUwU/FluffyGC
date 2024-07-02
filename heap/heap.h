@@ -8,6 +8,7 @@
 
 #include "heap/generation.h"
 #include "memory/alloc_tracker.h"
+#include "memory/alloc_context.h"
 #include "object/descriptor.h"
 
 struct descriptor;
@@ -35,5 +36,7 @@ void heap_root_unref(struct heap* self, struct root_ref* ref);
 // These can't be nested
 void heap_block_gc(struct heap* self);
 void heap_unblock_gc(struct heap* self);
+
+struct alloc_context* heap_get_alloc_context(struct heap* self);
 
 #endif

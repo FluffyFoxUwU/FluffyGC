@@ -6,7 +6,6 @@
 
 #include <flup/data_structs/list_head.h>
 #include <flup/concurrency/mutex.h>
-#include <flup/thread/thread_local.h>
 
 #include "gc/gc.h"
 #include "object/descriptor.h"
@@ -31,12 +30,9 @@ struct alloc_tracker {
   //
   // this is where unsnapshot put blocks to
   _Atomic(struct alloc_unit*) head;
-  
-  // Catch all context to catch all blocks which whose
-  // context is gone (e.g deallocated)
-  struct alloc_context catchAllContext;
-  
-  flup_thread_local* currentContext;
+    
+  flup_mutex* listOfContextLock;
+  flup_list_head contexts;
 };
 
 struct alloc_unit {
@@ -73,6 +69,6 @@ void alloc_tracker_filter_snapshot_and_delete_snapshot(struct alloc_tracker* sel
 struct alloc_tracker* alloc_tracker_new(size_t size);
 void alloc_tracker_free(struct alloc_tracker* self);
 
-struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, size_t size);
+struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, struct alloc_context* ctx, size_t size);
 
 #endif

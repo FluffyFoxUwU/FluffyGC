@@ -14,6 +14,7 @@
 #include "gc/gc.h"
 #include "heap/generation.h"
 #include "heap/thread.h"
+#include "memory/alloc_context.h"
 #include "memory/alloc_tracker.h"
 #include "object/descriptor.h"
 
@@ -100,6 +101,10 @@ void heap_block_gc(struct heap* self) {
 
 void heap_unblock_gc(struct heap* self) {
   gc_unblock(self->gen->gcState);
+}
+
+struct alloc_context* heap_get_alloc_context(struct heap* self) {
+  return self->mainThread->allocContext;
 }
 
 

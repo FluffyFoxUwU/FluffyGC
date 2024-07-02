@@ -18,6 +18,19 @@ struct alloc_context* alloc_context_new() {
   }
   return ctx;
 }
+
+void alloc_context_add_block(struct alloc_context* self, struct alloc_unit* block) {
+  flup_mutex_lock(self->contextLock);
+  // The "block" is the first make it become the head and tail
+  if (!self->allocListHead)
+    self->allocListHead = block;
+  
+  if (self->allocListTail)
+    self->allocListTail->next = block;
+  self->allocListTail = block;
+  flup_mutex_unlock(self->contextLock);
+}
+
 void alloc_context_free(struct alloc_tracker* self, struct alloc_context* ctx) {
   if (!self)
     return;
