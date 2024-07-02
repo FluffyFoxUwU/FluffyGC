@@ -1,11 +1,13 @@
 #include <errno.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <mimalloc.h>
 
 #include <flup/core/panic.h>
 #include <flup/core/logger.h>
@@ -16,23 +18,42 @@
 #include "memory/alloc_tracker.h"
 #include "object/descriptor.h"
 #include "object/helper.h"
+#include "util/cpu_pin.h"
 
 static char fwuffyAndLargeBufferUwU[16 * 1024 * 1024];
 
 int main() {
-  if (!flup_attach_thread("Main-Thread")) {
-    fputs("Failed to attach thread\n", stderr);
-    return EXIT_FAILURE;
-  }
+  if (!flup_attach_thread("Main-Thread"))
+    flup_panic("Failed to attach thread\n");
   
   pr_info("Hello World!");
   
   // Create 128 MiB heap
-  struct heap* heap = heap_new(128 * 1024 * 1024);
+  size_t heapSize = 256 * 1024 * 1024;
+  size_t reserveExtra = 64 * 1024 * 1024;
+  
+  if (mi_reserve_os_memory(heapSize + reserveExtra, true, true) != 0)
+    flup_panic("Cannot reserve memory by mi_reserve_os_memory");
+  
+  struct heap* heap = heap_new(heapSize);
   if (!heap) {
     pr_error("Error creating heap");
     return EXIT_FAILURE;
   }
+  
+  pr_info("Pinning main thread to core 0");
+  int ret = util_cpu_pin_try_pin(pthread_self(), 0);
+  if (ret == -ENOSYS)
+    pr_warn("CPU pinning is disabled");
+  else if (ret == false)
+    flup_panic("Error pinning main thread to core 0");
+  
+  pr_info("Pinning GC thread to core 1");
+  ret = util_cpu_pin_try_pin(heap->gen->gcState->thread->thread, 1);
+  if (ret == -ENOSYS)
+    pr_warn("CPU pinning is disabled");
+  else if (ret == false)
+    flup_panic("Error pinning main thread to core 0");
   
   FILE* statCSVFile = fopen("./benches/stat.csv", "a");
   if (!statCSVFile)

@@ -1,1 +1,1 @@
-UwUMaker-c-sources-y += bitmap.c
+UwUMaker-c-sources-y += bitmap.c cpu_pin.c
