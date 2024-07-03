@@ -116,8 +116,8 @@ int main() {
         gcCPUUtilization = 1.0f;
       
       size_t usage = atomic_load(&heap->gen->allocTracker->currentUsage);
-      size_t metadataUsage = atomic_load(&heap->gen->allocTracker->metadataUsage);
-      size_t nonMetadataUsage = atomic_load(&heap->gen->allocTracker->nonMetadataUsage);
+      size_t metadataUsage = 0;
+      size_t nonMetadataUsage = 0;
       
       size_t maxSize = heap->gen->allocTracker->maxSize;
       size_t asyncCycleTriggerThreshold = (size_t) ((float) maxSize * heap->gen->gcState->asyncTriggerThreshold);
