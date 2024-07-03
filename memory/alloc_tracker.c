@@ -107,9 +107,6 @@ struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, struct alloc_
     newSize = oldSize + totalSize;
   } while (!atomic_compare_exchange_weak(&self->currentUsage, &oldSize, newSize));
   
-  atomic_fetch_add(&self->metadataUsage, sizeof(struct alloc_unit));
-  atomic_fetch_add(&self->nonMetadataUsage, allocSize);
-  atomic_fetch_add(&self->lifetimeBytesAllocated, totalSize);
   alloc_context_add_block(ctx, blockMetadata);
   return blockMetadata;
 
@@ -120,8 +117,6 @@ failure:
 
 static void deallocBlock(struct alloc_tracker* self, struct alloc_unit* blk) {
   atomic_fetch_sub(&self->currentUsage, blk->size + sizeof(*blk));
-  atomic_fetch_sub(&self->metadataUsage, sizeof(*blk));
-  atomic_fetch_sub(&self->nonMetadataUsage, blk->size);
   free(blk->data);
   free(blk);
 }
