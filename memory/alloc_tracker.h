@@ -51,6 +51,16 @@ struct alloc_tracker_snapshot {
   struct alloc_unit* head;
 };
 
+struct alloc_tracker_statistic {
+  // Copied from corresponding size in alloc_tracker struct
+  size_t maxSize;
+  size_t usedBytes;
+  size_t reservedBytes;
+  size_t commitedBytes;
+};
+
+void alloc_tracker_get_statistics(struct alloc_tracker* self, struct alloc_tracker_statistic* stat);
+
 struct alloc_context* alloc_tracker_new_context(struct alloc_tracker* self);
 void alloc_tracker_free_context(struct alloc_tracker* self, struct alloc_context* ctx);
 

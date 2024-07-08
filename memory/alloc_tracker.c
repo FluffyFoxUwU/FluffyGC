@@ -183,3 +183,10 @@ void alloc_tracker_free_context(struct alloc_tracker* self, struct alloc_context
   flup_mutex_unlock(self->listOfContextLock);
 }
 
+void alloc_tracker_get_statistics(struct alloc_tracker* self, struct alloc_tracker_statistic* stat) {
+  stat->maxSize = self->maxSize;
+  stat->reservedBytes = stat->maxSize;
+  stat->commitedBytes = stat->maxSize;
+  stat->usedBytes = atomic_load(&self->currentUsage);
+}
+

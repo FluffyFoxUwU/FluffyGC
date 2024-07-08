@@ -115,11 +115,14 @@ int main() {
       if (gcCPUUtilization > 1.0f)
         gcCPUUtilization = 1.0f;
       
-      size_t usage = atomic_load(&heap->gen->allocTracker->currentUsage);
+      struct alloc_tracker_statistic statistic = {};
+      alloc_tracker_get_statistics(heap->gen->allocTracker, &statistic);
+      
+      size_t usage = statistic.usedBytes;
       size_t metadataUsage = 0;
       size_t nonMetadataUsage = 0;
       
-      size_t maxSize = heap->gen->allocTracker->maxSize;
+      size_t maxSize = statistic.maxSize;
       size_t asyncCycleTriggerThreshold = (size_t) ((float) maxSize * heap->gen->gcState->asyncTriggerThreshold);
       fprintf(statCSVFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", time - testStartTime, (double) usage / 1024 / 1024, (double) asyncCycleTriggerThreshold / 1024 / 1024, (double) metadataUsage / 1024 / 1024, (double) nonMetadataUsage / 1024 / 1024, (double) maxSize / 1024 / 1024, mutatorCPUUtilization * 100.0f, gcCPUUtilization * 100.0f);
       
