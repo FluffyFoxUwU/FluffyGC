@@ -1,0 +1,6 @@
+#ifndef UWU_C6CE65DA_7DE4_4A26_BEBB_C1DFE47208FE_UWU
+#define UWU_C6CE65DA_7DE4_4A26_BEBB_C1DFE47208FE_UWU
+
+const char* platform_get_name();
+
+#endif

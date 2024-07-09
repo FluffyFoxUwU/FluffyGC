@@ -14,6 +14,7 @@
 
 #include <flup/thread/thread.h>
 
+#include "platform/platform.h"
 #include "heap/heap.h"
 #include "memory/alloc_tracker.h"
 #include "object/descriptor.h"
@@ -27,6 +28,7 @@ int main() {
     flup_panic("Failed to attach thread\n");
   
   pr_info("Hello World!");
+  pr_info("FluffyGC running on %s", platform_get_name());
   
   // Create 128 MiB heap
   size_t heapSize = 256 * 1024 * 1024;

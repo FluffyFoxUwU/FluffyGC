@@ -1,0 +1,3 @@
+
+config ____ALWAYS_YES_PLATFORM_POSIX
+	def_bool y

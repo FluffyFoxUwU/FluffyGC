@@ -1,0 +1,16 @@
+choice
+  prompt "Target platform"
+  
+  config PLATFORM_POSIX
+    bool "POSIX (or in other word, portable only UwU)"
+  config PLATFORM_LINUX
+    bool "Linux"
+endchoice
+
+if PLATFORM_POSIX
+source "./posix/Kconfig"
+endif
+
+if PLATFORM_LINUX
+source "./linux/Kconfig"
+endif
