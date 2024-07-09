@@ -1,5 +1,3 @@
 
 config ____ALWAYS_YES_PLATFORM_LINUX
 	def_bool y
-	select PLATFORM_SUPPORTS_X86_64
-	select PLATFORM_SUPPORTS_ARM64
