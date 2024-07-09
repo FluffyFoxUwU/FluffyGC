@@ -101,6 +101,7 @@ Extra notes:
 
 struct generation;
 struct alloc_unit;
+struct thread;
 
 struct gc_block_metadata {
   struct generation* owningGeneration;
@@ -190,8 +191,8 @@ void gc_on_allocate(struct alloc_unit* block, struct generation* gen);
 void gc_need_remark(struct alloc_unit* obj);
 
 // These can't be nested
-void gc_block(struct gc_per_generation_state* self);
-void gc_unblock(struct gc_per_generation_state* self);
+void gc_block(struct gc_per_generation_state* self, struct thread* blockingThread);
+void gc_unblock(struct gc_per_generation_state* self, struct thread* blockingThread);
 
 void gc_get_stats(struct gc_per_generation_state* self, struct gc_stats* stats);
 

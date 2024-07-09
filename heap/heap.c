@@ -96,11 +96,11 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
 }
 
 void heap_block_gc(struct heap* self) {
-  gc_block(self->gen->gcState);
+  gc_block(self->gen->gcState, self->mainThread);
 }
 
 void heap_unblock_gc(struct heap* self) {
-  gc_unblock(self->gen->gcState);
+  gc_unblock(self->gen->gcState, self->mainThread);
 }
 
 struct alloc_context* heap_get_alloc_context(struct heap* self) {

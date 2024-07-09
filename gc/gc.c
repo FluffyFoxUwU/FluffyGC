@@ -442,11 +442,11 @@ void gc_start_cycle(struct gc_per_generation_state* self) {
   return;
 }
 
-void gc_block(struct gc_per_generation_state* self) {
+void gc_block(struct gc_per_generation_state* self, struct thread* blockingThread) {
   flup_rwlock_rdlock(self->gcLock);
 }
 
-void gc_unblock(struct gc_per_generation_state* self) {
+void gc_unblock(struct gc_per_generation_state* self, struct thread* blockingThread) {
   flup_rwlock_unlock(self->gcLock);
 }
 
