@@ -70,7 +70,6 @@ void alloc_tracker_filter_snapshot_and_delete_snapshot(struct alloc_tracker* sel
 }
 
 static void freeBlock(struct alloc_unit* block) {
-  free(block->data);
   free(block);
 }
 
@@ -84,16 +83,14 @@ void alloc_tracker_add_block_to_global_list(struct alloc_tracker* self, struct a
 struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, struct alloc_context* ctx, size_t allocSize) {
   struct alloc_unit* blockMetadata;
   
-  blockMetadata = malloc(sizeof(*blockMetadata));
+  blockMetadata = malloc(sizeof(*blockMetadata) + allocSize);
   if (!blockMetadata)
-    goto failure;
+    return NULL;
 
   *blockMetadata = (struct alloc_unit) {
-    .size = allocSize
+    .size = allocSize,
+    .data = blockMetadata->followingData
   };
-  
-  if (!(blockMetadata->data = malloc(allocSize)))
-    goto failure;
   
   // Only add the block to array and update stats if ready to use
   // atomic_fetch_add(&self->currentUsage, totalSize);
@@ -117,8 +114,7 @@ failure:
 
 static void deallocBlock(struct alloc_tracker* self, struct alloc_unit* blk) {
   atomic_fetch_sub(&self->currentUsage, blk->size + sizeof(*blk));
-  free(blk->data);
-  free(blk);
+  freeBlock(blk);
 }
 
 void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot) {

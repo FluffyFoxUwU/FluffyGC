@@ -43,6 +43,8 @@ struct alloc_unit {
   _Atomic(struct descriptor*) desc;
   struct gc_block_metadata gcMetadata;
   void* data;
+  
+  char followingData[];
 };
 
 // Snapshot of list of heap objects
