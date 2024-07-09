@@ -80,11 +80,11 @@ Extra notes:
 3. Phase 2, 3 and 4 each can be executed in parallel
 */
 
-#include <flup/data_structs/buffer/circular_buffer.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stddef.h>
 
+#include <flup/data_structs/buffer/circular_buffer.h>
 #include <flup/concurrency/cond.h>
 #include <flup/concurrency/mutex.h>
 #include <flup/data_structs/dyn_array.h>
