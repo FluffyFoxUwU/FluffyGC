@@ -119,6 +119,7 @@ static void deallocBlock(struct alloc_tracker* self, struct alloc_unit* blk) {
 
 void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot) {
   flup_mutex_lock(self->listOfContextLock);
+  *snapshot = (struct alloc_tracker_snapshot) {};
   
   __block struct alloc_unit* currentTail = NULL;
   auto appendToSnapshot = ^(struct alloc_unit* head, struct alloc_unit* tail) {
