@@ -7,16 +7,22 @@ config FEATURE_HAS_OPTIMIZED_GC_LOCK
   bool
   select FEATURE_HAS_GC_LOCK
 
+# Only compile optimized GC lock if POSIX one isn't forced
+config FEATURE_COMPILE_OPTIMIZED_GC_LOCK
+  bool
+  default y if FEATURE_HAS_OPTIMIZED_GC_LOCK && !GC_LOCK_FORCE_POSIX
+
 config GC_LOCK_USE_POSIX
   bool
   select FEATURE_HAS_GC_LOCK
   # Only enabled if no platform/arch has optimized GC lock
-  default y if !FEATURE_HAS_OPTIMIZED_GC_LOCK || GC_LOCK_FORCE_POSIX
+  default y if !FEATURE_HAS_OPTIMIZED_GC_LOCK
 
 menu "GC options"
   config GC_LOCK_FORCE_POSIX
     bool "Force POSIX GC lock"
     depends on FEATURE_HAS_OPTIMIZED_GC_LOCK
+    select GC_LOCK_USE_POSIX
     help
       Most of time there no reason to select Y here, as
       platform optimized implementations supports faster

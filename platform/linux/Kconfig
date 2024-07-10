@@ -1,3 +1,5 @@
 
 config ____ALWAYS_YES_PLATFORM_LINUX
 	def_bool y
+	select FEATURE_HAS_OPTIMIZED_GC_LOCK
+
