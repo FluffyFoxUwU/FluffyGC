@@ -10,7 +10,6 @@
 #include <flup/thread/thread.h>
 #include <flup/concurrency/cond.h>
 #include <flup/concurrency/mutex.h>
-#include <flup/concurrency/rwlock.h>
 #include <flup/container_of.h>
 #include <flup/data_structs/list_head.h>
 #include <flup/core/panic.h>
@@ -19,6 +18,7 @@
 #include <flup/data_structs/dyn_array.h>
 #include <flup/data_structs/buffer.h>
 
+#include "gc/gc_lock.h"
 #include "heap/heap.h"
 #include "heap/thread.h"
 #include "memory/alloc_tracker.h"
@@ -76,7 +76,7 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     .asyncTriggerThreshold = 0.7f
   };
   
-  if (!(self->gcLock = flup_rwlock_new()))
+  if (!(self->gcLock = gc_lock_new()))
     goto failure;
   if (!(self->needRemarkQueue = flup_buffer_new(GC_MUTATOR_MARK_QUEUE_SIZE)))
     goto failure;
@@ -126,7 +126,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   flup_mutex_free(self->gcRequestLock);
   flup_cond_free(self->invokeCycleDoneEvent);
   flup_mutex_free(self->invokeCycleLock);
-  flup_rwlock_free(self->gcLock);
+  gc_lock_free(self->gcLock);
   free(self->snapshotOfRootSet);
   flup_buffer_free(self->needRemarkQueue);
   free(self);
@@ -300,13 +300,13 @@ static void sweepPhase(struct cycle_state* state) {
 }
 
 static void pauseAppThreads(struct cycle_state* state) {
-  flup_rwlock_wrlock(state->self->gcLock);
+  gc_lock_enter_gc_exclusive(state->self->gcLock);
   clock_gettime(CLOCK_REALTIME, &state->pauseBegin);
 }
 
 static void unpauseAppThreads(struct cycle_state* state) {
   clock_gettime(CLOCK_REALTIME, &state->pauseEnd);
-  flup_rwlock_unlock(state->self->gcLock);
+  gc_lock_exit_gc_exclusive(state->self->gcLock);
   
   double duration = 
     ((double) state->pauseEnd.tv_sec + ((double) state->pauseEnd.tv_nsec/ 1'000'000'000.0f)) -
@@ -443,11 +443,11 @@ void gc_start_cycle(struct gc_per_generation_state* self) {
 }
 
 void gc_block(struct gc_per_generation_state* self, struct thread* blockingThread) {
-  flup_rwlock_rdlock(self->gcLock);
+  gc_lock_block_gc(self->gcLock, blockingThread->gcLockPerThread);
 }
 
 void gc_unblock(struct gc_per_generation_state* self, struct thread* blockingThread) {
-  flup_rwlock_unlock(self->gcLock);
+  gc_lock_unblock_gc(self->gcLock, blockingThread->gcLockPerThread);
 }
 
 void gc_get_stats(struct gc_per_generation_state* self, struct gc_stats* stats) {

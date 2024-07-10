@@ -1,0 +1,26 @@
+config FEATURE_HAS_GC_LOCK
+  bool
+
+# Select Y on here if platform supports optimized GC lock
+# in per platform Kconfig file
+config FEATURE_HAS_OPTIMIZED_GC_LOCK
+  bool
+  select FEATURE_HAS_GC_LOCK
+
+config GC_LOCK_USE_POSIX
+  bool
+  select FEATURE_HAS_GC_LOCK
+  # Only enabled if no platform/arch has optimized GC lock
+  default y if !FEATURE_HAS_OPTIMIZED_GC_LOCK || GC_LOCK_FORCE_POSIX
+
+menu "GC options"
+  config GC_LOCK_FORCE_POSIX
+    bool "Force POSIX GC lock"
+    depends on FEATURE_HAS_OPTIMIZED_GC_LOCK
+    help
+      Most of time there no reason to select Y here, as
+      platform optimized implementations supports faster
+      GC locks than POSIX based implementation.
+endmenu
+  
+  

@@ -1,2 +1,3 @@
 source "./platform/Kconfig"
+source "./gc/Kconfig"
 

@@ -6,6 +6,8 @@
 #include <flup/concurrency/mutex.h>
 #include <flup/data_structs/list_head.h>
 
+#include "gc/gc_lock.h"
+#include "memory/alloc_context.h"
 #include "memory/alloc_tracker.h"
 
 struct thread {
@@ -15,6 +17,7 @@ struct thread {
   size_t rootSize;
   
   struct alloc_context* allocContext;
+  struct gc_lock_per_thread_data* gcLockPerThread;
 };
 
 struct thread* thread_new(struct heap* owner);

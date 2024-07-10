@@ -3,6 +3,7 @@
 #include <flup/data_structs/list_head.h>
 
 #include "gc/gc.h"
+#include "gc/gc_lock.h"
 #include "heap/heap.h"
 #include "memory/alloc_tracker.h"
 #include "thread.h"
@@ -18,17 +19,22 @@ struct thread* thread_new(struct heap* owner) {
     .rootSize = 0
   };
   
-  if (!(self->allocContext = alloc_tracker_new_context(self->ownerHeap->gen->allocTracker))) {
-    thread_free(self);
-    return NULL;
-  }
+  if (!(self->allocContext = alloc_tracker_new_context(self->ownerHeap->gen->allocTracker)))
+    goto failure;
+  if (!(self->gcLockPerThread = gc_lock_new_thread(owner->gen->gcState->gcLock)))
+    goto failure;
   return self;
+
+failure:
+  thread_free(self);
+  return NULL;
 }
 
 void thread_free(struct thread* self) {
   if (!self)
     return;
   
+  gc_lock_free_thread(self->ownerHeap->gen->gcState->gcLock, self->gcLockPerThread);
   flup_list_head* current;
   flup_list_head* next;
   flup_list_for_each_safe(&self->rootEntries, current, next)

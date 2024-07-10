@@ -89,7 +89,6 @@ Extra notes:
 #include <flup/concurrency/mutex.h>
 #include <flup/data_structs/dyn_array.h>
 #include <flup/data_structs/buffer.h>
-#include <flup/concurrency/rwlock.h>
 #include <flup/thread/thread.h>
 
 // 8 MiB mutator mark queue size
@@ -143,7 +142,7 @@ struct gc_per_generation_state {
   float asyncTriggerThreshold;
   
   struct generation* ownerGen;
-  flup_rwlock* gcLock;
+  struct gc_lock_state* gcLock;
   
   flup_thread* thread;
   
