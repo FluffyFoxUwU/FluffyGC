@@ -56,6 +56,7 @@ void alloc_tracker_free(struct alloc_tracker* self) {
 
 void alloc_tracker_filter_snapshot_and_delete_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, alloc_tracker_snapshot_filter_func filter) {
   struct alloc_unit* next = snapshot->head;
+  size_t freedSize = 0;
   while (next) {
     struct alloc_unit* current = next;
     next = next->next;
@@ -64,9 +65,10 @@ void alloc_tracker_filter_snapshot_and_delete_snapshot(struct alloc_tracker* sel
       alloc_tracker_add_block_to_global_list(self, current);
       continue;
     }
-    atomic_fetch_sub(&self->currentUsage, current->size + sizeof(*current));
+    freedSize += current->size + sizeof(*current);
     free(current);
   }
+  atomic_fetch_sub(&self->currentUsage, freedSize);
   snapshot->head = NULL;
 }
 
