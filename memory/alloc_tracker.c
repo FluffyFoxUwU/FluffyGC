@@ -54,23 +54,20 @@ void alloc_tracker_free(struct alloc_tracker* self) {
   freeMemories(self);
 }
 
-static void deallocBlock(struct alloc_tracker* self, struct alloc_unit* blk);
 void alloc_tracker_filter_snapshot_and_delete_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot, alloc_tracker_snapshot_filter_func filter) {
   struct alloc_unit* next = snapshot->head;
   while (next) {
     struct alloc_unit* current = next;
     next = next->next;
     
-    if (filter(current))
+    if (filter(current)) {
       alloc_tracker_add_block_to_global_list(self, current);
-    else
-      deallocBlock(self, current);
+      continue;
+    }
+    atomic_fetch_sub(&self->currentUsage, current->size + sizeof(*current));
+    free(current);
   }
   snapshot->head = NULL;
-}
-
-static void freeBlock(struct alloc_unit* block) {
-  free(block);
 }
 
 void alloc_tracker_add_block_to_global_list(struct alloc_tracker* self, struct alloc_unit* block) {
@@ -132,13 +129,8 @@ struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, struct alloc_
   return blockMetadata;
 
 failure:
-  freeBlock(blockMetadata);
+  free(blockMetadata);
   return NULL;
-}
-
-static void deallocBlock(struct alloc_tracker* self, struct alloc_unit* blk) {
-  atomic_fetch_sub(&self->currentUsage, blk->size + sizeof(*blk));
-  freeBlock(blk);
 }
 
 void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracker_snapshot* snapshot) {
