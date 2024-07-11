@@ -146,7 +146,6 @@ void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracke
   struct flup_list_head* current;
   flup_list_for_each(&self->contexts, current) {
     struct alloc_context* ctx = flup_list_entry(current, struct alloc_context, node);
-    flup_mutex_lock(ctx->contextLock);
     if (!ctx->allocListHead)
       goto skip_this_context;
     appendToSnapshot(ctx->allocListHead, ctx->allocListTail);
@@ -155,7 +154,6 @@ void alloc_tracker_take_snapshot(struct alloc_tracker* self, struct alloc_tracke
     ctx->allocListHead = NULL;
     ctx->allocListTail = NULL;
 skip_this_context:
-    flup_mutex_unlock(ctx->contextLock);
   }
   
   // Append current global list

@@ -12,7 +12,6 @@ struct alloc_context {
   struct alloc_tracker* owner;
   
   flup_list_head node;
-  flup_mutex* contextLock;
   
   // Head and tail to allow link two list
   // of blocks one after another
