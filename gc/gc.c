@@ -35,9 +35,8 @@ void gc_on_allocate(struct alloc_unit* block, struct generation* gen) {
   if (atomic_load(&gen->gcState->cycleInProgress))
     return;
   
-  size_t usage = atomic_load(&gen->allocTracker->currentUsage);
-  size_t maxSize = gen->allocTracker->maxSize;
-  size_t softLimit = (size_t) ((float) maxSize * gen->gcState->asyncTriggerThreshold);
+  size_t usage = atomic_load(&gen->allocTracker->currentUsage) * 100;
+  size_t softLimit = gen->allocTracker->maxSize * gen->gcState->asyncTriggerPercent;
   
   // Start GC cycle so memory freed before mutator has to start
   // waiting on GC 
@@ -73,7 +72,7 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
   
   *self = (struct gc_per_generation_state) {
     .ownerGen = gen,
-    .asyncTriggerThreshold = 0.7f
+    .asyncTriggerPercent = 50
   };
   
   if (!(self->gcLock = gc_lock_new()))

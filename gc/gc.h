@@ -139,7 +139,7 @@ struct gc_per_generation_state {
   flup_mutex* statsLock;
   struct gc_stats stats;
   
-  float asyncTriggerThreshold;
+  unsigned int asyncTriggerPercent;
   
   struct generation* ownerGen;
   struct gc_lock_state* gcLock;
