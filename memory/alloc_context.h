@@ -1,6 +1,8 @@
 #ifndef UWU_B8777715_D44C_4AC0_9BF5_A902F9366D3A_UWU
 #define UWU_B8777715_D44C_4AC0_9BF5_A902F9366D3A_UWU
 
+#include <stddef.h>
+
 #include <flup/concurrency/mutex.h>
 #include <flup/data_structs/list_head.h>
 
@@ -12,6 +14,7 @@ struct alloc_context {
   struct alloc_tracker* owner;
   
   flup_list_head node;
+  size_t preReservedUsage;
   
   // Head and tail to allow link two list
   // of blocks one after another

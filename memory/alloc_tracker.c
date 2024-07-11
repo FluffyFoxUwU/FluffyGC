@@ -80,6 +80,32 @@ void alloc_tracker_add_block_to_global_list(struct alloc_tracker* self, struct a
   } while (!atomic_compare_exchange_weak(&self->head, &oldHead, block));
 }
 
+
+static bool slowDoLargeAccounting(struct alloc_tracker* self, struct alloc_context*, size_t accountSize) {
+  size_t oldSize = atomic_load(&self->currentUsage);
+  size_t newSize;
+  do {
+    if (oldSize + accountSize > self->maxSize)
+      return false;
+    
+    newSize = oldSize + accountSize;
+  } while (!atomic_compare_exchange_weak(&self->currentUsage, &oldSize, newSize));
+  return true;
+}
+
+static bool fastDoSmallAccounting(struct alloc_tracker* self, struct alloc_context* ctx, size_t allocSize) {
+  if (allocSize <= ctx->preReservedUsage)
+    goto fast_accounted;
+  
+  if (!slowDoLargeAccounting(self, ctx, CONTEXT_COUNTER_PRERESERVE_SIZE))
+    return false;
+  
+  ctx->preReservedUsage += CONTEXT_COUNTER_PRERESERVE_SIZE;
+fast_accounted:
+  ctx->preReservedUsage -= allocSize;
+  return true;
+}
+
 struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, struct alloc_context* ctx, size_t allocSize) {
   struct alloc_unit* blockMetadata;
   
@@ -91,17 +117,16 @@ struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, struct alloc_
     .size = allocSize
   };
   
-  // Only add the block to array and update stats if ready to use
-  // atomic_fetch_add(&self->currentUsage, totalSize);
   size_t totalSize = allocSize + sizeof(struct alloc_unit);
-  size_t oldSize = atomic_load(&self->currentUsage);
-  size_t newSize;
-  do {
-    if (oldSize + totalSize > self->maxSize)
-      goto failure;
-    
-    newSize = oldSize + totalSize;
-  } while (!atomic_compare_exchange_weak(&self->currentUsage, &oldSize, newSize));
+  
+  bool allocStatus;
+  if (allocSize < CONTEXT_COUNTER_PRERESERVE_SKIP)
+    allocStatus = fastDoSmallAccounting(self, ctx, totalSize);
+  else
+    allocStatus = slowDoLargeAccounting(self, ctx, totalSize);
+  
+  if (!allocStatus)
+    goto failure;
   
   alloc_context_add_block(ctx, blockMetadata);
   return blockMetadata;

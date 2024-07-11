@@ -12,6 +12,19 @@
 
 #include "alloc_context.h"
 
+// Takes "pre-reserve" the counter, and each context
+// check its counter usage. This meant to reduce contention
+// on global "currentUsage" atomic variable when multiple
+// threads intensively allocating.
+//
+// But the accounting is "currentUsage" reports 2 * <num threads> MiB
+// more used than actual usage 
+#define CONTEXT_COUNTER_PRERESERVE_SIZE (2 * 1024 * 1024)
+
+// Minimum size for allocation to skip the "pre-reserve"
+// mechanism and straight for slow one
+#define CONTEXT_COUNTER_PRERESERVE_SKIP (256 * 1024)
+
 struct alloc_tracker {
   atomic_size_t currentUsage;
   
