@@ -16,6 +16,7 @@ struct thread* thread_new(struct heap* owner) {
   *self = (struct thread) {
     .ownerHeap = owner,
     .rootEntries = FLUP_LIST_HEAD_INIT(self->rootEntries),
+    .cachedRootEntries = FLUP_LIST_HEAD_INIT(self->cachedRootEntries),
     .rootSize = 0
   };
   
@@ -57,12 +58,20 @@ void thread_unref_root_no_gc_block(struct thread* self, struct root_ref* ref) {
   flup_list_del(&ref->node);
   
   gc_need_remark(ref->obj);
-  free(ref);
+  
+  // Add to cache
+  flup_list_add_head(&self->cachedRootEntries, &ref->node);
 }
 
 // Preallocation
 struct root_ref* thread_prealloc_root_ref(struct thread* self) {
-  (void) self;
+  // Check if cache has it
+  if (!flup_list_is_empty(&self->cachedRootEntries)) {
+    struct root_ref* new = flup_list_first_entry(&self->cachedRootEntries, struct root_ref, node);
+    flup_list_del(&new->node);
+    return new;
+  }
+  
   return malloc(sizeof(struct root_ref));
 }
 

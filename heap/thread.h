@@ -18,6 +18,8 @@ struct thread {
   
   struct alloc_context* allocContext;
   struct gc_lock_per_thread_data* gcLockPerThread;
+  
+  flup_list_head cachedRootEntries;
 };
 
 struct thread* thread_new(struct heap* owner);
