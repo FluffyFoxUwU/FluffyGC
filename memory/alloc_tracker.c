@@ -88,8 +88,7 @@ struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, struct alloc_
     return NULL;
 
   *blockMetadata = (struct alloc_unit) {
-    .size = allocSize,
-    .data = blockMetadata->followingData
+    .size = allocSize
   };
   
   // Only add the block to array and update stats if ready to use

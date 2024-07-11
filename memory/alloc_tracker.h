@@ -42,9 +42,8 @@ struct alloc_unit {
   // to initialize those fields
   _Atomic(struct descriptor*) desc;
   struct gc_block_metadata gcMetadata;
-  void* data;
   
-  char followingData[];
+  char data[];
 };
 
 // Snapshot of list of heap objects
