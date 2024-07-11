@@ -18,21 +18,13 @@ function test()
   end
 end
 
-local maxMemory = 0
-debug.sethook(function()
-  local cur = collectgarbage("count")
-  if cur > maxMemory then
-    maxMemory = cur
-  end
-end, "l", 20)
-
 local startTime = os.clock()
 for i=1,20 do
   test()
 end
 collectgarbage("collect")
-
 local endTime = os.clock()
+
 print("Time taken was", endTime - startTime)
-print("Maximum memory was ", maxMemory, "KiB")
+
 
