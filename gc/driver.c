@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -22,14 +23,31 @@
 // This file will contain logics to decide when to start GC
 // while the gc.c primarily focus on the actual GC process
 
+// The unit returned is bytes per 1/DRIVER_CHECK_RATE_HZ
+static size_t calcAllocationRatePerDriverHZ(struct gc_driver* self) {
+  struct moving_window_iterator iterator = {};
+  size_t totalRates = 0;
+  while (moving_window_next(self->runningSamplesOfAllocRates, &iterator))
+    totalRates += *((size_t*) iterator.current);
+  
+  return totalRates / self->runningSamplesOfAllocRates->entryCount;
+}
+
+static unsigned int calcDriverHZBeforeOOM(size_t allocRate, size_t currentUsage, size_t totalAvailable) {
+  size_t ticks = (totalAvailable - currentUsage) / allocRate;
+  if (ticks >= UINT_MAX)
+    ticks = UINT_MAX;
+  return (unsigned int) ticks;
+}
+
 static void pollHeapState(struct gc_driver* self) {
+  struct generation* gen = self->gcState->ownerGen;
   // Capture allocation rates
-  size_t current = atomic_load(&self->gcState->ownerGen->allocTracker->lifetimeBytesAllocated);
+  size_t current = atomic_load(&gen->allocTracker->lifetimeBytesAllocated);
   size_t rate = current - self->prevAllocBytes;
   self->prevAllocBytes = current;
   moving_window_append(self->runningSamplesOfAllocRates, &rate);
   
-  struct generation* gen = self->gcState->ownerGen;
   
   size_t usage = atomic_load(&gen->allocTracker->currentUsage);
   size_t softLimit = (size_t) ((float) gen->allocTracker->maxSize * gen->gcState->asyncTriggerThreshold);
@@ -37,12 +55,11 @@ static void pollHeapState(struct gc_driver* self) {
   // Start GC cycle so memory freed before mutator has to start
   // waiting on GC 
   if (usage > softLimit) {
-    struct moving_window_iterator iterator = {};
-    size_t totalRates = 0;
-    while (moving_window_next(self->runningSamplesOfAllocRates, &iterator))
-      totalRates += *((size_t*) iterator.current);
-    pr_info("Average allocation rate sampled was %zu MiB per second", totalRates * DRIVER_CHECK_RATE_HZ / self->runningSamplesOfAllocRates->entryCount / 1024 / 1024);
-    pr_verbose("Soft limit reached, starting GC");
+    size_t allocRate = calcAllocationRatePerDriverHZ(self);
+    size_t currentUsage = atomic_load(&gen->allocTracker->currentUsage);
+    size_t maxSize = gen->allocTracker->maxSize;
+    unsigned int hzBeforeOOM = calcDriverHZBeforeOOM(allocRate, currentUsage, maxSize);
+    pr_verbose("Soft limit reached, starting GC (System was %f seconds away from OOM)", (float) hzBeforeOOM / DRIVER_CHECK_RATE_HZ);
     gc_start_cycle(gen->gcState);
     return;
   }
