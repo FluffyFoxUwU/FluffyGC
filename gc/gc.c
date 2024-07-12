@@ -101,8 +101,11 @@ static void callGCAsync(struct gc_per_generation_state* self, enum gc_request re
 
 void gc_perform_shutdown(struct gc_per_generation_state* self) {
   gc_driver_perform_shutdown(self->driver);
-  callGCAsync(self, GC_SHUTDOWN);
-  flup_thread_wait(self->thread);
+  
+  if (self->thread) {
+    callGCAsync(self, GC_SHUTDOWN);
+    flup_thread_wait(self->thread);
+  }
 }
 
 void gc_per_generation_state_free(struct gc_per_generation_state* self) {

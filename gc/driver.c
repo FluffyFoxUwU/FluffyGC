@@ -106,7 +106,9 @@ void gc_driver_unpause(struct gc_driver* self) {
 void gc_driver_perform_shutdown(struct gc_driver* self) {
   gc_driver_unpause(self);
   atomic_store(&self->quitRequested, true);
-  flup_thread_wait(self->driverThread);
+  
+  if (self->driverThread)
+    flup_thread_wait(self->driverThread);
 }
 
 void gc_driver_free(struct gc_driver* self) {
