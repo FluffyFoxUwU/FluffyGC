@@ -1,5 +1,6 @@
 #include <limits.h>
 #include <stdatomic.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <time.h>
@@ -25,6 +26,10 @@
 
 // The unit returned is bytes per 1/DRIVER_CHECK_RATE_HZ
 static size_t calcAllocationRatePerDriverHZ(struct gc_driver* self) {
+  // Assume worst allocation rate because Foxie have no sample here
+  if (self->runningSamplesOfGCCycleTime->entryCount == 0)
+    return SIZE_MAX;
+  
   struct moving_window_iterator iterator = {};
   size_t totalRates = 0;
   while (moving_window_next(self->runningSamplesOfAllocRates, &iterator))
@@ -33,12 +38,56 @@ static size_t calcAllocationRatePerDriverHZ(struct gc_driver* self) {
   return totalRates / self->runningSamplesOfAllocRates->entryCount;
 }
 
+static unsigned int calcAverageCycleTime(struct gc_driver* self) {
+  // Assume GC cycle take fastest time because Foxie have no sample here
+  if (self->runningSamplesOfGCCycleTime->entryCount == 0)
+    return 1;
+  
+  struct moving_window_iterator iterator = {};
+  unsigned int totalCycleTime = 0;
+  while (moving_window_next(self->runningSamplesOfGCCycleTime, &iterator))
+    totalCycleTime += *((unsigned int*) iterator.current);
+  
+  return totalCycleTime / self->runningSamplesOfGCCycleTime->entryCount;
+}
+
 static unsigned int calcMicrosecBeforeOOM(size_t allocRate, size_t currentUsage, size_t totalAvailable) {
   size_t allocRateInMicrosec = allocRate * DRIVER_CHECK_RATE_HZ / 1'000'000;
   size_t microsecs = (totalAvailable - currentUsage) / allocRateInMicrosec;
   if (microsecs >= UINT_MAX)
     microsecs = UINT_MAX;
   return (unsigned int) microsecs;
+}
+
+static void doCollection(struct gc_driver* self) {
+  struct gc_stats stats;
+  double startTime, endTime;
+  uint64_t startCycleCount, endCycleCount;
+  
+  gc_get_stats(self->gcState, &stats);
+  startTime = stats.lifetimeCycleTime;
+  startCycleCount = stats.lifetimeCyclesCount;
+  
+  gc_start_cycle(self->gcState);
+  
+  gc_get_stats(self->gcState, &stats);
+  endTime = stats.lifetimeCycleTime;
+  endCycleCount = stats.lifetimeCyclesCount;
+  
+  // The division ensure that if we miss some number of cycles
+  // because of e.g. mutator trigger GC inseatd driver
+  //
+  // The cons of this is not all cycle times accurately sampled
+  double cycleTimeInMicrosecsDouble = (endTime - startTime) / (double) (endCycleCount - startCycleCount) * 1'000'000;
+  unsigned int cycleTimeInMicroseconds;
+  if (cycleTimeInMicrosecsDouble < 1)
+    cycleTimeInMicroseconds = 1; // Cycle time which takes 0 microseconds just impossible, round up
+  else if (cycleTimeInMicrosecsDouble > UINT_MAX)
+    cycleTimeInMicroseconds = UINT_MAX;
+  else
+    cycleTimeInMicroseconds = (unsigned int) cycleTimeInMicrosecsDouble;
+  
+  moving_window_append(self->runningSamplesOfGCCycleTime, &cycleTimeInMicroseconds);
 }
 
 static void pollHeapState(struct gc_driver* self) {
@@ -60,8 +109,9 @@ static void pollHeapState(struct gc_driver* self) {
     size_t currentUsage = atomic_load(&gen->allocTracker->currentUsage);
     size_t maxSize = gen->allocTracker->maxSize;
     unsigned int microsecBeforeOOM = calcMicrosecBeforeOOM(allocRate, currentUsage, maxSize);
-    pr_verbose("Soft limit reached, starting GC (System was %f seconds away from OOM)", (float) microsecBeforeOOM / 1'000'000);
-    gc_start_cycle(gen->gcState);
+    unsigned int microsecPredictedCycleTime = calcAverageCycleTime(self);
+    pr_verbose("Soft limit reached, starting GC (System was %f seconds away from OOM and GC would take %f seconds)", (float) microsecBeforeOOM / 1'000'000, (float) microsecPredictedCycleTime / 1'000'000);
+    doCollection(self);
     return;
   }
 }
@@ -123,6 +173,8 @@ struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState) {
   
   if (!(self->runningSamplesOfAllocRates = moving_window_new(sizeof(size_t), DRIVER_ALLOC_RATE_SAMPLES)))
     goto failure;
+  if (!(self->runningSamplesOfGCCycleTime = moving_window_new(sizeof(unsigned int), DRIVER_CYCLE_TIME_SAMPLES)))
+    goto failure;
   if (!(self->driverThread = flup_thread_new(driver, self)))
     goto failure;
   return self;
@@ -150,6 +202,7 @@ void gc_driver_free(struct gc_driver* self) {
   if (self->driverThread)
     flup_thread_free(self->driverThread);
   moving_window_free(self->runningSamplesOfAllocRates);
+  moving_window_free(self->runningSamplesOfGCCycleTime);
   free(self);
 }
 

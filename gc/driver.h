@@ -11,6 +11,7 @@
 
 // 5 seconds worth of samples
 #define DRIVER_ALLOC_RATE_SAMPLES (DRIVER_CHECK_RATE_HZ * 5)
+#define DRIVER_CYCLE_TIME_SAMPLES (DRIVER_CHECK_RATE_HZ * 5)
 
 struct gc_driver {
   struct gc_per_generation_state* gcState;
@@ -21,6 +22,9 @@ struct gc_driver {
   // The time unit of the rate is is 1 / DRIVER_CHECK_RATE_HZ
   struct moving_window* runningSamplesOfAllocRates;
   size_t prevAllocBytes;
+  
+  // The cycle time here is microseconds
+  struct moving_window* runningSamplesOfGCCycleTime;
 };
 
 struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState);
