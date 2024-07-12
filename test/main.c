@@ -21,6 +21,59 @@
 #include "object/helper.h"
 #include "util/cpu_pin.h"
 
+#define WINDOW_SIZE 200'000
+#define MESSAGE_COUNT 30'000'000
+#define MESSAGE_SIZE 1024
+
+struct array_of_messages {
+  long length;
+  _Atomic(char*) messages[];
+};
+
+static int64_t worstTimeMicroSec = 0.0f;
+
+static struct root_ref* newMessage(struct heap* heap, int n) {
+  struct root_ref* message = heap_alloc(heap, MESSAGE_SIZE);
+  memset(message->obj->data, n & 0xFF, MESSAGE_SIZE);
+  return message;
+}
+
+static void pushMessage(struct heap* heap, struct root_ref* window, int id) {
+  struct timespec start, end;
+  clock_gettime(CLOCK_REALTIME, &start);
+  
+  struct root_ref* message = newMessage(heap, id);
+  object_helper_write_ref(heap, window->obj, offsetof(struct array_of_messages, messages[id % WINDOW_SIZE]), message->obj);
+  heap_root_unref(heap, message);
+  
+  clock_gettime(CLOCK_REALTIME, &end);
+  
+  int64_t diffSecondsInMicroSeconds = (end.tv_sec - start.tv_sec) * 1'000'000;
+  int64_t diffNanosecsInMicroSeconds = (end.tv_nsec - start.tv_nsec) / 1'000;
+  int64_t currentElapsedTimeInMicrosecs = diffSecondsInMicroSeconds + diffNanosecsInMicroSeconds;
+  
+  if (currentElapsedTimeInMicrosecs > worstTimeMicroSec)
+    worstTimeMicroSec = currentElapsedTimeInMicrosecs;
+}
+
+static struct descriptor desc_array_of_messages = {
+  .hasFlexArrayField = true,
+  .fieldCount = 0,
+  .objectSize = sizeof(struct array_of_messages)
+};
+
+static void doTestGCExperiment(struct heap* heap) {
+  struct root_ref* messagesWindow = heap_alloc_with_descriptor(heap, &desc_array_of_messages, WINDOW_SIZE * sizeof(void*));
+  struct array_of_messages* deref = (void*) messagesWindow->obj->data;
+  deref->length = WINDOW_SIZE;
+  
+  for (int i = 0; i < MESSAGE_COUNT; i++)
+    pushMessage(heap, messagesWindow, i);
+  heap_root_unref(heap, messagesWindow);
+  
+  pr_info("Worst push time: %" PRId64 " milisecs", worstTimeMicroSec / 1'000);
+}
+
 static char fwuffyAndLargeBufferUwU[16 * 1024 * 1024];
 
 int main() {
@@ -136,181 +189,12 @@ int main() {
     }
   });
   
-  struct array {
-    size_t length;
-    size_t capacity;
-    _Atomic(struct alloc_unit*) array[];
-  };
-  
-  struct number {
-    int content;
-  };
-  
-  static struct descriptor arrayDesc = {
-    .fieldCount = 0,
-    .hasFlexArrayField = true,
-    .objectSize = sizeof(struct array)
-  };
-  
-  static void (^reserveArray)(struct heap* heap, struct root_ref** arrayRef, size_t length) = ^(struct heap* heap, struct root_ref** arrayRef, size_t length) {
-    struct array* array = (*arrayRef)->obj->data;
-    
-    // Expand the array
-    if (length > array->capacity) {
-      size_t capacityNeeded = 1;
-      while (capacityNeeded < length)
-        capacityNeeded *=2;
-      
-      struct root_ref* copyOfArrayRef = heap_alloc_with_descriptor(heap, &arrayDesc, capacityNeeded * sizeof(void*));
-      struct array* copyOfArray = copyOfArrayRef->obj->data;
-      copyOfArray->length = array->length;
-      copyOfArray->capacity = capacityNeeded;
-      
-      for (size_t i = 0; i < array->length; i++) {
-        struct root_ref* currentRef = object_helper_read_ref(heap, (*arrayRef)->obj, offsetof(struct array, array[i]));
-        object_helper_write_ref(heap, copyOfArrayRef->obj, offsetof(struct array, array[i]), currentRef->obj);
-        heap_root_unref(heap, currentRef);
-      }
-      
-      heap_root_unref(heap, *arrayRef);
-      *arrayRef = copyOfArrayRef;
-    }
-  };
-  
-  static void (^appendArray)(struct heap* heap, struct root_ref** arrayRef, struct root_ref* data) = ^(struct heap* heap, struct root_ref** arrayRef, struct root_ref* data) {
-    struct array* array = (*arrayRef)->obj->data;
-    
-    if (array->length + 1 > array->capacity) {
-      flup_panic("Cant occur");
-      reserveArray(heap, arrayRef, array->length + 1);
-    }
-    
-    array = (*arrayRef)->obj->data;
-    // Actually write to array
-    object_helper_write_ref(heap, (*arrayRef)->obj, offsetof(struct array, array[array->length]), data->obj);
-    array->length++;
-  };
-  
-  static struct root_ref* (^newArray)(struct heap* heap) = ^struct root_ref* (struct heap* heap) {
-    struct root_ref* arrayRef = heap_alloc_with_descriptor(heap, &arrayDesc, 0);
-    struct array* array = arrayRef->obj->data;
-    array->length = 0;
-    array->capacity = 0;
-    return arrayRef;
-  };
-  
-  // Roughly like in Lua (ported from https://github.com/zenkj/luagctest/blob/master/src/main.lua)
-  // and removed/substitute some which not available
-  /*
-  function test()
-    local t = {}
-
-    for i=1,1000 do
-      t[i] = {}
-      for j=1,100 do
-        local var = {}
-        var[1] = {812}
-        var[2] = {var}
-        
-        local var2 = {}
-        var2[1] = {1, 2, 3}
-        var2[2] = {452}
-        t[i][j] = var
-      end
-    end
-  end
-  */
-  
   struct timespec start, end;
   clock_gettime(CLOCK_REALTIME, &start);
-  for (size_t n = 0; n < 20; n++) {
-    // local t = {}
-    struct root_ref* t = newArray(heap);
-    reserveArray(heap, &t, 1000);
-    for (size_t i = 0; i < 1000; i++) {
-      // t[i] = {}
-      struct root_ref* temp0 = newArray(heap);
-      reserveArray(heap, &temp0, 100);
-      appendArray(heap, &t, temp0);
-      heap_root_unref(heap, temp0);
-      
-      for (size_t j = 0; j < 100; j++) {
-        // local var = {}
-        struct root_ref* var = newArray(heap);
-        reserveArray(heap, &var, 2);
-        
-        // var[1] = {812}
-        {
-          struct root_ref* temp1 = newArray(heap);
-          reserveArray(heap, &temp1, 1);
-          
-          // {812}
-          {
-            struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
-            struct number* num = temp2->obj->data;
-            num->content = 812;
-            appendArray(heap, &temp1, temp2);
-            heap_root_unref(heap, temp2);
-          }
-          
-          appendArray(heap, &var, temp1);
-          heap_root_unref(heap, temp1);
-        }
-        
-        // var[2] = {var}
-        appendArray(heap, &var, var);
-        
-        // local var2 = {}
-        struct root_ref* var2 = newArray(heap);
-        reserveArray(heap, &var2, 2);
-        
-        // var2[1] = {1, 2, 3}
-        {
-          struct root_ref* temp1 = newArray(heap);
-          reserveArray(heap, &temp1, 3);
-          
-          for (int numCounter = 1; numCounter <= 3; numCounter++) {
-            struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
-            struct number* num = temp2->obj->data;
-            num->content = numCounter;
-            appendArray(heap, &temp1, temp2);
-            heap_root_unref(heap, temp2);
-          }
-          
-          appendArray(heap, &var2, temp1);
-          heap_root_unref(heap, temp1);
-        }
-        
-        // var2[2] = {452}
-        {
-          struct root_ref* temp1 = newArray(heap);
-          reserveArray(heap, &temp1, 1);
-          
-          struct root_ref* temp2 = heap_alloc(heap, sizeof(struct number));
-          struct number* num = temp2->obj->data;
-          num->content = 452;
-          appendArray(heap, &temp1, temp2);
-          
-          heap_root_unref(heap, temp2);
-          
-          appendArray(heap, &var2, temp1);
-          heap_root_unref(heap, temp1);
-        }
-        
-        heap_root_unref(heap, var2);
-        
-        // t[i][j] = var
-        {
-          struct root_ref* temp5 = object_helper_read_ref(heap, t->obj, offsetof(struct array, array[i]));
-          appendArray(heap, &temp5, var);
-          heap_root_unref(heap, temp5);
-        }
-        
-        heap_root_unref(heap, var);
-      }
-    }
-    heap_root_unref(heap, t);
-  }
+  // Test based on same test on
+  // https://github.com/WillSewell/gc-latency-experiment
+  // in particular Java version is ported ^w^
+  doTestGCExperiment(heap);
   clock_gettime(CLOCK_REALTIME, &end);
   
   double startTime = (double) start.tv_sec + (double) start.tv_nsec / 1e9;
