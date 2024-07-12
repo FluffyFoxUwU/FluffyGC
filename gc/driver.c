@@ -12,6 +12,7 @@
 #include "gc/gc.h"
 #include "heap/generation.h"
 #include "memory/alloc_tracker.h"
+#include "util/moving_window.h"
 
 #include "driver.h"
 
@@ -22,6 +23,12 @@
 // while the gc.c primarily focus on the actual GC process
 
 static void pollHeapState(struct gc_driver* self) {
+  // Capture allocation rates
+  size_t current = atomic_load(&self->gcState->ownerGen->allocTracker->lifetimeBytesAllocated);
+  size_t rate = current - self->prevAllocBytes;
+  self->prevAllocBytes = current;
+  moving_window_append(self->runningSamplesOfAllocRates, &rate);
+  
   struct generation* gen = self->gcState->ownerGen;
   
   size_t usage = atomic_load(&gen->allocTracker->currentUsage);
@@ -30,6 +37,11 @@ static void pollHeapState(struct gc_driver* self) {
   // Start GC cycle so memory freed before mutator has to start
   // waiting on GC 
   if (usage > softLimit) {
+    struct moving_window_iterator iterator = {};
+    size_t totalRates = 0;
+    while (moving_window_next(self->runningSamplesOfAllocRates, &iterator))
+      totalRates += *((size_t*) iterator.current);
+    pr_info("Average allocation rate sampled was %zu MiB per second", totalRates * DRIVER_CHECK_RATE_HZ / self->runningSamplesOfAllocRates->entryCount / 1024 / 1024);
     pr_verbose("Soft limit reached, starting GC");
     gc_start_cycle(gen->gcState);
     return;
@@ -88,9 +100,11 @@ struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState) {
   
   *self = (struct gc_driver) {
     .gcState = gcState,
-    .paused = true
+    .paused = true,
   };
   
+  if (!(self->runningSamplesOfAllocRates = moving_window_new(sizeof(size_t), DRIVER_ALLOC_RATE_SAMPLES)))
+    goto failure;
   if (!(self->driverThread = flup_thread_new(driver, self)))
     goto failure;
   return self;
@@ -117,6 +131,7 @@ void gc_driver_free(struct gc_driver* self) {
   
   if (self->driverThread)
     flup_thread_free(self->driverThread);
+  moving_window_free(self->runningSamplesOfAllocRates);
   free(self);
 }
 
