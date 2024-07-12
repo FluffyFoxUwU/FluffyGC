@@ -60,7 +60,7 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
   
   *self = (struct gc_per_generation_state) {
     .ownerGen = gen,
-    .asyncTriggerThreshold = 0.2f
+    .asyncTriggerThreshold = 0.4f
   };
   
   if (!(self->gcLock = gc_lock_new()))
@@ -347,6 +347,12 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   unpauseAppThreads(&state);
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
   
+  flup_mutex_lock(self->invokeCycleLock);
+  self->cycleID++;
+  self->cycleWasInvoked = false;
+  flup_cond_wake_all(self->invokeCycleDoneEvent);
+  flup_mutex_unlock(self->invokeCycleLock);
+  
   double duration =
     ((double) end.tv_sec + ((double) end.tv_nsec) / 1'000'000'000.0f) -
     ((double) start.tv_sec + ((double) start.tv_nsec) / 1'000'000'000.0f);
@@ -374,13 +380,6 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   self->stats = state.stats;
   self->stats.cycleIsRunning = false;
   flup_mutex_unlock(self->statsLock);
-  
-  flup_mutex_lock(self->invokeCycleLock);
-  self->cycleID++;
-  self->cycleWasInvoked = false;
-  flup_cond_wake_all(self->invokeCycleDoneEvent);
-  flup_mutex_unlock(self->invokeCycleLock);
-  
   // pr_info("After cycle mem usage: %f MiB", (float) atomic_load(&state.arena->currentUsage) / 1024.0f / 1024.0f);
 }
 
