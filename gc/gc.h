@@ -115,8 +115,6 @@ enum gc_request {
 };
 
 struct gc_stats {
-  bool cycleIsRunning;
-  
   uint64_t lifetimeTotalObjectCount;
   size_t lifetimeTotalObjectSize;
   
