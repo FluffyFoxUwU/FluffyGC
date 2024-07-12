@@ -358,24 +358,6 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   state.stats.lifetimeCycleTime += duration;
   
   flup_mutex_lock(self->statsLock);
-  static struct timespec deadline = {};
-  static struct gc_stats prevStats;
-  if (deadline.tv_sec == 0) {
-    clock_gettime(CLOCK_REALTIME, &deadline);
-    deadline.tv_sec -= 1;
-    prevStats = state.stats;
-  }
-  
-  struct timespec current;
-  clock_gettime(CLOCK_REALTIME, &current);
-  if (current.tv_sec >= deadline.tv_sec) {
-    pr_info("STW (last second): %lf sec", state.stats.lifetimeSTWTime - prevStats.lifetimeSTWTime);
-    pr_info("STW (lifetime)   : %lf sec", state.stats.lifetimeSTWTime);
-    pr_info("GC rate          : %lf MiB/sec", (double) (state.stats.lifetimeTotalSweepedObjectSize - prevStats.lifetimeTotalSweepedObjectSize) / 1024.0f / 1024.0f);
-    deadline.tv_sec++;
-    prevStats = state.stats;
-  }
-  
   self->stats = state.stats;
   flup_mutex_unlock(self->statsLock);
   // pr_info("After cycle mem usage: %f MiB", (float) atomic_load(&state.arena->currentUsage) / 1024.0f / 1024.0f);
