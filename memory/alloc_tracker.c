@@ -89,6 +89,7 @@ static bool slowDoLargeAccounting(struct alloc_tracker* self, struct alloc_conte
     
     newSize = oldSize + accountSize;
   } while (!atomic_compare_exchange_weak(&self->currentUsage, &oldSize, newSize));
+  atomic_fetch_add(&self->lifetimeBytesAllocated, accountSize);
   return true;
 }
 
