@@ -41,11 +41,7 @@ static void driver(void* _self) {
   
   clockToUse = CLOCK_REALTIME;
 nice_clock_found:
-  int ret = 0;
-  do {
-    if (atomic_load(&self->quitRequested) == true)
-      break;
-    
+  while (atomic_load(&self->quitRequested) == false) {
     pollHeapState(self);
     
     // Any neater way to deal this??? TwT
@@ -54,12 +50,16 @@ nice_clock_found:
       deadline.tv_nsec -= 1'000'000'000;
       deadline.tv_sec++;
     }
-  } while ((ret = clock_nanosleep(clockToUse, TIMER_ABSTIME, &deadline, NULL)) == 0);
+    
+    int ret = 0;
+    while ((ret = clock_nanosleep(clockToUse, TIMER_ABSTIME, &deadline, NULL)) == EINTR)
+      ;
+    
+    if (ret != 0)
+      flup_panic("clock_nanosleep failed: %d", ret);
+  }
   
-  if (ret != EINTR)
-    flup_panic("clock_nanosleep failed: %d", ret);
-  
-  pr_info("Driver loop interrupted, quiting!");
+  pr_info("Requested to quit, quiting!");
 }
 
 struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState) {
@@ -86,9 +86,7 @@ void gc_driver_free(struct gc_driver* driver) {
   if (driver->driverThread) {
     atomic_store(&driver->quitRequested, true);
     
-    // Interrupt the driver's nanosleep if possible
-    // or wait until it check the quit flag
-    pthread_kill(driver->driverThread->thread, SIGINT);
+    // In this line, hope that driver don't overslept
     
     flup_thread_wait(driver->driverThread);
     flup_thread_free(driver->driverThread);
