@@ -33,11 +33,12 @@ static size_t calcAllocationRatePerDriverHZ(struct gc_driver* self) {
   return totalRates / self->runningSamplesOfAllocRates->entryCount;
 }
 
-static unsigned int calcDriverHZBeforeOOM(size_t allocRate, size_t currentUsage, size_t totalAvailable) {
-  size_t ticks = (totalAvailable - currentUsage) / allocRate;
-  if (ticks >= UINT_MAX)
-    ticks = UINT_MAX;
-  return (unsigned int) ticks;
+static unsigned int calcMicrosecBeforeOOM(size_t allocRate, size_t currentUsage, size_t totalAvailable) {
+  size_t allocRateInMicrosec = allocRate * DRIVER_CHECK_RATE_HZ / 1'000'000;
+  size_t microsecs = (totalAvailable - currentUsage) / allocRateInMicrosec;
+  if (microsecs >= UINT_MAX)
+    microsecs = UINT_MAX;
+  return (unsigned int) microsecs;
 }
 
 static void pollHeapState(struct gc_driver* self) {
@@ -58,8 +59,8 @@ static void pollHeapState(struct gc_driver* self) {
     size_t allocRate = calcAllocationRatePerDriverHZ(self);
     size_t currentUsage = atomic_load(&gen->allocTracker->currentUsage);
     size_t maxSize = gen->allocTracker->maxSize;
-    unsigned int hzBeforeOOM = calcDriverHZBeforeOOM(allocRate, currentUsage, maxSize);
-    pr_verbose("Soft limit reached, starting GC (System was %f seconds away from OOM)", (float) hzBeforeOOM / DRIVER_CHECK_RATE_HZ);
+    unsigned int microsecBeforeOOM = calcMicrosecBeforeOOM(allocRate, currentUsage, maxSize);
+    pr_verbose("Soft limit reached, starting GC (System was %f seconds away from OOM)", (float) microsecBeforeOOM / 1'000'000);
     gc_start_cycle(gen->gcState);
     return;
   }
