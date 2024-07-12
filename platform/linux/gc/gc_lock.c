@@ -1,5 +1,5 @@
-#include <flup/core/logger.h>
 #define _GNU_SOURCE
+#include <flup/core/logger.h>
 
 #include <errno.h>
 #include <sched.h>
