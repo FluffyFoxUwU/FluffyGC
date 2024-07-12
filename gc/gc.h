@@ -124,6 +124,8 @@ struct gc_stats {
   uint64_t lifetimeTotalLiveObjectCount;
   size_t lifetimeLiveObjectSize;
   
+  uint64_t lifetimeCyclesCount;
+  
   double lifetimeCycleTime;
   double lifetimeSTWTime;
 };
