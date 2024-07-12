@@ -34,7 +34,14 @@ bool moving_window_next(struct moving_window* self, struct moving_window_iterato
   if (iterator->numberOfIterations == self->entryCount)
     return false;
   
-  iterator->current = self->data + ((self->nextWindowIndex + iterator->numberOfIterations) % self->maxEntryCount) * self->entrySize;
+  unsigned int startIndex;
+  // Try move backward to get the starting point
+  if (self->entryCount > self->nextWindowIndex)
+    startIndex = self->entryCount - (self->entryCount - self->nextWindowIndex);
+  else
+    startIndex = self->nextWindowIndex - self->entryCount;
+  
+  iterator->current = self->data + ((startIndex + iterator->numberOfIterations) % self->maxEntryCount) * self->entrySize;
   iterator->numberOfIterations++;
   return true;
 }
