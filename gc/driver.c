@@ -24,8 +24,8 @@
 static void pollHeapState(struct gc_driver* self) {
   struct generation* gen = self->gcState->ownerGen;
   
-  size_t usage = atomic_load(&gen->allocTracker->currentUsage) * 100;
-  size_t softLimit = gen->allocTracker->maxSize * gen->gcState->asyncTriggerPercent;
+  size_t usage = atomic_load(&gen->allocTracker->currentUsage);
+  size_t softLimit = (size_t) ((float) gen->allocTracker->maxSize * gen->gcState->asyncTriggerThreshold);
   
   // Start GC cycle so memory freed before mutator has to start
   // waiting on GC 

@@ -125,7 +125,7 @@ int main() {
       size_t nonMetadataUsage = 0;
       
       size_t maxSize = statistic.maxSize;
-      size_t asyncCycleTriggerThreshold = (size_t) ((float) maxSize * ((float) heap->gen->gcState->asyncTriggerPercent / 100.0f));
+      size_t asyncCycleTriggerThreshold = (size_t) ((float) maxSize * (float) heap->gen->gcState->asyncTriggerThreshold);
       fprintf(statCSVFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", time - testStartTime, (double) usage / 1024 / 1024, (double) asyncCycleTriggerThreshold / 1024 / 1024, (double) metadataUsage / 1024 / 1024, (double) nonMetadataUsage / 1024 / 1024, (double) maxSize / 1024 / 1024, mutatorCPUUtilization * 100.0f, gcCPUUtilization * 100.0f);
       
       prevMutatorCPUTime = mutatorCPUTime;

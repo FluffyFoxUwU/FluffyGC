@@ -60,7 +60,7 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
   
   *self = (struct gc_per_generation_state) {
     .ownerGen = gen,
-    .asyncTriggerPercent = 50
+    .asyncTriggerThreshold = 0.5f
   };
   
   if (!(self->gcLock = gc_lock_new()))
