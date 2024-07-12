@@ -60,7 +60,7 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
   
   *self = (struct gc_per_generation_state) {
     .ownerGen = gen,
-    .asyncTriggerThreshold = 0.5f
+    .asyncTriggerThreshold = 0.2f
   };
   
   if (!(self->gcLock = gc_lock_new()))
@@ -99,16 +99,19 @@ static void callGCAsync(struct gc_per_generation_state* self, enum gc_request re
   flup_mutex_unlock(self->gcRequestLock);
 }
 
+void gc_perform_shutdown(struct gc_per_generation_state* self) {
+  gc_driver_perform_shutdown(self->driver);
+  callGCAsync(self, GC_SHUTDOWN);
+  flup_thread_wait(self->thread);
+}
+
 void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   if (!self)
     return;
   
   gc_driver_free(self->driver);
-  if (self->thread) {
-    callGCAsync(self, GC_SHUTDOWN);
-    flup_thread_wait(self->thread);
+  if (self->thread)
     flup_thread_free(self->thread);
-  }
   flup_circular_buffer_free(self->gcMarkQueueUwU);
   flup_circular_buffer_free(self->deferredMarkQueue);
   flup_mutex_free(self->statsLock);

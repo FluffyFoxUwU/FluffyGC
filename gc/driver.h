@@ -12,9 +12,13 @@ struct gc_driver {
   struct gc_per_generation_state* gcState;
   flup_thread* driverThread;
   atomic_bool quitRequested;
+  atomic_bool paused;
 };
 
 struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState);
 void gc_driver_free(struct gc_driver* self);
+
+void gc_driver_perform_shutdown(struct gc_driver* self);
+void gc_driver_unpause(struct gc_driver* self);
 
 #endif

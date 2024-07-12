@@ -11,6 +11,7 @@
 #include <flup/data_structs/list_head.h>
 
 #include "heap.h"
+#include "gc/driver.h"
 #include "gc/gc.h"
 #include "heap/generation.h"
 #include "heap/thread.h"
@@ -34,6 +35,9 @@ struct heap* heap_new(size_t size) {
   
   if (!(self->mainThread = thread_new(self)))
     goto failure;
+  
+  // Heap is ready, unpause the GC driver
+  gc_driver_unpause(self->gen->gcState->driver);
   return self;
 
 failure:

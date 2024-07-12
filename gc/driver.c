@@ -57,8 +57,12 @@ static void driver(void* _self) {
   clockToUse = CLOCK_REALTIME;
 nice_clock_found:
   while (atomic_load(&self->quitRequested) == false) {
+    if (atomic_load(&self->paused) == true)
+      goto driver_was_paused;
+    
     pollHeapState(self);
     
+driver_was_paused:
     // Any neater way to deal this??? TwT
     deadline.tv_nsec += 1'000'000'000 / DRIVER_CHECK_RATE_HZ;
     if (deadline.tv_nsec >= 1'000'000'000) {
@@ -83,7 +87,8 @@ struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState) {
     return NULL;
   
   *self = (struct gc_driver) {
-    .gcState = gcState
+    .gcState = gcState,
+    .paused = true
   };
   
   if (!(self->driverThread = flup_thread_new(driver, self)))
@@ -94,18 +99,22 @@ failure:
   return NULL;
 }
 
-void gc_driver_free(struct gc_driver* driver) {
-  if (!driver)
+void gc_driver_unpause(struct gc_driver* self) {
+  atomic_store(&self->paused, false);
+}
+
+void gc_driver_perform_shutdown(struct gc_driver* self) {
+  gc_driver_unpause(self);
+  atomic_store(&self->quitRequested, true);
+  flup_thread_wait(self->driverThread);
+}
+
+void gc_driver_free(struct gc_driver* self) {
+  if (!self)
     return;
   
-  if (driver->driverThread) {
-    atomic_store(&driver->quitRequested, true);
-    
-    // In this line, hope that driver don't overslept
-    
-    flup_thread_wait(driver->driverThread);
-    flup_thread_free(driver->driverThread);
-  }
-  free(driver);
+  if (self->driverThread)
+    flup_thread_free(self->driverThread);
+  free(self);
 }
 

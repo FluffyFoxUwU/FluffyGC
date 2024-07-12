@@ -27,6 +27,7 @@ failure:
 void generation_free(struct generation* self) {
   if (!self)
     return;
+  gc_perform_shutdown(self->gcState);
   gc_per_generation_state_free(self->gcState);
   alloc_tracker_free(self->allocTracker);
   free(self);

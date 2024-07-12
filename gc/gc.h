@@ -197,4 +197,6 @@ void gc_unblock(struct gc_per_generation_state* self, struct thread* blockingThr
 
 void gc_get_stats(struct gc_per_generation_state* self, struct gc_stats* stats);
 
+void gc_perform_shutdown(struct gc_per_generation_state* self);
+
 #endif
