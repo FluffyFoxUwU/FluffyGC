@@ -18,6 +18,7 @@
 #include <flup/data_structs/dyn_array.h>
 #include <flup/data_structs/buffer.h>
 
+#include "gc/driver.h"
 #include "gc/gc_lock.h"
 #include "heap/heap.h"
 #include "heap/thread.h"
@@ -95,6 +96,8 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     goto failure;
   if (!(self->thread = flup_thread_new(gcThread, self)))
     goto failure;
+  if (!(self->driver = gc_driver_new(self)))
+    goto failure;
   return self;
 
 failure:
@@ -113,6 +116,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   if (!self)
     return;
   
+  gc_driver_free(self->driver);
   if (self->thread) {
     callGCAsync(self, GC_SHUTDOWN);
     flup_thread_wait(self->thread);

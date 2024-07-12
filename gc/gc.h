@@ -175,6 +175,8 @@ struct gc_per_generation_state {
   // so save it for later after mark queue
   // is empty
   flup_circular_buffer* deferredMarkQueue;
+  
+  struct gc_driver* driver;
 };
 
 void gc_start_cycle(struct gc_per_generation_state* self);
