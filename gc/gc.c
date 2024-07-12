@@ -31,19 +31,6 @@
 void gc_on_allocate(struct alloc_unit* block, struct generation* gen) {
   block->gcMetadata.markBit = !gen->gcState->mutatorMarkedBitValue;
   block->gcMetadata.owningGeneration = gen;
-  
-  // Don't start async cycle if one in progress
-  if (atomic_load(&gen->gcState->cycleInProgress))
-    return;
-  
-  size_t usage = atomic_load(&gen->allocTracker->currentUsage) * 100;
-  size_t softLimit = gen->allocTracker->maxSize * gen->gcState->asyncTriggerPercent;
-  
-  // Start GC cycle so memory freed before mutator has to start
-  // waiting on GC 
-  if (usage > softLimit) {
-    gc_start_cycle_async(gen->gcState);
-  }
 }
 
 void gc_need_remark(struct alloc_unit* obj) {

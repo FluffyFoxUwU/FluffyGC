@@ -1,13 +1,17 @@
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <signal.h>
 #include <time.h>
 #include <errno.h>
+#include <stddef.h>
 
 #include <flup/core/panic.h>
 #include <flup/core/logger.h>
 #include <flup/thread/thread.h>
+
+#include "gc/gc.h"
+#include "heap/generation.h"
+#include "memory/alloc_tracker.h"
 
 #include "driver.h"
 
@@ -18,7 +22,18 @@
 // while the gc.c primarily focus on the actual GC process
 
 static void pollHeapState(struct gc_driver* self) {
+  struct generation* gen = self->gcState->ownerGen;
   
+  size_t usage = atomic_load(&gen->allocTracker->currentUsage) * 100;
+  size_t softLimit = gen->allocTracker->maxSize * gen->gcState->asyncTriggerPercent;
+  
+  // Start GC cycle so memory freed before mutator has to start
+  // waiting on GC 
+  if (usage > softLimit) {
+    pr_verbose("Soft limit reached, starting GC");
+    gc_start_cycle(gen->gcState);
+    return;
+  }
 }
 
 static void driver(void* _self) {
