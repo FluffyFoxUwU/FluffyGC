@@ -70,7 +70,7 @@ static bool matchingRateRule(struct gc_driver* self) {
   double bytesToOOM = bytesLimit - (double) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
   if (bytesToOOM < 0)
     bytesToOOM = 0;
-  double secondsToOOM = (double) bytesToOOM / (double) atomic_load(&self->statCollector->averageAllocRatePerSecond);
+  double secondsToOOM = (double) bytesToOOM / (double) (atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1);
   
   double panicFactor = 1.10f;
   double cycleTime = atomic_load(&self->gcState->averageCycleTime);
