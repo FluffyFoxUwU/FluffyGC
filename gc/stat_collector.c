@@ -14,7 +14,7 @@
 #include "stat_collector.h"
 
 #undef FLUP_LOG_CATEGORY
-#define FLUP_LOG_CATEGORY "GC Driver"
+#define FLUP_LOG_CATEGORY "Stat collector"
 
 static void collectData(struct stat_collector* self) {
   static thread_local size_t lastLifetimeBytes = 0;
