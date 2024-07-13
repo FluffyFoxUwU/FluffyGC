@@ -27,9 +27,6 @@
 // The unit returned is bytes per 1/DRIVER_CHECK_RATE_HZ
 static size_t calcAllocationRatePerDriverHZ(struct gc_driver* self) {
   // Assume worst allocation rate because Foxie have no sample here
-  if (self->runningSamplesOfGCCycleTime->entryCount == 0)
-    return SIZE_MAX;
-  
   struct moving_window_iterator iterator = {};
   size_t totalRates = 0;
   while (moving_window_next(self->runningSamplesOfAllocRates, &iterator))
@@ -94,7 +91,7 @@ static void pollHeapState(struct gc_driver* self) {
   struct generation* gen = self->gcState->ownerGen;
   // Capture allocation rates
   size_t current = atomic_load(&gen->allocTracker->lifetimeBytesAllocated);
-  size_t rate = current - self->prevAllocBytes;
+  size_t rate = current - self->prevAllocBytes + 1;
   self->prevAllocBytes = current;
   moving_window_append(self->runningSamplesOfAllocRates, &rate);
   
@@ -110,6 +107,7 @@ static void pollHeapState(struct gc_driver* self) {
     size_t maxSize = gen->allocTracker->maxSize;
     unsigned int microsecBeforeOOM = calcMicrosecBeforeOOM(allocRate, currentUsage, maxSize);
     unsigned int microsecPredictedCycleTime = calcAverageCycleTime(self);
+    pr_verbose("Alloc rate %.02f", (float) allocRate * DRIVER_CHECK_RATE_HZ / 1024 / 1024);
     pr_verbose("Soft limit reached, starting GC (System was %f seconds away from OOM and GC would take %f seconds)", (float) microsecBeforeOOM / 1'000'000, (float) microsecPredictedCycleTime / 1'000'000);
     doCollection(self);
     return;

@@ -10,7 +10,8 @@ struct moving_window {
   unsigned int nextWindowIndex;
   unsigned int entryCount;
   unsigned int maxEntryCount;
-  char data[];
+  
+  char data alignas(max_align_t)[];
 };
 
 struct moving_window_iterator {
