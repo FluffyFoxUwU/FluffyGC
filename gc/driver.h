@@ -9,9 +9,9 @@
 // Checks the heap state 50 times a second
 #define DRIVER_CHECK_RATE_HZ 50
 
-// 5 seconds worth of samples
-#define DRIVER_ALLOC_RATE_SAMPLES (DRIVER_CHECK_RATE_HZ * 5)
-#define DRIVER_CYCLE_TIME_SAMPLES (DRIVER_CHECK_RATE_HZ * 5)
+// 2 seconds worth of samples
+#define DRIVER_ALLOC_RATE_SAMPLES (DRIVER_CHECK_RATE_HZ * 2)
+#define DRIVER_CYCLE_TIME_SAMPLES (5)
 
 struct gc_driver {
   struct gc_per_generation_state* gcState;
