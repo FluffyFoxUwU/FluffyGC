@@ -44,22 +44,10 @@ static void driver(void* _self) {
   struct gc_driver* self = _self;
   
   struct timespec deadline;
-  clockid_t clockToUse;
   
-  pr_info("Checking for CLOCK_MONOTONIC support");
-  if (clock_gettime(CLOCK_MONOTONIC, &deadline) == 0) {
-    pr_info("CLOCK_MONOTONIC available using it");
-    clockToUse = CLOCK_MONOTONIC;
-    goto nice_clock_found;
-  }
-  pr_info("CLOCK_MONOTONIC support unavailable falling back to CLOCK_REALTIME");
-  
-  // Fall back to CLOCK_REALTIME which should be available on most implementations
   if (clock_gettime(CLOCK_REALTIME, &deadline) != 0)
     flup_panic("Strange this implementation did not support CLOCK_REALTIME");
   
-  clockToUse = CLOCK_REALTIME;
-nice_clock_found:
   while (atomic_load(&self->quitRequested) == false) {
     if (atomic_load(&self->paused) == true)
       goto driver_was_paused;
