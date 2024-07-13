@@ -64,20 +64,28 @@ static bool warmUpRule(struct gc_driver* self) {
 }
 
 static bool matchingRateRule(struct gc_driver* self) {
-  // Lower the OOM trigger
-  double bytesLimit = (double) self->gcState->ownerGen->allocTracker->maxSize * self->gcState->targetHeapPercent;
+  double cycleTime = atomic_load(&self->gcState->averageCycleTime);
+  double allocRate = (double) (atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1);
+  double bytesLimit = (double) atomic_load(&self->gcState->bytesAtStartOfLastCycle) + allocRate * cycleTime;
+  if (bytesLimit > (double) self->gcState->ownerGen->allocTracker->maxSize)
+    bytesLimit = (double) self->gcState->ownerGen->allocTracker->maxSize;
   
   double bytesToOOM = bytesLimit - (double) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
   if (bytesToOOM < 0)
     bytesToOOM = 0;
-  double secondsToOOM = (double) bytesToOOM / (double) (atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1);
+  double secondsToOOM = (double) bytesToOOM / allocRate;
   
-  double panicFactor = 1.10f;
-  double cycleTime = atomic_load(&self->gcState->averageCycleTime);
+  double panicFactor = 1.20f;
   double adjustedCycleTime = cycleTime * panicFactor;
   
+  if (secondsToOOM < 1.0f / DRIVER_CHECK_RATE_HZ) {
+    pr_info("System was %.03f sec from target but less than %.03f sec", secondsToOOM, 1.0f / DRIVER_CHECK_RATE_HZ);
+    doCollection(self);
+    return true;
+  }
+  
   if (secondsToOOM < adjustedCycleTime) {
-    pr_info("System was %.03f to OOM and cycle time is %.03f", secondsToOOM, cycleTime);
+    pr_info("System was %.03f sec to target trigger and cycle time is %.03f", secondsToOOM, cycleTime);
     doCollection(self);
     return true;
   }

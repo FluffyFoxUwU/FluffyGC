@@ -17,6 +17,8 @@
 
 #include <flup/thread/thread.h>
 
+#include "gc/driver.h"
+#include "gc/stat_collector.h"
 #include "platform/platform.h"
 #include "heap/heap.h"
 #include "memory/alloc_tracker.h"
@@ -127,7 +129,7 @@ int main() {
     flup_panic("Cannot open ./benches/stat.csv file for appending!");
   if (setvbuf(statCSVFile, fwuffyAndLargeBufferUwU, _IOFBF, sizeof(fwuffyAndLargeBufferUwU)) != 0)
     flup_panic("Error on setvbuf for ./benches/stat.csv");
-  fprintf(statCSVFile, "Timestamp,Usage,Async Threshold,Metadata Usage,Non-metadata Usage,Max size,Mutator utilization,GC utilization\n");
+  fprintf(statCSVFile, "Timestamp,Usage,Trigger Threshold,Max size,Mutator utilization,GC utilization\n");
   
   static atomic_bool shutdownRequested = false;
   static clockid_t mutatorCPUClock;
@@ -186,12 +188,10 @@ int main() {
       alloc_tracker_get_statistics(heap->gen->allocTracker, &statistic);
       
       size_t usage = statistic.usedBytes;
-      size_t metadataUsage = 0;
-      size_t nonMetadataUsage = 0;
       
       size_t maxSize = statistic.maxSize;
-      size_t asyncCycleTriggerThreshold = (size_t) ((float) maxSize * (float) heap->gen->gcState->targetHeapPercent);
-      fprintf(statCSVFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", time - testStartTime, (double) usage / 1024 / 1024, (double) asyncCycleTriggerThreshold / 1024 / 1024, (double) metadataUsage / 1024 / 1024, (double) nonMetadataUsage / 1024 / 1024, (double) maxSize / 1024 / 1024, mutatorCPUUtilization * 100.0f, gcCPUUtilization * 100.0f);
+      size_t asyncCycleTriggerThreshold = atomic_load(&heap->gen->gcState->bytesAtStartOfLastCycle);
+      fprintf(statCSVFile, "%lf,%lf,%lf,%lf,%lf,%lf\n", time - testStartTime, (double) usage / 1024 / 1024, (double) asyncCycleTriggerThreshold / 1024 / 1024, (double) maxSize / 1024 / 1024, mutatorCPUUtilization * 100.0f, gcCPUUtilization * 100.0f);
       
       prevMutatorCPUTime = mutatorCPUTime;
       prevGCCPUTime = gcCPUTime;

@@ -141,7 +141,8 @@ struct gc_per_generation_state {
   flup_mutex* statsLock;
   struct gc_stats stats;
   
-  float targetHeapPercent;
+  atomic_size_t bytesAtStartOfLastCycle;
+  atomic_size_t bytesFreedFromLastCycle;
   
   struct generation* ownerGen;
   struct gc_lock_state* gcLock;

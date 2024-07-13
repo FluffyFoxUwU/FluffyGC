@@ -6,7 +6,7 @@
 #include <flup/thread/thread.h>
 
 // Checks the heap state 50 times a second
-#define DRIVER_CHECK_RATE_HZ 50
+#define DRIVER_CHECK_RATE_HZ 20
 
 struct gc_driver {
   struct gc_per_generation_state* gcState;

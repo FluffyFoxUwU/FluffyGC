@@ -60,8 +60,7 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     return NULL;
   
   *self = (struct gc_per_generation_state) {
-    .ownerGen = gen,
-    .targetHeapPercent = 0.4f
+    .ownerGen = gen
   };
   
   if (!(self->cycleTimeSamples = moving_window_new(sizeof(double), GC_CYCLE_TIME_SAMPLE_COUNT)))
@@ -264,7 +263,8 @@ static void processMutatorMarkQueuePhase(struct cycle_state* state) {
   BUG_ON(ret == -EMSGSIZE);
 }
 
-static void sweepPhase(struct cycle_state* state) {
+// Returns bytes free'd
+static size_t sweepPhase(struct cycle_state* state) {
   __block uint64_t count = 0;
   __block size_t totalSize = 0;
   
@@ -297,6 +297,8 @@ static void sweepPhase(struct cycle_state* state) {
   
   state->stats.lifetimeTotalLiveObjectCount += liveObjectCount;
   state->stats.lifetimeTotalObjectSize += liveObjectSize;
+  
+  return sweepSize;
 }
 
 static void pauseAppThreads(struct cycle_state* state) {
@@ -322,7 +324,6 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   };
   
   // pr_info("Before cycle mem usage: %f MiB", (float) atomic_load(&state.arena->currentUsage) / 1024.0f / 1024.0f);
-  
   flup_mutex_lock(self->statsLock);
   state.stats = self->stats;
   flup_mutex_unlock(self->statsLock);
@@ -331,6 +332,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
   
   pauseAppThreads(&state);
+  atomic_store(&self->bytesAtStartOfLastCycle, atomic_load(&self->ownerGen->allocTracker->currentUsage));
   self->mutatorMarkedBitValue = self->GCMarkedBitValue;
   atomic_store(&self->cycleInProgress, true);
   
@@ -342,7 +344,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   markingPhase(&state);
   atomic_store(&self->markingInProgress, false);
   processMutatorMarkQueuePhase(&state);
-  sweepPhase(&state);
+  size_t freedBytes = sweepPhase(&state);
   
   pauseAppThreads(&state);
   self->GCMarkedBitValue = !self->GCMarkedBitValue;
@@ -374,6 +376,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
     total += *((double*) iterator.current);
   
   atomic_store(&self->averageCycleTime, total / (double) self->cycleTimeSamples->entryCount);
+  atomic_store(&self->bytesFreedFromLastCycle, freedBytes);
   // pr_info("After cycle mem usage: %f MiB", (float) atomic_load(&state.arena->currentUsage) / 1024.0f / 1024.0f);
 }
 
