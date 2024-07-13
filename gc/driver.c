@@ -26,19 +26,49 @@ static void doCollection(struct gc_driver* self) {
   gc_start_cycle(self->gcState);
 }
 
-static void pollHeapState(struct gc_driver* self) {
+static bool lowMemoryRule(struct gc_driver* self) {
   struct generation* gen = self->gcState->ownerGen;
   
   size_t usage = atomic_load(&gen->allocTracker->currentUsage);
-  size_t softLimit = (size_t) ((float) gen->allocTracker->maxSize * gen->gcState->asyncTriggerThreshold);
+  size_t softLimit = (size_t) ((float) gen->allocTracker->maxSize * 0.90f);
   
   // Start GC cycle so memory freed before mutator has to start
   // waiting on GC 
   if (usage > softLimit) {
-    pr_verbose("Soft limit reached, starting GC");
+    pr_verbose("Low memory rule: starting GC");
     doCollection(self);
-    return;
+    return true;
   }
+  return false;
+}
+
+// Runs GC at 10%, 20% and 30% to warm up statistics
+static bool warmUpRule(struct gc_driver* self) {
+  static thread_local int warmUpCurrentCount = 0;
+  if (warmUpCurrentCount > 3)
+    return false;
+  
+  struct generation* gen = self->gcState->ownerGen;
+  
+  float warmPercent = 0.10f + (float) warmUpCurrentCount * 0.10f;
+  size_t usage = atomic_load(&gen->allocTracker->currentUsage);
+  size_t warmTrigger = (size_t) ((float) gen->allocTracker->maxSize * warmPercent);
+  
+  if (usage > warmTrigger) {
+    pr_verbose("Warming GC at %.00f percent", warmPercent * 100);
+    doCollection(self);
+    warmUpCurrentCount++;
+    return true;
+  }
+  return false;
+}
+
+static void pollHeapState(struct gc_driver* self) {
+  if (lowMemoryRule(self))
+    return;
+  
+  if (warmUpRule(self))
+    return;
 }
 
 static void driver(void* _self) {
