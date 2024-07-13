@@ -94,6 +94,7 @@ void stat_collector_unpause(struct stat_collector* self) {
 
 void stat_collector_perform_shutdown(struct stat_collector* self) {
   stat_collector_unpause(self);
+  atomic_store(&self->quitRequested, true);
   if (self->thread)
     flup_thread_wait(self->thread);
 }
