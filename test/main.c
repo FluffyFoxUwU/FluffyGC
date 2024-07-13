@@ -25,7 +25,7 @@
 #include "util/cpu_pin.h"
 
 #define WINDOW_SIZE 200'000
-#define MESSAGE_COUNT 10'000'000
+#define MESSAGE_COUNT 30'000'000
 #define MESSAGE_SIZE 1024
 
 struct array_of_messages {
