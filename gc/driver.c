@@ -65,7 +65,7 @@ static bool warmUpRule(struct gc_driver* self) {
 
 static bool matchingRateRule(struct gc_driver* self) {
   // Lower the OOM trigger
-  double bytesLimit = (double) self->gcState->ownerGen->allocTracker->maxSize * self->gcState->asyncTriggerThreshold;
+  double bytesLimit = (double) self->gcState->ownerGen->allocTracker->maxSize * self->gcState->targetHeapPercent;
   
   double bytesToOOM = bytesLimit - (double) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
   if (bytesToOOM < 0)

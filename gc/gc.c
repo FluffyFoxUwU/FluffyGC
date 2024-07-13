@@ -61,7 +61,7 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
   
   *self = (struct gc_per_generation_state) {
     .ownerGen = gen,
-    .asyncTriggerThreshold = 0.4f
+    .targetHeapPercent = 0.4f
   };
   
   if (!(self->cycleTimeSamples = moving_window_new(sizeof(double), GC_CYCLE_TIME_SAMPLE_COUNT)))
