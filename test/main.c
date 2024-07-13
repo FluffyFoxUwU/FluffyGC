@@ -5,9 +5,12 @@
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 #include <mimalloc.h>
+#include <inttypes.h>
+#include <stdint.h>
 
 #include <flup/core/panic.h>
 #include <flup/core/logger.h>
@@ -22,7 +25,7 @@
 #include "util/cpu_pin.h"
 
 #define WINDOW_SIZE 200'000
-#define MESSAGE_COUNT 30'000'000
+#define MESSAGE_COUNT 10'000'000
 #define MESSAGE_SIZE 1024
 
 struct array_of_messages {
@@ -62,15 +65,24 @@ static struct descriptor desc_array_of_messages = {
   .objectSize = sizeof(struct array_of_messages)
 };
 
-static void doTestGCExperiment(struct heap* heap) {
+static void runTest(struct heap* heap, int iterations) {
   struct root_ref* messagesWindow = heap_alloc_with_descriptor(heap, &desc_array_of_messages, WINDOW_SIZE * sizeof(void*));
   struct array_of_messages* deref = (void*) messagesWindow->obj->data;
   deref->length = WINDOW_SIZE;
   
-  for (int i = 0; i < MESSAGE_COUNT; i++)
+  // Warming up garbage collector first
+  for (int i = 0; i < iterations; i++)
     pushMessage(heap, messagesWindow, i);
   heap_root_unref(heap, messagesWindow);
-  
+}
+
+static void warmUp(struct heap* heap) {
+  runTest(heap, 1'000'000);
+  worstTimeMicroSec = 0;
+}
+
+static void doTestGCExperiment(struct heap* heap) {
+  runTest(heap, MESSAGE_COUNT);
   pr_info("Worst push time: %" PRId64 " milisecs", worstTimeMicroSec / 1'000);
 }
 
@@ -84,7 +96,7 @@ int main() {
   pr_info("FluffyGC running on %s", platform_get_name());
   
   // Create 128 MiB heap
-  size_t heapSize = 256 * 1024 * 1024;
+  size_t heapSize = 1 * 1024 * 1024 * 1024;
   size_t reserveExtra = 64 * 1024 * 1024;
   
   if (mi_reserve_os_memory(heapSize + reserveExtra, true, true) != 0)
@@ -189,6 +201,7 @@ int main() {
     }
   });
   
+  size_t beforeTestBytesAllocated = atomic_load(&heap->gen->allocTracker->lifetimeBytesAllocated);
   struct timespec start, end;
   clock_gettime(CLOCK_REALTIME, &start);
   // Test based on same test on
@@ -200,7 +213,7 @@ int main() {
   double startTime = (double) start.tv_sec + (double) start.tv_nsec / 1e9;
   double endTime = (double) end.tv_sec + (double) end.tv_nsec / 1e9;
   pr_info("Test duration was %lf sec", endTime - startTime);
-  pr_info("And %lf MiB allocated during lifetime", ((double) atomic_load(&heap->gen->allocTracker->lifetimeBytesAllocated)) / 1024.0f / 1024.0f);
+  pr_info("And %lf MiB allocated during test time", ((double) (atomic_load(&heap->gen->allocTracker->lifetimeBytesAllocated) - beforeTestBytesAllocated)) / 1024.0f / 1024.0f);
   
   pr_info("Exiting... UwU");
   

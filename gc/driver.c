@@ -30,7 +30,7 @@ static bool lowMemoryRule(struct gc_driver* self) {
   struct generation* gen = self->gcState->ownerGen;
   
   size_t usage = atomic_load(&gen->allocTracker->currentUsage);
-  size_t softLimit = (size_t) ((float) gen->allocTracker->maxSize * 0.90f);
+  size_t softLimit = (size_t) ((float) gen->allocTracker->maxSize * 0.95f);
   
   // Start GC cycle so memory freed before mutator has to start
   // waiting on GC 
@@ -42,10 +42,10 @@ static bool lowMemoryRule(struct gc_driver* self) {
   return false;
 }
 
-// Runs GC at 10%, 20% and 30% to warm up statistics
+// Runs GC at 10%, 20%, 30%, 40%, and 50% to warm up statistics
 static bool warmUpRule(struct gc_driver* self) {
   static thread_local int warmUpCurrentCount = 0;
-  if (warmUpCurrentCount > 3)
+  if (warmUpCurrentCount >= 5)
     return false;
   
   struct generation* gen = self->gcState->ownerGen;
@@ -63,11 +63,35 @@ static bool warmUpRule(struct gc_driver* self) {
   return false;
 }
 
+static bool matchingRateRule(struct gc_driver* self) {
+  // Lower the OOM trigger
+  double bytesLimit = (double) self->gcState->ownerGen->allocTracker->maxSize * 0.80f;
+  
+  double bytesToOOM = bytesLimit - (double) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
+  if (bytesToOOM < 0)
+    bytesToOOM = 0;
+  double secondsToOOM = (double) bytesToOOM / (double) atomic_load(&self->statCollector->averageAllocRatePerSecond);
+  
+  double panicFactor = 1.10f;
+  double cycleTime = atomic_load(&self->gcState->averageCycleTime);
+  double adjustedCycleTime = cycleTime * panicFactor;
+  
+  if (secondsToOOM < adjustedCycleTime) {
+    pr_info("System was %.03f to OOM and cycle time is %.03f", secondsToOOM, cycleTime);
+    doCollection(self);
+    return true;
+  }
+  return false;
+}
+
 static void pollHeapState(struct gc_driver* self) {
   if (lowMemoryRule(self))
     return;
   
   if (warmUpRule(self))
+    return;
+  
+  if (matchingRateRule(self))
     return;
 }
 
