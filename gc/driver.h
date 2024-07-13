@@ -13,6 +13,8 @@ struct gc_driver {
   flup_thread* driverThread;
   atomic_bool quitRequested;
   atomic_bool paused;
+  
+  struct stat_collector* statCollector;
 };
 
 struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState);

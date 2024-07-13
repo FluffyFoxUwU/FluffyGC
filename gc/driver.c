@@ -10,6 +10,7 @@
 #include <flup/thread/thread.h>
 
 #include "gc/gc.h"
+#include "gc/stat_collector.h"
 #include "heap/generation.h"
 #include "memory/alloc_tracker.h"
 
@@ -63,7 +64,7 @@ driver_was_paused:
     }
     
     int ret = 0;
-    while ((ret = clock_nanosleep(clockToUse, TIMER_ABSTIME, &deadline, NULL)) == EINTR)
+    while ((ret = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &deadline, NULL)) == EINTR)
       ;
     
     if (ret != 0)
@@ -83,6 +84,8 @@ struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState) {
     .paused = true,
   };
   
+  if (!(self->statCollector = stat_collector_new(gcState)))
+    goto failure;
   if (!(self->driverThread = flup_thread_new(driver, self)))
     goto failure;
   return self;
@@ -92,6 +95,7 @@ failure:
 }
 
 void gc_driver_unpause(struct gc_driver* self) {
+  stat_collector_unpause(self->statCollector);
   atomic_store(&self->paused, false);
 }
 
@@ -101,6 +105,8 @@ void gc_driver_perform_shutdown(struct gc_driver* self) {
   
   if (self->driverThread)
     flup_thread_wait(self->driverThread);
+  
+  stat_collector_perform_shutdown(self->statCollector);
 }
 
 void gc_driver_free(struct gc_driver* self) {
@@ -109,6 +115,7 @@ void gc_driver_free(struct gc_driver* self) {
   
   if (self->driverThread)
     flup_thread_free(self->driverThread);
+  stat_collector_free(self->statCollector);
   free(self);
 }
 
