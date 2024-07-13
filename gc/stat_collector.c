@@ -32,7 +32,7 @@ static void collectData(struct stat_collector* self) {
   size_t averagedRateConverted = total * STAT_COLLECTOR_HZ / self->allocRateSamples->entryCount;
   atomic_store(&self->averageAllocRatePerSecond, averagedRateConverted);
   
-  pr_info("Alloc rate is: %.02f MiB/s", (float) averagedRateConverted / 1024 / 1024);
+  pr_info("Alloc rate %.02f MiB/s GC cycle time %0.2f milisecs", (float) averagedRateConverted / 1024 / 1024, atomic_load(&self->gcState->averageCycleTime) * 1000);
 }
 
 static void statCollectorThread(void* _self) {

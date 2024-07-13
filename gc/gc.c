@@ -25,6 +25,7 @@
 #include "memory/alloc_tracker.h"
 #include "heap/generation.h"
 #include "object/descriptor.h"
+#include "util/moving_window.h"
 
 #include "gc.h"
 
@@ -63,6 +64,8 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     .asyncTriggerThreshold = 0.4f
   };
   
+  if (!(self->cycleTimeSamples = moving_window_new(sizeof(double), GC_CYCLE_TIME_SAMPLE_COUNT)))
+    goto failure;
   if (!(self->gcLock = gc_lock_new()))
     goto failure;
   if (!(self->needRemarkQueue = flup_buffer_new(GC_MUTATOR_MARK_QUEUE_SIZE)))
@@ -125,6 +128,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   gc_lock_free(self->gcLock);
   free(self->snapshotOfRootSet);
   flup_buffer_free(self->needRemarkQueue);
+  moving_window_free(self->cycleTimeSamples);
   free(self);
 }
 
@@ -361,6 +365,15 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   flup_mutex_lock(self->statsLock);
   self->stats = state.stats;
   flup_mutex_unlock(self->statsLock);
+  
+  moving_window_append(self->cycleTimeSamples, &duration);
+  
+  struct moving_window_iterator iterator = {};
+  double total = 0;
+  while (moving_window_next(self->cycleTimeSamples, &iterator))
+    total += *((double*) iterator.current);
+  
+  atomic_store(&self->averageCycleTime, total / (double) self->cycleTimeSamples->entryCount);
   // pr_info("After cycle mem usage: %f MiB", (float) atomic_load(&state.arena->currentUsage) / 1024.0f / 1024.0f);
 }
 

@@ -98,6 +98,8 @@ Extra notes:
 // 16 MiB deferred mark queue for when objects can't fit into one mark queue
 #define GC_DEFERRED_MARK_QUEUE_SIZE (16 * 1024 * 1024)
 
+#define GC_CYCLE_TIME_SAMPLE_COUNT (5)
+
 struct generation;
 struct alloc_unit;
 struct thread;
@@ -177,6 +179,10 @@ struct gc_per_generation_state {
   flup_circular_buffer* deferredMarkQueue;
   
   struct gc_driver* driver;
+  
+  // "double" samples of cycle time in miliseconds
+  struct moving_window* cycleTimeSamples;
+  _Atomic(double) averageCycleTime;
 };
 
 void gc_start_cycle(struct gc_per_generation_state* self);
