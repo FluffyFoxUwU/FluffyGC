@@ -18,7 +18,6 @@
 #include <flup/thread/thread.h>
 
 #include "gc/driver.h"
-#include "gc/stat_collector.h"
 #include "platform/platform.h"
 #include "heap/heap.h"
 #include "memory/alloc_tracker.h"
