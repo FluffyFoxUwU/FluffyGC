@@ -78,7 +78,7 @@ static void runTest(struct heap* heap, int iterations) {
 }
 
 static void warmUp(struct heap* heap) {
-  runTest(heap, 1'000'000);
+  runTest(heap, 10'000'000);
   worstTimeMicroSec = 0;
 }
 
@@ -97,7 +97,7 @@ int main() {
   pr_info("FluffyGC running on %s", platform_get_name());
   
   // Create 128 MiB heap
-  size_t heapSize = 1 * 1024 * 1024 * 1024;
+  size_t heapSize = 1900 * 1024 * 1024;
   size_t reserveExtra = 64 * 1024 * 1024;
   
   if (mi_reserve_os_memory(heapSize + reserveExtra, true, true) != 0)
@@ -189,7 +189,7 @@ int main() {
       size_t usage = statistic.usedBytes;
       
       size_t maxSize = statistic.maxSize;
-      size_t asyncCycleTriggerThreshold = atomic_load(&heap->gen->gcState->bytesAtStartOfLastCycle);
+      size_t asyncCycleTriggerThreshold = atomic_load(&heap->gen->gcState->driver->averageTriggerThreshold);
       fprintf(statCSVFile, "%lf,%lf,%lf,%lf,%lf,%lf\n", time - testStartTime, (double) usage / 1024 / 1024, (double) asyncCycleTriggerThreshold / 1024 / 1024, (double) maxSize / 1024 / 1024, mutatorCPUUtilization * 100.0f, gcCPUUtilization * 100.0f);
       
       prevMutatorCPUTime = mutatorCPUTime;

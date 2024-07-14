@@ -3,10 +3,7 @@ local MESSAGE_COUNT = 1000000
 local MESSAGE_SIZE = 1024
 
 local function createMessage(n)
-  return (string.char(n % 0x100)..
-          string.char(math.floor(n / 8) % 0x100)..
-          string.char(math.floor(n / 16) % 0x100)..
-          string.char(math.floor(n / 24) % 0x100)):rep(MESSAGE_SIZE / 4)
+  return string.char(n & 0xFF):rep(MESSAGE_SIZE)
 end
 
 local worstPushTime = 0
