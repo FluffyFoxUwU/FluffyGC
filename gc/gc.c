@@ -332,7 +332,6 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
   
   pauseAppThreads(&state);
-  atomic_store(&self->bytesAtStartOfLastCycle, atomic_load(&self->ownerGen->allocTracker->currentUsage));
   self->mutatorMarkedBitValue = self->GCMarkedBitValue;
   atomic_store(&self->cycleInProgress, true);
   
@@ -368,6 +367,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   self->stats = state.stats;
   flup_mutex_unlock(self->statsLock);
   
+  atomic_store(&self->bytesUsedRightBeforeSweeping, atomic_load(&self->ownerGen->allocTracker->currentUsage) + freedBytes);
   moving_window_append(self->cycleTimeSamples, &duration);
   
   struct moving_window_iterator iterator = {};
@@ -376,7 +376,6 @@ static void cycleRunner(struct gc_per_generation_state* self) {
     total += *((double*) iterator.current);
   
   atomic_store(&self->averageCycleTime, total / (double) self->cycleTimeSamples->entryCount);
-  atomic_store(&self->bytesFreedFromLastCycle, freedBytes);
   // pr_info("After cycle mem usage: %f MiB", (float) atomic_load(&state.arena->currentUsage) / 1024.0f / 1024.0f);
 }
 

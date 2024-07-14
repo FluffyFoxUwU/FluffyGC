@@ -13,6 +13,7 @@
 #include "gc/stat_collector.h"
 #include "heap/generation.h"
 #include "memory/alloc_tracker.h"
+#include "util/moving_window.h"
 
 #include "driver.h"
 
@@ -22,8 +23,25 @@
 // This file will contain logics to decide when to start GC
 // while the gc.c primarily focus on the actual GC process
 
+static size_t calcAverageTargetThreshold(struct gc_driver* self) {
+  if (self->triggerThresholdSamples->entryCount == 0)
+    return 0;
+  
+  struct moving_window_iterator iterator = {};
+  size_t total = 0;
+  while (moving_window_next(self->triggerThresholdSamples, &iterator))
+    total += *((size_t*) iterator.current);
+  
+  return total / self->triggerThresholdSamples->entryCount;
+}
+
 static void doCollection(struct gc_driver* self) {
   gc_start_cycle(self->gcState);
+  
+  size_t threshold = atomic_load(&self->gcState->bytesUsedRightBeforeSweeping);
+  moving_window_append(self->triggerThresholdSamples, &threshold);
+  
+  atomic_store(&self->averageTriggerThreshold, calcAverageTargetThreshold(self));
 }
 
 static bool lowMemoryRule(struct gc_driver* self) {
@@ -64,9 +82,11 @@ static bool warmUpRule(struct gc_driver* self) {
 }
 
 static bool matchingRateRule(struct gc_driver* self) {
+  size_t bytesLimitSizeT = atomic_load(&self->averageTriggerThreshold);
+  
   double cycleTime = atomic_load(&self->gcState->averageCycleTime);
   double allocRate = (double) (atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1);
-  double bytesLimit = (double) atomic_load(&self->gcState->bytesAtStartOfLastCycle) + allocRate * cycleTime;
+  double bytesLimit = (double) bytesLimitSizeT;
   if (bytesLimit > (double) self->gcState->ownerGen->allocTracker->maxSize)
     bytesLimit = (double) self->gcState->ownerGen->allocTracker->maxSize;
   
@@ -75,17 +95,15 @@ static bool matchingRateRule(struct gc_driver* self) {
     bytesToOOM = 0;
   double secondsToOOM = (double) bytesToOOM / allocRate;
   
-  double panicFactor = 1.20f;
+  double panicFactor = 1.70f;
   double adjustedCycleTime = cycleTime * panicFactor;
   
   if (secondsToOOM < 1.0f / DRIVER_CHECK_RATE_HZ) {
-    pr_info("System was %.03f sec from target but less than %.03f sec", secondsToOOM, 1.0f / DRIVER_CHECK_RATE_HZ);
     doCollection(self);
     return true;
   }
   
   if (secondsToOOM < adjustedCycleTime) {
-    pr_info("System was %.03f sec to target trigger and cycle time is %.03f", secondsToOOM, cycleTime);
     doCollection(self);
     return true;
   }
@@ -146,6 +164,8 @@ struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState) {
     .paused = true,
   };
   
+  if (!(self->triggerThresholdSamples = moving_window_new(sizeof(size_t), DRIVER_TRIGGER_THRESHOLD_SAMPLES)))
+    goto failure;
   if (!(self->statCollector = stat_collector_new(gcState)))
     goto failure;
   if (!(self->driverThread = flup_thread_new(driver, self)))
@@ -178,6 +198,7 @@ void gc_driver_free(struct gc_driver* self) {
   if (self->driverThread)
     flup_thread_free(self->driverThread);
   stat_collector_free(self->statCollector);
+  moving_window_free(self->triggerThresholdSamples);
   free(self);
 }
 

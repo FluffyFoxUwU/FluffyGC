@@ -5,8 +5,12 @@
 
 #include <flup/thread/thread.h>
 
+#include "util/moving_window.h"
+
 // Checks the heap state 50 times a second
-#define DRIVER_CHECK_RATE_HZ 20
+#define DRIVER_CHECK_RATE_HZ 40
+
+#define DRIVER_TRIGGER_THRESHOLD_SAMPLES 20
 
 struct gc_driver {
   struct gc_per_generation_state* gcState;
@@ -15,6 +19,9 @@ struct gc_driver {
   atomic_bool paused;
   
   struct stat_collector* statCollector;
+  
+  struct moving_window* triggerThresholdSamples;
+  atomic_size_t averageTriggerThreshold;
 };
 
 struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState);
