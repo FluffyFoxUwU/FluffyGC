@@ -1,1 +1,1 @@
-UwUMaker-c-sources-y += main.c
+UwUMaker-c-sources-y += main.c stat_printer.c

@@ -20,9 +20,9 @@ UwUMaker-linker-flags-y += -flto=full -O3
 # UwUMaker-linker-flags-y += -fsanitize=address
 # UwUMaker-c-flags-y += -fsanitize=undefined
 # UwUMaker-linker-flags-y += -fsanitize=undefined
-UwUMaker-linker-flags-y += -Wl,--no-as-needed -Wl,-lmimalloc -Wl,-lFlup -Wl,-lBlocksRuntime -Wl,--as-needed
+UwUMaker-linker-tail-flags-y += -lmimalloc -lFlup -lBlocksRuntime
 
-UwUMaker-pkg-config-libs-y += mimalloc
+UwUMaker-pkg-config-libs-y += mimalloc sdl2
 
 UwUMaker-is-executable := y
 UwUMaker-name := FluffyGC
