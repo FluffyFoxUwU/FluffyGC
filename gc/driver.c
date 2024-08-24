@@ -185,12 +185,26 @@ static bool growthRule(struct gc_driver* self) {
   return false;
 }
 
+static bool highAllocRateRule(struct gc_driver* self) {
+  float allocRate = (float) atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1;
+  float heapSize = (float) self->gcState->ownerGen->allocTracker->maxSize;
+  
+  // Trigger if alloc rate too fast
+  // before it properly averaged for
+  // matching rate rule to see
+  if (allocRate > heapSize / (STAT_COLLECTOR_ALLOC_RATE_SAMPLES * 1.2f)) {
+    pr_info("High alloc rate! but matching rule did not trigger");
+    doCollection(self);
+    return true;
+  }
+  return false;
+}
+
 static void pollHeapState(struct gc_driver* self) {
   struct polling_state state = {};
   preRunMatchingRateRule(self, &state);
   
-  // Trigger on low memory in case growth, matching rate, and 
-  // collect interval rule is too slow to respond
+  // Trigger on low memory in case other rule is too slow to respond
   if (lowMemoryRule(self))
     return;
   
@@ -206,6 +220,11 @@ static void pollHeapState(struct gc_driver* self) {
   
   // Match GC with alloc rate
   if (matchingRateRule(self, &state))
+    return;
+  
+  // If alloc rate is high and matching rule didnt trigger GC
+  // when its needed due allocation rate spike
+  if (highAllocRateRule(self))
     return;
   
   // Trigger GC unconditionally after certain interval
