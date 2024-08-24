@@ -255,7 +255,6 @@ there_are_no_request:
     drawGraph(GRAPH_LINE, proactiveGCThresholdPointsWindow);
     
     SDL_RenderPresent(renderer);
-    SDL_UpdateWindowSurface(window);
     
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
