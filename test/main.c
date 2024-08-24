@@ -2,8 +2,6 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdatomic.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -27,7 +25,7 @@
 #include "stat_printer.h"
 
 #define WINDOW_SIZE 200'000
-#define MESSAGE_COUNT 100'000'000
+#define MESSAGE_COUNT 10'000'000
 #define MESSAGE_SIZE 1024
 
 struct array_of_messages {
@@ -124,83 +122,6 @@ int main() {
   else if (ret == false)
     flup_panic("Error pinning main thread to core 0");
   
-  FILE* statCSVFile = fopen("./benches/stat.csv", "a");
-  if (!statCSVFile)
-    flup_panic("Cannot open ./benches/stat.csv file for appending!");
-  if (setvbuf(statCSVFile, fwuffyAndLargeBufferUwU, _IOFBF, sizeof(fwuffyAndLargeBufferUwU)) != 0)
-    flup_panic("Error on setvbuf for ./benches/stat.csv");
-  fprintf(statCSVFile, "Timestamp,Usage,Trigger Threshold,Max size,Mutator utilization,GC utilization\n");
-  
-  static atomic_bool shutdownRequested = false;
-  static clockid_t mutatorCPUClock;
-  static clockid_t gcCPUClock;
-  
-  struct timespec testStartTimeSpec;
-  clock_gettime(CLOCK_REALTIME, &testStartTimeSpec);
-  static double testStartTime;
-  testStartTime = (double) testStartTimeSpec.tv_sec + (double) testStartTimeSpec.tv_nsec / 1e9;
-  
-  pthread_getcpuclockid(pthread_self(), &mutatorCPUClock);
-  pthread_getcpuclockid(heap->gen->gcState->thread->thread, &gcCPUClock);
-  
-  flup_thread* statWriter = flup_thread_new_with_block(^(void) {
-    struct timespec deadline;
-    clock_gettime(CLOCK_REALTIME, &deadline);
-    
-    struct timespec prevMutatorCPUTimeSpec;
-    struct timespec prevGCCPUTimeSpec;
-    clock_gettime(mutatorCPUClock, &prevMutatorCPUTimeSpec);
-    clock_gettime(gcCPUClock, &prevGCCPUTimeSpec);
-    
-    double prevMutatorCPUTime;
-    double prevGCCPUTime;
-    prevGCCPUTime = (double) prevGCCPUTimeSpec.tv_sec + (double) prevGCCPUTimeSpec.tv_nsec / 1e9;
-    prevMutatorCPUTime = (double) prevMutatorCPUTimeSpec.tv_sec + (double) prevMutatorCPUTimeSpec.tv_nsec / 1e9;
-    
-    while (!atomic_load(&shutdownRequested)) {
-      // Collect in 10 ms interval
-      deadline.tv_nsec += 10 * 1'000'000;
-      if (deadline.tv_nsec > 1'000'000'000) {
-        deadline.tv_nsec -= 1'000'000'000;
-        deadline.tv_sec++;
-      }
-      
-      struct timespec now;
-      clock_gettime(CLOCK_REALTIME, &now);
-      double time = (double) now.tv_sec + (double) now.tv_nsec / 1e9f;
-      
-      struct timespec mutatorCPUTimeSpec;
-      struct timespec gcCPUTimeSpec;
-      clock_gettime(mutatorCPUClock, &mutatorCPUTimeSpec);
-      clock_gettime(gcCPUClock, &gcCPUTimeSpec);
-      
-      double mutatorCPUTime = (double)  mutatorCPUTimeSpec.tv_sec + (double) mutatorCPUTimeSpec.tv_nsec / 1e9;
-      double gcCPUTime = (double)  gcCPUTimeSpec.tv_sec + (double) gcCPUTimeSpec.tv_nsec / 1e9;
-      
-      double mutatorCPUUtilization = (mutatorCPUTime - prevMutatorCPUTime) / 0.01f;
-      double gcCPUUtilization =  (gcCPUTime - prevGCCPUTime) / 0.01f;
-      if (mutatorCPUUtilization > 1.0f)
-        mutatorCPUUtilization = 1.0f;
-      if (gcCPUUtilization > 1.0f)
-        gcCPUUtilization = 1.0f;
-      
-      struct alloc_tracker_statistic statistic = {};
-      alloc_tracker_get_statistics(heap->gen->allocTracker, &statistic);
-      
-      size_t usage = statistic.usedBytes;
-      
-      size_t maxSize = statistic.maxSize;
-      size_t asyncCycleTriggerThreshold = atomic_load(&heap->gen->gcState->driver->averageTriggerThreshold);
-      fprintf(statCSVFile, "%lf,%lf,%lf,%lf,%lf,%lf\n", time - testStartTime, (double) usage / 1024 / 1024, (double) asyncCycleTriggerThreshold / 1024 / 1024, (double) maxSize / 1024 / 1024, mutatorCPUUtilization * 100.0f, gcCPUUtilization * 100.0f);
-      
-      prevMutatorCPUTime = mutatorCPUTime;
-      prevGCCPUTime = gcCPUTime;
-      
-      while (clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &deadline, NULL) == EINTR)
-        ;
-    }
-  });
-  
   struct stat_printer* printer = stat_printer_new(heap);
   if (!printer)
     flup_panic("Failed to start stat printer!");
@@ -213,6 +134,12 @@ int main() {
   // https://github.com/WillSewell/gc-latency-experiment
   // in particular Java version is ported ^w^
   doTestGCExperiment(heap);
+  sleep(40);
+  doTestGCExperiment(heap);
+  sleep(40);
+  doTestGCExperiment(heap);
+  sleep(40);
+  doTestGCExperiment(heap);
   clock_gettime(CLOCK_REALTIME, &end);
   
   double startTime = (double) start.tv_sec + (double) start.tv_nsec / 1e9;
@@ -222,13 +149,9 @@ int main() {
   
   pr_info("Exiting... UwU");
   
-  atomic_store(&shutdownRequested, true);
-  flup_thread_wait(statWriter);
-  flup_thread_free(statWriter);
   stat_printer_stop(printer);
   stat_printer_free(printer);
   
-  fclose(statCSVFile);
   heap_free(heap);
   flup_thread_free(flup_detach_thread());
   // mimalloc_play();
