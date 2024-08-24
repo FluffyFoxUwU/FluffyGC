@@ -53,7 +53,7 @@ static void doCollection(struct gc_driver* self) {
   size_t threshold = atomic_load(&self->gcState->bytesUsedRightBeforeSweeping);
   moving_window_append(self->triggerThresholdSamples, &threshold);
   
-  atomic_store(&self->averageTriggerThreshold, calcAverageTargetThreshold(self));
+  atomic_store(&self->averageTriggerThreshold, threshold);//calcAverageTargetThreshold(self));
   
   struct timespec currentTime;
   clock_gettime(CLOCK_REALTIME, &currentTime);
@@ -136,7 +136,7 @@ static void preRunMatchingRateRule(struct gc_driver* self, struct polling_state*
   size_t proactiveGCThreshold = (size_t) (bytesLimit - (cycleTime * allocRate));
   moving_window_append(self->proactiveGCSamples, &proactiveGCThreshold);
   
-  atomic_store(&self->averageProactiveGCThreshold, calcAverageProactiveThreshold(self));
+  atomic_store(&self->averageProactiveGCThreshold, proactiveGCThreshold);//calcAverageProactiveThreshold(self));
   
   state->adjustedCycleTime = cycleTime;
   state->secondsToOOM = secondsToOOM;
@@ -144,12 +144,19 @@ static void preRunMatchingRateRule(struct gc_driver* self, struct polling_state*
 
 static bool matchingRateRule(struct gc_driver* self, struct polling_state* state) {
   // Rule only trigged if heap has grown by 10% since last cycle
+  // or alloc rate is >= 20 MiB/s
   float minGrowth = (float) self->gcState->ownerGen->allocTracker->maxSize * 0.10f;
   float heapUsage = (float) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
   
   // Heap did not grow the minimum size needed
-  if (heapUsage - (float) self->lastCycleHeapUsage < minGrowth)
+  // and alloc rate too low
+  size_t allocRate = atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1;
+  if (
+    heapUsage - (float) self->lastCycleHeapUsage < minGrowth &&
+    allocRate < 10 * 1024 * 1024
+  ) {
     return false;
+  }
   
   if (state->secondsToOOM < 1.0f / DRIVER_CHECK_RATE_HZ) {
     doCollection(self);

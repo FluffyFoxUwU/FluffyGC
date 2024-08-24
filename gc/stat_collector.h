@@ -9,7 +9,7 @@
 #include "util/moving_window.h"
 
 #define STAT_COLLECTOR_HZ 20
-#define STAT_COLLECTOR_ALLOC_RATE_SAMPLES (STAT_COLLECTOR_HZ * 2)
+#define STAT_COLLECTOR_ALLOC_RATE_SAMPLES (STAT_COLLECTOR_HZ * 1)
 
 struct stat_collector {
   struct gc_per_generation_state* gcState;

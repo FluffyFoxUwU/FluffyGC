@@ -73,13 +73,13 @@ static void runTest(struct heap* heap, int iterations) {
   // Warming up garbage collector first
   for (int i = 0; i < iterations; i++) {
     pushMessage(heap, messagesWindow, i);
-    if (i % 1000 == 0) {
-      clock_nanosleep(CLOCK_REALTIME, 0, &(struct timespec) {
-        .tv_sec = 0,
-        // 0.01 microsecond
-        .tv_nsec = 1 * 1'0
-      }, NULL);
-    }
+    // if (i % 1000 == 0) {
+    //   clock_nanosleep(CLOCK_REALTIME, 0, &(struct timespec) {
+    //     .tv_sec = 0,
+    //     // 0.01 microsecond
+    //     .tv_nsec = 1 * 1'0
+    //   }, NULL);
+    // }
   }
   heap_root_unref(heap, messagesWindow);
 }
