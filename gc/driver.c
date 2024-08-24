@@ -170,19 +170,46 @@ static bool matchingRateRule(struct gc_driver* self, struct polling_state* state
   return false;
 }
 
+static bool growthRule(struct gc_driver* self) {
+  float heapSize = (float) self->gcState->ownerGen->allocTracker->maxSize;
+  float heapUsage = (float) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
+  float allocRate = (float) atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1;
+  float heapUsageByNextTick = heapUsage + allocRate * (1.0f / DRIVER_CHECK_RATE_HZ);
+  float minGrowth = heapSize * 0.10f;
+  
+  if (heapUsageByNextTick - heapUsage > minGrowth) {
+    pr_info("Growth!");
+    doCollection(self);
+    return true;
+  }
+  
+  return false;
+}
+
 static void pollHeapState(struct gc_driver* self) {
   struct polling_state state = {};
   preRunMatchingRateRule(self, &state);
   
+  // Trigger on low memory in case growth, matching rate, and 
+  // collect interval rule is too slow to respond
   if (lowMemoryRule(self))
     return;
   
+  // Triggers N cycles unconditonally from start and never
+  // to collect cycle times and other statistics
   if (warmUpRule(self))
     return;
   
+  // Trigger GC after % growth for case
+  // when match rate is too slow
+  if (growthRule(self))
+    return;
+  
+  // Match GC with alloc rate
   if (matchingRateRule(self, &state))
     return;
   
+  // Trigger GC unconditionally after certain interval
   if (maxCollectIntervalRule(self))
     return;
 }

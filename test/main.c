@@ -25,7 +25,7 @@
 #include "stat_printer.h"
 
 #define WINDOW_SIZE 200'000
-#define MESSAGE_COUNT 30'000'000
+#define MESSAGE_COUNT 1'000'000
 #define MESSAGE_SIZE 1024
 
 struct array_of_messages {
@@ -73,13 +73,13 @@ static void runTest(struct heap* heap, int iterations) {
   // Warming up garbage collector first
   for (int i = 0; i < iterations; i++) {
     pushMessage(heap, messagesWindow, i);
-    // if (i % 1000 == 0) {
-    //   clock_nanosleep(CLOCK_REALTIME, 0, &(struct timespec) {
-    //     .tv_sec = 0,
-    //     // 0.01 microsecond
-    //     .tv_nsec = 1 * 1'0
-    //   }, NULL);
-    // }
+    if (i % 100 == 0) {
+      clock_nanosleep(CLOCK_REALTIME, 0, &(struct timespec) {
+        .tv_sec = 0,
+        // 10 microsecond
+        .tv_nsec = 100 * 1'000
+      }, NULL);
+    }
   }
   heap_root_unref(heap, messagesWindow);
 }
