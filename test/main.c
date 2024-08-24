@@ -86,8 +86,6 @@ static void doTestGCExperiment(struct heap* heap) {
   pr_info("Worst push time: %" PRId64 " milisecs", worstTimeMicroSec / 1'000);
 }
 
-static char fwuffyAndLargeBufferUwU[16 * 1024 * 1024];
-
 int main() {
   if (!flup_attach_thread("Main-Thread"))
     flup_panic("Failed to attach thread\n");
