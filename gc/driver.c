@@ -153,7 +153,7 @@ static bool matchingRateRule(struct gc_driver* self, struct polling_state* state
   size_t allocRate = atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1;
   if (
     heapUsage - (float) self->lastCycleHeapUsage < minGrowth &&
-    allocRate < 10 * 1024 * 1024
+    allocRate < 20 * 1024 * 1024
   ) {
     return false;
   }
