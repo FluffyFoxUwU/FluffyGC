@@ -71,8 +71,16 @@ static void runTest(struct heap* heap, int iterations) {
   deref->length = WINDOW_SIZE;
   
   // Warming up garbage collector first
-  for (int i = 0; i < iterations; i++)
+  for (int i = 0; i < iterations; i++) {
     pushMessage(heap, messagesWindow, i);
+    if (i % 1000 == 0) {
+      clock_nanosleep(CLOCK_REALTIME, 0, &(struct timespec) {
+        .tv_sec = 0,
+        // 0.01 microsecond
+        .tv_nsec = 1 * 1'0
+      }, NULL);
+    }
+  }
   heap_root_unref(heap, messagesWindow);
 }
 
@@ -131,11 +139,11 @@ int main() {
   // https://github.com/WillSewell/gc-latency-experiment
   // in particular Java version is ported ^w^
   doTestGCExperiment(heap);
-  sleep(40);
+  sleep(10);
   doTestGCExperiment(heap);
-  sleep(40);
+  sleep(10);
   doTestGCExperiment(heap);
-  sleep(40);
+  sleep(10);
   doTestGCExperiment(heap);
   clock_gettime(CLOCK_REALTIME, &end);
   

@@ -58,6 +58,7 @@ static void doCollection(struct gc_driver* self) {
   struct timespec currentTime;
   clock_gettime(CLOCK_REALTIME, &currentTime);
   self->lastCollectionTime = (double) currentTime.tv_sec + ((double) currentTime.tv_nsec / 1e9f);
+  self->lastCycleHeapUsage = atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
 }
 
 static bool maxCollectIntervalRule(struct gc_driver* self) {
@@ -119,7 +120,7 @@ struct polling_state {
 
 static void preRunMatchingRateRule(struct gc_driver* self, struct polling_state* state) {
   double bytesLimit = (double) atomic_load(&self->averageTriggerThreshold);
-  bytesLimit *= 0.7;
+  bytesLimit *= 0.8;
   
   double cycleTime = atomic_load(&self->gcState->averageCycleTime);
   double allocRate = (double) (atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1);
@@ -131,20 +132,25 @@ static void preRunMatchingRateRule(struct gc_driver* self, struct polling_state*
     bytesToOOM = 0;
   double secondsToOOM = (double) bytesToOOM / allocRate;
   
-  double panicFactor = 1.00f;
-  double adjustedCycleTime = cycleTime * panicFactor;
-  
   // This is the bytes at which GC will approximately start proactive cycle
-  size_t proactiveGCThreshold = (size_t) (bytesLimit - (adjustedCycleTime * allocRate));
+  size_t proactiveGCThreshold = (size_t) (bytesLimit - (cycleTime * allocRate));
   moving_window_append(self->proactiveGCSamples, &proactiveGCThreshold);
   
   atomic_store(&self->averageProactiveGCThreshold, calcAverageProactiveThreshold(self));
   
-  state->adjustedCycleTime = adjustedCycleTime;
+  state->adjustedCycleTime = cycleTime;
   state->secondsToOOM = secondsToOOM;
 }
 
 static bool matchingRateRule(struct gc_driver* self, struct polling_state* state) {
+  // Rule only trigged if heap has grown by 10% since last cycle
+  float minGrowth = (float) self->gcState->ownerGen->allocTracker->maxSize * 0.10f;
+  float heapUsage = (float) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
+  
+  // Heap did not grow the minimum size needed
+  if (heapUsage - (float) self->lastCycleHeapUsage < minGrowth)
+    return false;
+  
   if (state->secondsToOOM < 1.0f / DRIVER_CHECK_RATE_HZ) {
     doCollection(self);
     return true;

@@ -2,6 +2,7 @@
 #define UWU_F702044F_AC05_44F6_BDBC_BD1DE8BBA7D0_UWU
 
 #include <stdatomic.h>
+#include <stddef.h>
 
 #include <flup/thread/thread.h>
 
@@ -31,6 +32,7 @@ struct gc_driver {
   atomic_size_t averageProactiveGCThreshold;
   
   double lastCollectionTime;
+  size_t lastCycleHeapUsage;
 };
 
 struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState);
