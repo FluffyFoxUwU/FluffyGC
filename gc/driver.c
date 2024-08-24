@@ -178,7 +178,6 @@ static bool growthRule(struct gc_driver* self) {
   float minGrowth = heapSize * 0.10f;
   
   if (heapUsageByNextTick - heapUsage > minGrowth) {
-    pr_info("Growth!");
     doCollection(self);
     return true;
   }
