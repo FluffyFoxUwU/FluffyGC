@@ -138,7 +138,7 @@ static void loopThread(void* _self) {
     struct alloc_tracker_statistic heapStats = {};
     alloc_tracker_get_statistics(tracker, &heapStats);
     size_t gcThreshold = atomic_load(&gcState->driver->averageTriggerThreshold);
-    float averageCycleTime = atomic_load(&gcState->averageCycleTime);
+    float averageCycleTime = (float) atomic_load(&gcState->averageCycleTime);
     
     struct gc_stats gcStats = {};
     gc_get_stats(gcState, &gcStats);
