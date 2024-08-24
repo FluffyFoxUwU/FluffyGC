@@ -54,6 +54,25 @@ static void doCollection(struct gc_driver* self) {
   moving_window_append(self->triggerThresholdSamples, &threshold);
   
   atomic_store(&self->averageTriggerThreshold, calcAverageTargetThreshold(self));
+  
+  struct timespec currentTime;
+  clock_gettime(CLOCK_REALTIME, &currentTime);
+  self->lastCollectionTime = (double) currentTime.tv_sec + ((double) currentTime.tv_nsec / 1e9f);
+}
+
+static bool maxCollectIntervalRule(struct gc_driver* self) {
+  struct timespec currentTimeSpec;
+  clock_gettime(CLOCK_REALTIME, &currentTimeSpec);
+  
+  double currentTime = (double) currentTimeSpec.tv_sec + ((double) currentTimeSpec.tv_nsec / 1e9f);
+  
+  // Time since last collection is too long
+  if (currentTime - self->lastCollectionTime > 5.0f) {
+    doCollection(self);
+    return true;
+  }
+  
+  return false;
 }
 
 static bool lowMemoryRule(struct gc_driver* self) {
@@ -149,6 +168,9 @@ static void pollHeapState(struct gc_driver* self) {
     return;
   
   if (matchingRateRule(self, &state))
+    return;
+  
+  if (maxCollectIntervalRule(self))
     return;
 }
 

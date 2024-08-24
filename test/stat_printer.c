@@ -39,6 +39,8 @@ struct stat_printer* stat_printer_new(struct heap* heap) {
     return NULL;
   *self = (struct stat_printer) {
     .heap = heap,
+    .reqCount = 1,
+    .request = STAT_PRINTER_REQUEST_START
   };
   
   if (!(self->requestLock = flup_mutex_new()))
@@ -93,14 +95,6 @@ void stat_printer_free(struct stat_printer* self) {
   flup_cond_free(self->requestNeededEvent);
   flup_cond_free(self->statusUpdatedEvent);
   free(self);
-}
-
-void stat_printer_start(struct stat_printer* self) {
-  callRequest(self, STAT_PRINTER_REQUEST_START);
-}
-
-void stat_printer_stop(struct stat_printer* self) {
-  callRequest(self, STAT_PRINTER_REQUEST_STOP);
 }
 
 static void loopThread(void* _self) {
@@ -209,10 +203,6 @@ static void loopThread(void* _self) {
         newStatus = STAT_PRINTER_STATUS_STARTED;
         doTimedWait = true;
         clock_gettime(CLOCK_REALTIME, &deadline);
-        break;
-      case STAT_PRINTER_REQUEST_STOP:
-        newStatus = STAT_PRINTER_STATUS_STOPPED;
-        doTimedWait = false;
         break;
       case STAT_PRINTER_REQUEST_SHUTDOWN:
         flup_mutex_unlock(self->statusLock);

@@ -13,13 +13,11 @@
 #include <flup/thread/thread.h>
 
 enum stat_printer_status {
-  STAT_PRINTER_STATUS_STOPPED,
   STAT_PRINTER_STATUS_STARTED,
   STAT_PRINTER_STATUS_SHUTDOWNED
 };
 
 enum stat_printer_request {
-  STAT_PRINTER_REQUEST_STOP,
   STAT_PRINTER_REQUEST_START,
   STAT_PRINTER_REQUEST_SHUTDOWN
 };
@@ -43,8 +41,6 @@ struct stat_printer {
 };
 
 struct stat_printer* stat_printer_new(struct heap* heap);
-void stat_printer_start(struct stat_printer* self);
-void stat_printer_stop(struct stat_printer* self);
 void stat_printer_free(struct stat_printer* self);
 
 #endif
