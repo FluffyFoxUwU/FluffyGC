@@ -171,13 +171,13 @@ static void loopThread(void* _self) {
         case GRAPH_FILL:
         case GRAPH_LINE:
           SDL_RenderDrawLine(renderer, 
-            prevX, (int) ((1.0f - prevY) * HEIGHT),
-            currentX, (int) ((1.0f - currentY) * HEIGHT)
+            prevX, flup_max_int((int) ((1.0f - prevY) * HEIGHT), 0),
+            currentX, flup_max_int((int) ((1.0f - currentY) * HEIGHT), 0)
           );
           break;
           SDL_RenderDrawLine(renderer, 
             currentX, 0,
-            currentX, (int) ((1.0f - currentY) * HEIGHT)
+            currentX, flup_max_int((int) ((1.0f - currentY) * HEIGHT), 0)
           );
           break;
       }
