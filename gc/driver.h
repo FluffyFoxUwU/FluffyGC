@@ -10,7 +10,7 @@
 // Checks the heap state 50 times a second
 #define DRIVER_CHECK_RATE_HZ 40
 
-#define DRIVER_TRIGGER_THRESHOLD_SAMPLES 20
+#define DRIVER_TRIGGER_THRESHOLD_SAMPLES 10
 
 struct gc_driver {
   struct gc_per_generation_state* gcState;
@@ -22,6 +22,13 @@ struct gc_driver {
   
   struct moving_window* triggerThresholdSamples;
   atomic_size_t averageTriggerThreshold;
+  
+  // Basically averageTriggerThreshold adjusted
+  // to trigger earlier based on cycle time
+  // in hope that by the averageTriggerThreshold
+  // the cycles is completed
+  struct moving_window* proactiveGCSamples;
+  atomic_size_t averageProactiveGCThreshold;
 };
 
 struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState);

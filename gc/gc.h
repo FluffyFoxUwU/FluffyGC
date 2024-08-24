@@ -126,7 +126,12 @@ struct gc_stats {
   uint64_t lifetimeTotalLiveObjectCount;
   size_t lifetimeLiveObjectSize;
   
-  uint64_t lifetimeCyclesCount;
+  // A little note for these
+  // complete count <  start count = A cycle is in progress
+  // complete count == start count = GC idling
+  // complete count >  start count = must not happen
+  uint64_t lifetimeCyclesCompletedCount;
+  uint64_t lifetimeCyclesStartCount;
   
   double lifetimeCycleTime;
   double lifetimeSTWTime;

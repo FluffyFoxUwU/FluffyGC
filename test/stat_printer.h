@@ -1,11 +1,16 @@
 #ifndef UWU_CCBDE72B_4973_4358_AC72_F8F3DF639634_UWU
 #define UWU_CCBDE72B_4973_4358_AC72_F8F3DF639634_UWU
 
+#include <stdint.h>
+
+#include <SDL2/SDL_video.h>
+#include <SDL2/SDL_render.h>
+
 #include "heap/heap.h"
+
 #include <flup/concurrency/cond.h>
 #include <flup/concurrency/mutex.h>
 #include <flup/thread/thread.h>
-#include <stdint.h>
 
 enum stat_printer_status {
   STAT_PRINTER_STATUS_STOPPED,

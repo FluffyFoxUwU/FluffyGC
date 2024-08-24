@@ -325,6 +325,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   
   // pr_info("Before cycle mem usage: %f MiB", (float) atomic_load(&state.arena->currentUsage) / 1024.0f / 1024.0f);
   flup_mutex_lock(self->statsLock);
+  self->stats.lifetimeCyclesStartCount++;
   state.stats = self->stats;
   flup_mutex_unlock(self->statsLock);
   
@@ -361,7 +362,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
     ((double) end.tv_sec + ((double) end.tv_nsec) / 1'000'000'000.0f) -
     ((double) start.tv_sec + ((double) start.tv_nsec) / 1'000'000'000.0f);
   state.stats.lifetimeCycleTime += duration;
-  state.stats.lifetimeCyclesCount++;
+  state.stats.lifetimeCyclesCompletedCount++;
   
   flup_mutex_lock(self->statsLock);
   self->stats = state.stats;
