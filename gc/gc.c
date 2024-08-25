@@ -296,7 +296,7 @@ static size_t sweepPhase(struct cycle_state* state) {
   state->stats.lifetimeTotalObjectSize += totalSize;
   
   state->stats.lifetimeTotalLiveObjectCount += liveObjectCount;
-  state->stats.lifetimeTotalObjectSize += liveObjectSize;
+  state->stats.lifetimeLiveObjectSize += liveObjectSize;
   
   return sweepSize;
 }
