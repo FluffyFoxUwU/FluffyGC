@@ -25,8 +25,8 @@
 #include "stat_printer.h"
 
 #define WINDOW_SIZE 200'000
-#define MESSAGE_COUNT 30'000'000
-#define MESSAGE_SIZE (1 * 1024)
+#define MESSAGE_COUNT 1'750'000
+#define MESSAGE_SIZE  (1 * 1024) //(2 * 1024 + 512)
 
 struct array_of_messages {
   long length;
@@ -111,7 +111,7 @@ int main() {
   pr_info("FluffyGC running on %s", platform_get_name());
   
   // Create 128 MiB heap
-  size_t heapSize = 768 * 1024 * 1024;
+  size_t heapSize = 1900 * 1024 * 1024;
   size_t reserveExtra = 64 * 1024 * 1024;
   
   if (mi_reserve_os_memory(heapSize + reserveExtra, true, true) != 0)
