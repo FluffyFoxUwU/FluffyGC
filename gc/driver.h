@@ -33,6 +33,7 @@ struct gc_driver {
   
   double lastCollectionTime;
   size_t lastCycleHeapUsage;
+  size_t lastCycleHeapUsageSinceLastGrowthTrigger;
 };
 
 struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState);

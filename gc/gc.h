@@ -147,6 +147,7 @@ struct gc_per_generation_state {
   struct gc_stats stats;
   
   atomic_size_t bytesUsedRightBeforeSweeping;
+  atomic_size_t liveSetSize;
   
   struct generation* ownerGen;
   struct gc_lock_state* gcLock;

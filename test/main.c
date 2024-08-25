@@ -25,19 +25,23 @@
 #include "stat_printer.h"
 
 #define WINDOW_SIZE 200'000
-#define MESSAGE_COUNT 1'000'000
-#define MESSAGE_SIZE 1024
+#define MESSAGE_COUNT 30'000'000
+#define MESSAGE_SIZE (1 * 1024)
 
 struct array_of_messages {
   long length;
   _Atomic(char*) messages[];
 };
 
-static int64_t worstTimeMicroSec = 0.0f;
+static int64_t worstTimeMicroSec = 0;
+static int64_t totalTimeMicroSec = 0;
+static int64_t sampleCount = 0;
 
 static struct root_ref* newMessage(struct heap* heap, int n) {
-  struct root_ref* message = heap_alloc(heap, MESSAGE_SIZE);
-  memset(message->obj->data, n & 0xFF, MESSAGE_SIZE);
+  size_t size = MESSAGE_SIZE; //(size_t) ((float) rand() / (float) RAND_MAX * MESSAGE_SIZE);
+  
+  struct root_ref* message = heap_alloc(heap, size);
+  memset(message->obj->data, n & 0xFF, size);
   return message;
 }
 
@@ -57,6 +61,8 @@ static void pushMessage(struct heap* heap, struct root_ref* window, int id) {
   
   if (currentElapsedTimeInMicrosecs > worstTimeMicroSec)
     worstTimeMicroSec = currentElapsedTimeInMicrosecs;
+  totalTimeMicroSec += currentElapsedTimeInMicrosecs;
+  sampleCount++;
 }
 
 static struct descriptor desc_array_of_messages = {
@@ -73,13 +79,13 @@ static void runTest(struct heap* heap, int iterations) {
   // Warming up garbage collector first
   for (int i = 0; i < iterations; i++) {
     pushMessage(heap, messagesWindow, i);
-    if (i % 100 == 0) {
-      clock_nanosleep(CLOCK_REALTIME, 0, &(struct timespec) {
-        .tv_sec = 0,
-        // 10 microsecond
-        .tv_nsec = 100 * 1'000
-      }, NULL);
-    }
+    // if (i % 10 == 0) {
+    //   clock_nanosleep(CLOCK_REALTIME, 0, &(struct timespec) {
+    //     .tv_sec = 0,
+    //     // 10 microsecond
+    //     .tv_nsec = 100 * 1'000
+    //   }, NULL);
+    // }
   }
   heap_root_unref(heap, messagesWindow);
 }
@@ -87,11 +93,14 @@ static void runTest(struct heap* heap, int iterations) {
 static void warmUp(struct heap* heap) {
   runTest(heap, 10'000'000);
   worstTimeMicroSec = 0;
+  totalTimeMicroSec = 0;
+  sampleCount = 0;
 }
 
 static void doTestGCExperiment(struct heap* heap) {
   runTest(heap, MESSAGE_COUNT);
-  pr_info("Worst push time: %" PRId64 " milisecs", worstTimeMicroSec / 1'000);
+  pr_info("Worst push time: %f milisecs", (float) worstTimeMicroSec / 1'000);
+  pr_info("Average push time: %f milisecs", ((float) worstTimeMicroSec / (float) sampleCount) / 1'000);
 }
 
 int main() {
@@ -102,7 +111,7 @@ int main() {
   pr_info("FluffyGC running on %s", platform_get_name());
   
   // Create 128 MiB heap
-  size_t heapSize = 768 * 1024 * 1024;
+  size_t heapSize = 600 * 1024 * 1024;
   size_t reserveExtra = 64 * 1024 * 1024;
   
   if (mi_reserve_os_memory(heapSize + reserveExtra, true, true) != 0)
@@ -128,8 +137,8 @@ int main() {
   else if (ret == false)
     flup_panic("Error pinning main thread to core 0");
   
-  struct stat_printer* printer = stat_printer_new(heap);
-  if (!printer)
+  struct stat_printer* printer = NULL;
+  if (!(printer = stat_printer_new(heap)))
     flup_panic("Failed to start stat printer!");
   
   size_t beforeTestBytesAllocated = atomic_load(&heap->gen->allocTracker->lifetimeBytesAllocated);
@@ -139,12 +148,12 @@ int main() {
   // https://github.com/WillSewell/gc-latency-experiment
   // in particular Java version is ported ^w^
   doTestGCExperiment(heap);
-  sleep(10);
-  doTestGCExperiment(heap);
-  sleep(10);
-  doTestGCExperiment(heap);
-  sleep(10);
-  doTestGCExperiment(heap);
+  // sleep(10);
+  // doTestGCExperiment(heap);
+  // sleep(10);
+  // doTestGCExperiment(heap);
+  // sleep(10);
+  // doTestGCExperiment(heap);
   clock_gettime(CLOCK_REALTIME, &end);
   
   double startTime = (double) start.tv_sec + (double) start.tv_nsec / 1e9;

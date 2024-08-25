@@ -123,6 +123,7 @@ static void loopThread(void* _self) {
   struct moving_window* gcThresholdPointsWindow  = moving_window_new(sizeof(float), WIDTH);
   struct moving_window* averageCycleTimeWindow = moving_window_new(sizeof(float), WIDTH);
   struct moving_window* proactiveGCThresholdPointsWindow = moving_window_new(sizeof(float), WIDTH);
+  struct moving_window* liveSetSizeWindow = moving_window_new(sizeof(float), WIDTH);
   
   size_t heapSize = self->heap->gen->allocTracker->maxSize;
   struct alloc_tracker* tracker = self->heap->gen->allocTracker;
@@ -140,11 +141,13 @@ static void loopThread(void* _self) {
     float usagePercentage = ((float) heapStats.usedBytes) / ((float) heapSize);
     float gcThresholdPercentage = ((float) gcThreshold) / ((float) heapSize);
     float proactiveGCPercentage = ((float) atomic_load(&gcState->driver->averageProactiveGCThreshold)) / ((float) heapSize);
+    float liveSetSize = ((float) atomic_load(&gcState->liveSetSize)) / ((float) heapSize);
     
     moving_window_append(heapUsagePointsWindow, &usagePercentage);
     moving_window_append(gcThresholdPointsWindow, &gcThresholdPercentage);
     moving_window_append(averageCycleTimeWindow, &averageCycleTime);
     moving_window_append(proactiveGCThresholdPointsWindow, &proactiveGCPercentage);
+    moving_window_append(liveSetSizeWindow, &liveSetSize);
   };
   
   enum graph_kind {
@@ -253,6 +256,10 @@ there_are_no_request:
     // Yello: proactive GC threshold
     SDL_SetRenderDrawColor(renderer, 0x88, 0x88, 0x00, 0xFF);
     drawGraph(GRAPH_LINE, proactiveGCThresholdPointsWindow);
+    
+    // Blue: live set size
+    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x88, 0xFF);
+    drawGraph(GRAPH_LINE, liveSetSizeWindow);
     
     SDL_RenderPresent(renderer);
     

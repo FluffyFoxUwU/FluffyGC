@@ -58,7 +58,7 @@ static void doCollection(struct gc_driver* self) {
   struct timespec currentTime;
   clock_gettime(CLOCK_REALTIME, &currentTime);
   self->lastCollectionTime = (double) currentTime.tv_sec + ((double) currentTime.tv_nsec / 1e9f);
-  self->lastCycleHeapUsage = atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
+  self->lastCycleHeapUsage = atomic_load(&self->gcState->liveSetSize);
 }
 
 static bool maxCollectIntervalRule(struct gc_driver* self) {
@@ -120,7 +120,7 @@ struct polling_state {
 
 static void preRunMatchingRateRule(struct gc_driver* self, struct polling_state* state) {
   double bytesLimit = (double) atomic_load(&self->averageTriggerThreshold);
-  bytesLimit *= 0.8;
+  bytesLimit *= 0.90f;
   
   double cycleTime = atomic_load(&self->gcState->averageCycleTime);
   double allocRate = (double) (atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1);
@@ -174,29 +174,25 @@ static bool growthRule(struct gc_driver* self) {
   float heapSize = (float) self->gcState->ownerGen->allocTracker->maxSize;
   float heapUsage = (float) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
   float allocRate = (float) atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1;
-  float heapUsageByNextTick = heapUsage + allocRate * (1.0f / DRIVER_CHECK_RATE_HZ);
-  float minGrowth = heapSize * 0.10f;
   
-  if (heapUsageByNextTick - heapUsage > minGrowth) {
+  float nextTime = (float) atomic_load(&self->gcState->averageCycleTime);
+  if (nextTime < 1.0f / DRIVER_CHECK_RATE_HZ)
+    nextTime = 1.0f / DRIVER_CHECK_RATE_HZ;
+  float heapUsageByNextTime = heapUsage + allocRate * nextTime;
+  float heapUsageSinceLastGrowth = (float) self->lastCycleHeapUsageSinceLastGrowthTrigger;
+  
+  // Grown by 30% of free space
+  // or 40% of heap growth whichever is smallest
+  float minGrowth = (heapSize - heapUsage) * 0.30f;
+  if (heapUsageSinceLastGrowth * 0.40f < minGrowth)
+    minGrowth = heapUsageSinceLastGrowth * 0.40f;
+  
+  if (heapUsageByNextTime > heapUsageSinceLastGrowth + minGrowth) {
     doCollection(self);
+    self->lastCycleHeapUsageSinceLastGrowthTrigger = self->lastCycleHeapUsage;
     return true;
   }
   
-  return false;
-}
-
-static bool highAllocRateRule(struct gc_driver* self) {
-  float allocRate = (float) atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1;
-  float heapSize = (float) self->gcState->ownerGen->allocTracker->maxSize;
-  
-  // Trigger if alloc rate too fast
-  // before it properly averaged for
-  // matching rate rule to see
-  if (allocRate > heapSize / (STAT_COLLECTOR_ALLOC_RATE_SAMPLES * 1.2f)) {
-    pr_info("High alloc rate! but matching rule did not trigger");
-    doCollection(self);
-    return true;
-  }
   return false;
 }
 
@@ -213,18 +209,13 @@ static void pollHeapState(struct gc_driver* self) {
   if (warmUpRule(self))
     return;
   
-  // Trigger GC after % growth for case
+  // Match GC with alloc rate
+  // if (matchingRateRule(self, &state))
+  //  return;
+  
+  // Trigger GC after % free space is used for case
   // when match rate is too slow
   if (growthRule(self))
-    return;
-  
-  // Match GC with alloc rate
-  if (matchingRateRule(self, &state))
-    return;
-  
-  // If alloc rate is high and matching rule didnt trigger GC
-  // when its needed due allocation rate spike
-  if (highAllocRateRule(self))
     return;
   
   // Trigger GC unconditionally after certain interval

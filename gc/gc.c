@@ -368,7 +368,8 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   self->stats = state.stats;
   flup_mutex_unlock(self->statsLock);
   
-  atomic_store(&self->bytesUsedRightBeforeSweeping, atomic_load(&self->ownerGen->allocTracker->currentUsage) + freedBytes);
+  size_t usage = atomic_load(&self->ownerGen->allocTracker->currentUsage);
+  atomic_store(&self->bytesUsedRightBeforeSweeping, usage + freedBytes);
   moving_window_append(self->cycleTimeSamples, &duration);
   
   struct moving_window_iterator iterator = {};

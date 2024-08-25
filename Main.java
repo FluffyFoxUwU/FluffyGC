@@ -4,7 +4,7 @@ import java.util.HashMap;
 public class Main {
 
     private static final int windowSize = 200_000;
-    private static final int msgCount = 30_000_000;
+    private static final int msgCount = 10_000_000;
     private static final int msgSize = 1024;
 
     private static long worst = 0;
