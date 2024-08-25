@@ -143,21 +143,6 @@ static void preRunMatchingRateRule(struct gc_driver* self, struct polling_state*
 }
 
 static bool matchingRateRule(struct gc_driver* self, struct polling_state* state) {
-  // Rule only trigged if heap has grown by 10% since last cycle
-  // or alloc rate is >= 20 MiB/s
-  float minGrowth = (float) self->gcState->ownerGen->allocTracker->maxSize * 0.10f;
-  float heapUsage = (float) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
-  
-  // Heap did not grow the minimum size needed
-  // and alloc rate too low
-  size_t allocRate = atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1;
-  if (
-    heapUsage - (float) self->lastCycleHeapUsage < minGrowth &&
-    allocRate < 20 * 1024 * 1024
-  ) {
-    return false;
-  }
-  
   if (state->secondsToOOM < 1.0f / DRIVER_CHECK_RATE_HZ) {
     doCollection(self);
     return true;
