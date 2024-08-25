@@ -79,7 +79,7 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
   heap_block_gc(self);
   struct alloc_unit* newObj = generation_alloc(self->gen, size);
   for (int i = 0; i < HEAP_ALLOC_RETRY_COUNT && newObj == NULL; i++) {
-    pr_info("Allocation failed trying calling GC #%d", i + 1);
+    pr_info("Allocation failed trying calling GC #%d, GC was %srunning", i + 1, atomic_load(&self->gen->gcState->cycleInProgress) ? "" : "not ");
     heap_unblock_gc(self);
     gc_start_cycle(self->gen->gcState);
     heap_block_gc(self);
