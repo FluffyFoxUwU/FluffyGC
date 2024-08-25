@@ -22,7 +22,7 @@ struct gc_driver {
   struct stat_collector* statCollector;
   
   struct moving_window* triggerThresholdSamples;
-  atomic_size_t averageTriggerThreshold;
+  atomic_size_t averagePeakMemoryBeforeCycle;
   
   // Basically averageTriggerThreshold adjusted
   // to trigger earlier based on cycle time

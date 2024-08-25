@@ -53,7 +53,7 @@ static void doCollection(struct gc_driver* self) {
   size_t threshold = atomic_load(&self->gcState->bytesUsedRightBeforeSweeping);
   moving_window_append(self->triggerThresholdSamples, &threshold);
   
-  atomic_store(&self->averageTriggerThreshold, threshold);//calcAverageTargetThreshold(self));
+  atomic_store(&self->averagePeakMemoryBeforeCycle, threshold);//calcAverageTargetThreshold(self));
   
   struct timespec currentTime;
   clock_gettime(CLOCK_REALTIME, &currentTime);
@@ -119,7 +119,7 @@ struct polling_state {
 };
 
 static void preRunMatchingRateRule(struct gc_driver* self, struct polling_state* state) {
-  double bytesLimit = (double) atomic_load(&self->averageTriggerThreshold);
+  double bytesLimit = (double) atomic_load(&self->averagePeakMemoryBeforeCycle);
   bytesLimit *= 0.90f;
   
   double cycleTime = atomic_load(&self->gcState->averageCycleTime);
