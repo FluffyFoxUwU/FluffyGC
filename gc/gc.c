@@ -342,8 +342,8 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   unpauseAppThreads(&state);
   
   markingPhase(&state);
-  atomic_store(&self->markingInProgress, false);
   processMutatorMarkQueuePhase(&state);
+  atomic_store(&self->markingInProgress, false);
   size_t freedBytes = sweepPhase(&state);
   
   pauseAppThreads(&state);
