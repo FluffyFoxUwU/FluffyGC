@@ -159,7 +159,7 @@ struct gc_per_generation_state {
   
   bool cycleWasInvoked;
   uint64_t cycleID;
-  flup_mutex* invokeCycleLock;
+  flup_mutex* cycleStatusLock;
   flup_cond* invokeCycleDoneEvent;
   
   // What mark bit value correspond to marked (

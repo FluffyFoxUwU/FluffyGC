@@ -69,7 +69,7 @@ struct gc_per_generation_state* gc_per_generation_state_new(struct generation* g
     goto failure;
   if (!(self->needRemarkQueue = flup_buffer_new(GC_MUTATOR_MARK_QUEUE_SIZE)))
     goto failure;
-  if (!(self->invokeCycleLock = flup_mutex_new()))
+  if (!(self->cycleStatusLock = flup_mutex_new()))
     goto failure;
   if (!(self->invokeCycleDoneEvent = flup_cond_new()))
     goto failure;
@@ -123,7 +123,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self) {
   flup_cond_free(self->gcRequestedCond);
   flup_mutex_free(self->gcRequestLock);
   flup_cond_free(self->invokeCycleDoneEvent);
-  flup_mutex_free(self->invokeCycleLock);
+  flup_mutex_free(self->cycleStatusLock);
   gc_lock_free(self->gcLock);
   free(self->snapshotOfRootSet);
   flup_buffer_free(self->needRemarkQueue);
@@ -352,11 +352,11 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   unpauseAppThreads(&state);
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
   
-  flup_mutex_lock(self->invokeCycleLock);
+  flup_mutex_lock(self->cycleStatusLock);
   self->cycleID++;
   self->cycleWasInvoked = false;
   flup_cond_wake_all(self->invokeCycleDoneEvent);
-  flup_mutex_unlock(self->invokeCycleLock);
+  flup_mutex_unlock(self->cycleStatusLock);
   
   double duration =
     ((double) end.tv_sec + ((double) end.tv_nsec) / 1'000'000'000.0f) -
@@ -407,15 +407,15 @@ shutdown_gc_thread:
 
 uint64_t gc_start_cycle_async(struct gc_per_generation_state* self) {
   // It was already started lets wait
-  flup_mutex_lock(self->invokeCycleLock);
+  flup_mutex_lock(self->cycleStatusLock);
   uint64_t lastCycleID = self->cycleID;
   if (self->cycleWasInvoked) {
-    flup_mutex_unlock(self->invokeCycleLock);
+    flup_mutex_unlock(self->cycleStatusLock);
     goto no_need_to_wake_gc;
   }
   
   self->cycleWasInvoked = true;
-  flup_mutex_unlock(self->invokeCycleLock);
+  flup_mutex_unlock(self->cycleStatusLock);
   
   // Wake GC thread
   callGCAsync(self, GC_START_CYCLE);
@@ -426,11 +426,11 @@ no_need_to_wake_gc:
 void gc_start_cycle(struct gc_per_generation_state* self) {
   uint64_t lastCycleID = gc_start_cycle_async(self);
   
-  flup_mutex_lock(self->invokeCycleLock);
+  flup_mutex_lock(self->cycleStatusLock);
   // Waiting loop
   while (self->cycleID == lastCycleID)
-    flup_cond_wait(self->invokeCycleDoneEvent, self->invokeCycleLock, NULL);
-  flup_mutex_unlock(self->invokeCycleLock);
+    flup_cond_wait(self->invokeCycleDoneEvent, self->cycleStatusLock, NULL);
+  flup_mutex_unlock(self->cycleStatusLock);
   return;
 }
 
