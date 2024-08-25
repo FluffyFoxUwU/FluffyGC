@@ -327,6 +327,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   flup_mutex_lock(self->statsLock);
   self->stats.lifetimeCyclesStartCount++;
   state.stats = self->stats;
+  size_t prev = state.stats.lifetimeLiveObjectSize;
   flup_mutex_unlock(self->statsLock);
   
   struct timespec start, end;
@@ -342,8 +343,8 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   unpauseAppThreads(&state);
   
   markingPhase(&state);
-  processMutatorMarkQueuePhase(&state);
   atomic_store(&self->markingInProgress, false);
+  processMutatorMarkQueuePhase(&state);
   size_t freedBytes = sweepPhase(&state);
   
   pauseAppThreads(&state);
@@ -370,6 +371,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   
   size_t usage = atomic_load(&self->ownerGen->allocTracker->currentUsage);
   atomic_store(&self->bytesUsedRightBeforeSweeping, usage + freedBytes);
+  atomic_store(&self->liveSetSize, state.stats.lifetimeLiveObjectSize - prev);
   moving_window_append(self->cycleTimeSamples, &duration);
   
   struct moving_window_iterator iterator = {};

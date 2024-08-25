@@ -35,25 +35,13 @@ static size_t calcAverageTargetThreshold(struct gc_driver* self) {
   return total / self->triggerThresholdSamples->entryCount;
 }
 
-static size_t calcAverageProactiveThreshold(struct gc_driver* self) {
-  if (self->proactiveGCSamples->entryCount == 0)
-    return 0;
-  
-  struct moving_window_iterator iterator = {};
-  size_t total = 0;
-  while (moving_window_next(self->proactiveGCSamples, &iterator))
-    total += *((size_t*) iterator.current);
-  
-  return total / self->proactiveGCSamples->entryCount;
-}
-
 static void doCollection(struct gc_driver* self) {
   gc_start_cycle(self->gcState);
   
   size_t threshold = atomic_load(&self->gcState->bytesUsedRightBeforeSweeping);
   moving_window_append(self->triggerThresholdSamples, &threshold);
   
-  atomic_store(&self->averagePeakMemoryBeforeCycle, threshold);//calcAverageTargetThreshold(self));
+  atomic_store(&self->averagePeakMemoryBeforeCycle, calcAverageTargetThreshold(self));
   
   struct timespec currentTime;
   clock_gettime(CLOCK_REALTIME, &currentTime);
@@ -119,8 +107,8 @@ struct polling_state {
 };
 
 static void preRunMatchingRateRule(struct gc_driver* self, struct polling_state* state) {
-  double bytesLimit = (double) atomic_load(&self->averagePeakMemoryBeforeCycle);
-  bytesLimit *= 0.90f;
+  double rawBytesLimit = (double) atomic_load(&self->averagePeakMemoryBeforeCycle);
+  double bytesLimit = rawBytesLimit * 0.5f;
   
   double cycleTime = atomic_load(&self->gcState->averageCycleTime);
   double allocRate = (double) (atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1);
@@ -131,12 +119,6 @@ static void preRunMatchingRateRule(struct gc_driver* self, struct polling_state*
   if (bytesToOOM < 0)
     bytesToOOM = 0;
   double secondsToOOM = (double) bytesToOOM / allocRate;
-  
-  // This is the bytes at which GC will approximately start proactive cycle
-  size_t proactiveGCThreshold = (size_t) (bytesLimit - (cycleTime * allocRate));
-  moving_window_append(self->proactiveGCSamples, &proactiveGCThreshold);
-  
-  atomic_store(&self->averageProactiveGCThreshold, proactiveGCThreshold);//calcAverageProactiveThreshold(self));
   
   state->adjustedCycleTime = cycleTime;
   state->secondsToOOM = secondsToOOM;
@@ -254,8 +236,6 @@ struct gc_driver* gc_driver_new(struct gc_per_generation_state* gcState) {
   if (!(self->triggerThresholdSamples = moving_window_new(sizeof(size_t), DRIVER_TRIGGER_THRESHOLD_SAMPLES)))
     goto failure;
   
-  if (!(self->proactiveGCSamples = moving_window_new(sizeof(size_t), DRIVER_TRIGGER_THRESHOLD_SAMPLES)))
-    goto failure;
   if (!(self->statCollector = stat_collector_new(gcState)))
     goto failure;
   if (!(self->driverThread = flup_thread_new(driver, self)))
@@ -289,7 +269,6 @@ void gc_driver_free(struct gc_driver* self) {
     flup_thread_free(self->driverThread);
   stat_collector_free(self->statCollector);
   moving_window_free(self->triggerThresholdSamples);
-  moving_window_free(self->proactiveGCSamples);
   free(self);
 }
 
