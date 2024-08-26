@@ -12,6 +12,7 @@
 #include "object/descriptor.h"
 
 struct descriptor;
+struct thread;
 
 struct heap {
   struct generation* gen;
@@ -23,6 +24,8 @@ struct root_ref {
   flup_list_head node;
   struct alloc_unit* obj;
 };
+
+void heap_iterate_threads(struct heap* self, void (^iterator)(struct thread* thrd));
 
 struct heap* heap_new(size_t size);
 void heap_free(struct heap* self);

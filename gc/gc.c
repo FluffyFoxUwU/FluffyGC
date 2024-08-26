@@ -234,18 +234,32 @@ struct cycle_state {
 };
 
 static void takeRootSnapshotPhase(struct cycle_state* state) {
-  struct alloc_unit** rootSnapshot = realloc(state->self->snapshotOfRootSet, state->heap->mainThread->rootSize * sizeof(void*));
+  __block size_t totalRootRefs = 0;
+  heap_iterate_threads(state->heap, ^(struct thread* thrd) {
+    totalRootRefs += thrd->rootSize;
+  });
+  
+  struct alloc_unit** rootSnapshot = realloc(state->self->snapshotOfRootSet, totalRootRefs * sizeof(void*));
   if (!rootSnapshot)
     flup_panic("Error reserving memory for root set snapshot");
   state->self->snapshotOfRootSet = rootSnapshot;
-  state->self->snapshotOfRootSetSize = state->heap->mainThread->rootSize;
+  state->self->snapshotOfRootSetSize = totalRootRefs;
   
-  size_t index = 0;
-  flup_list_head* current;
-  flup_list_for_each(&state->heap->mainThread->rootEntries, current) {
-    rootSnapshot[index] = container_of(current, struct root_ref, node)->obj;
-    index++;
-  }
+  __block size_t index = 0;
+  heap_iterate_threads(state->heap, ^(struct thread* thrd) {
+    flup_list_head* current;
+    flup_list_for_each(&thrd->rootEntries, current) {
+      // Root set still has more items
+      BUG_ON(index >= totalRootRefs);
+      
+      rootSnapshot[index] = container_of(current, struct root_ref, node)->obj;
+      index++;
+    }
+  });
+  
+  // Root set somehow reduced in size
+  // or counted wrongly
+  BUG_ON(index != totalRootRefs);
 }
 
 static void markingPhase(struct cycle_state* state) {

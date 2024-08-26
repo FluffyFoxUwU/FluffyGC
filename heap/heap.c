@@ -111,4 +111,7 @@ struct alloc_context* heap_get_alloc_context(struct heap* self) {
   return self->mainThread->allocContext;
 }
 
+void heap_iterate_threads(struct heap* self, void (^iterator)(struct thread* thrd)) {
+  iterator(self->mainThread);
+}
 
