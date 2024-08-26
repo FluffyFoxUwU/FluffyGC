@@ -1,1 +1,1 @@
-UwUMaker-c-sources-y += bitmap.c cpu_pin.c moving_window.c
+UwUMaker-c-sources-y += bitmap.c moving_window.c
