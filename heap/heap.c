@@ -1,6 +1,8 @@
 #include <flup/core/panic.h>
 #include <flup/thread/thread.h>
+#include <flup/thread/thread_local.h>
 #include <stdatomic.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <stddef.h>
 
@@ -32,9 +34,12 @@ struct heap* heap_new(size_t size) {
   if (!(self->gen = generation_new(size)))
     goto failure;
   self->gen->ownerHeap = self;
+  if (!(self->currentThread = flup_thread_local_new(NULL)))
+    goto failure;
   
   if (!(self->mainThread = thread_new(self)))
     goto failure;
+  flup_thread_local_set(self->currentThread, (uintptr_t) self->mainThread);
   
   // Heap is ready, unpause the GC driver
   gc_driver_unpause(self->gen->gcState->driver);
@@ -45,23 +50,28 @@ failure:
   return NULL;
 }
 
+struct thread* heap_get_current_thread(struct heap* self) {
+  return (struct thread*) flup_thread_local_get(self->currentThread);
+}
+
 void heap_free(struct heap* self) {
   if (!self)
     return;
   
   gc_perform_shutdown(self->gen->gcState);
+  flup_thread_local_free(self->currentThread);
   thread_free(self->mainThread);
   generation_free(self->gen);
   free(self);
 }
 
 struct root_ref* heap_new_root_ref_unlocked(struct heap* self, struct alloc_unit* obj) {
-  return thread_new_root_ref_no_gc_block(self->mainThread, obj);
+  return thread_new_root_ref_no_gc_block(heap_get_current_thread(self), obj);
 }
 
 void heap_root_unref(struct heap* self, struct root_ref* ref) {
   heap_block_gc(self);
-  thread_unref_root_no_gc_block(self->mainThread, ref);
+  thread_unref_root_no_gc_block(heap_get_current_thread(self), ref);
   heap_unblock_gc(self);
 }
 
@@ -76,7 +86,7 @@ struct root_ref* heap_alloc_with_descriptor(struct heap* self, struct descriptor
 }
 
 struct root_ref* heap_alloc(struct heap* self, size_t size) {
-  struct root_ref* ref = thread_prealloc_root_ref(self->mainThread);
+  struct root_ref* ref = thread_prealloc_root_ref(heap_get_current_thread(self));
   if (!ref)
     return NULL;
   
@@ -97,22 +107,22 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
     return NULL;
   }
   
-  thread_new_root_ref_from_prealloc_no_gc_block(self->mainThread, ref, newObj);
+  thread_new_root_ref_from_prealloc_no_gc_block(heap_get_current_thread(self), ref, newObj);
   gc_on_allocate(newObj, self->gen);
   heap_unblock_gc(self);
   return ref;
 }
 
 void heap_block_gc(struct heap* self) {
-  gc_block(self->gen->gcState, self->mainThread);
+  gc_block(self->gen->gcState, heap_get_current_thread(self));
 }
 
 void heap_unblock_gc(struct heap* self) {
-  gc_unblock(self->gen->gcState, self->mainThread);
+  gc_unblock(self->gen->gcState, heap_get_current_thread(self));
 }
 
 struct alloc_context* heap_get_alloc_context(struct heap* self) {
-  return self->mainThread->allocContext;
+  return heap_get_current_thread(self)->allocContext;
 }
 
 void heap_iterate_threads(struct heap* self, void (^iterator)(struct thread* thrd)) {

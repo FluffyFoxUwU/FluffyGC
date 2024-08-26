@@ -5,6 +5,7 @@
 
 #include <flup/concurrency/mutex.h>
 #include <flup/data_structs/list_head.h>
+#include <flup/thread/thread_local.h>
 
 #include "heap/generation.h"
 #include "memory/alloc_tracker.h"
@@ -18,6 +19,7 @@ struct heap {
   struct generation* gen;
   
   struct thread* mainThread;
+  flup_thread_local* currentThread;
 };
 
 struct root_ref {
@@ -25,6 +27,7 @@ struct root_ref {
   struct alloc_unit* obj;
 };
 
+struct thread* heap_get_current_thread(struct heap* self);
 void heap_iterate_threads(struct heap* self, void (^iterator)(struct thread* thrd));
 
 struct heap* heap_new(size_t size);
