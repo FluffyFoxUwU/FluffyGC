@@ -46,6 +46,7 @@ failure:
 }
 
 void heap_free(struct heap* self) {
+  gc_perform_shutdown(self->gen->gcState);
   thread_free(self->mainThread);
   generation_free(self->gen);
   free(self);
