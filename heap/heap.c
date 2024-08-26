@@ -1,12 +1,12 @@
-#include <flup/core/panic.h>
-#include <flup/thread/thread.h>
-#include <flup/thread/thread_local.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stddef.h>
 
 #include <flup/bug.h>
+#include <flup/core/panic.h>
+#include <flup/thread/thread.h>
+#include <flup/thread/thread_local.h>
 #include <flup/concurrency/mutex.h>
 #include <flup/container_of.h>
 #include <flup/core/logger.h>
@@ -29,7 +29,11 @@ struct heap* heap_new(size_t size) {
     return NULL;
   
   *self = (struct heap) {
+    .threads = FLUP_LIST_HEAD_INIT(self->threads)
   };
+  
+  if (!(self->threadListLock = flup_mutex_new()))
+    goto failure;
   
   if (!(self->gen = generation_new(size)))
     goto failure;
@@ -37,9 +41,8 @@ struct heap* heap_new(size_t size) {
   if (!(self->currentThread = flup_thread_local_new(NULL)))
     goto failure;
   
-  if (!(self->mainThread = thread_new(self)))
+  if (!heap_attach_thread(self))
     goto failure;
-  flup_thread_local_set(self->currentThread, (uintptr_t) self->mainThread);
   
   // Heap is ready, unpause the GC driver
   gc_driver_unpause(self->gen->gcState->driver);
@@ -54,14 +57,26 @@ struct thread* heap_get_current_thread(struct heap* self) {
   return (struct thread*) flup_thread_local_get(self->currentThread);
 }
 
+static void removeThread(struct heap* self, struct thread* thread) {
+  flup_mutex_lock(self->threadListLock);
+  flup_list_del(&thread->node);
+  flup_mutex_unlock(self->threadListLock);
+  
+  thread_free(thread);
+}
+
 void heap_free(struct heap* self) {
   if (!self)
     return;
   
   gc_perform_shutdown(self->gen->gcState);
   flup_thread_local_free(self->currentThread);
-  thread_free(self->mainThread);
+  flup_list_head* current;
+  flup_list_head *next;
+  flup_list_for_each_safe(&self->threads, current, next)
+    removeThread(self, flup_list_entry(current, struct thread, node));
   generation_free(self->gen);
+  flup_mutex_free(self->threadListLock);
   free(self);
 }
 
@@ -126,6 +141,28 @@ struct alloc_context* heap_get_alloc_context(struct heap* self) {
 }
 
 void heap_iterate_threads(struct heap* self, void (^iterator)(struct thread* thrd)) {
-  iterator(self->mainThread);
+  flup_mutex_lock(self->threadListLock);
+  flup_list_head* current;
+  flup_list_for_each(&self->threads, current)
+    iterator(flup_list_entry(current, struct thread, node));
+  flup_mutex_unlock(self->threadListLock);
+}
+
+struct thread* heap_attach_thread(struct heap* self) {
+  struct thread* thrd = thread_new(self);
+  if (!thrd)
+    return NULL;
+  
+  flup_mutex_lock(self->threadListLock);
+  flup_list_add_head(&self->threads, &thrd->node);
+  flup_mutex_unlock(self->threadListLock);
+  
+  flup_thread_local_set(self->currentThread, (uintptr_t) thrd);
+  return thrd;
+}
+
+void heap_detach_thread(struct heap* self) {
+  removeThread(self, heap_get_current_thread(self));
+  flup_thread_local_set(self->currentThread, (uintptr_t) NULL);
 }
 

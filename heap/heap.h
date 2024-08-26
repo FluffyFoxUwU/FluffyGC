@@ -18,8 +18,9 @@ struct thread;
 struct heap {
   struct generation* gen;
   
-  struct thread* mainThread;
   flup_thread_local* currentThread;
+  flup_mutex* threadListLock;
+  flup_list_head threads;
 };
 
 struct root_ref {
@@ -27,8 +28,12 @@ struct root_ref {
   struct alloc_unit* obj;
 };
 
+// Thread management
 struct thread* heap_get_current_thread(struct heap* self);
 void heap_iterate_threads(struct heap* self, void (^iterator)(struct thread* thrd));
+
+struct thread* heap_attach_thread(struct heap* self);
+void heap_detach_thread(struct heap* self);
 
 struct heap* heap_new(size_t size);
 void heap_free(struct heap* self);

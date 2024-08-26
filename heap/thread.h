@@ -11,6 +11,8 @@
 #include "memory/alloc_tracker.h"
 
 struct thread {
+  flup_list_head node;
+  
   struct heap* ownerHeap;
   
   flup_list_head rootEntries;

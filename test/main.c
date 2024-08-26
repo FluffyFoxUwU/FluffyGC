@@ -25,7 +25,7 @@
 #include "stat_printer.h"
 
 #define WINDOW_SIZE 200'000
-#define MESSAGE_COUNT 1'750'000
+#define MESSAGE_COUNT 10'750'000
 #define MESSAGE_SIZE  (1 * 1024) //(2 * 1024 + 512)
 
 struct array_of_messages {
