@@ -100,7 +100,7 @@ static void warmUp(struct heap* heap) {
 static void doTestGCExperiment(struct heap* heap) {
   runTest(heap, MESSAGE_COUNT);
   pr_info("Worst push time: %f milisecs", (float) worstTimeMicroSec / 1'000);
-  pr_info("Average push time: %f milisecs", ((float) worstTimeMicroSec / (float) sampleCount) / 1'000);
+  pr_info("Average push time: %f milisecs", ((float) totalTimeMicroSec / (float) sampleCount) / 1'000);
 }
 
 int main() {
@@ -111,7 +111,7 @@ int main() {
   pr_info("FluffyGC running on %s", platform_get_name());
   
   // Create 128 MiB heap
-  size_t heapSize = 1900 * 1024 * 1024;
+  size_t heapSize = 768 * 1024 * 1024;
   size_t reserveExtra = 64 * 1024 * 1024;
   
   if (mi_reserve_os_memory(heapSize + reserveExtra, true, true) != 0)
