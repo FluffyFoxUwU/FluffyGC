@@ -197,6 +197,10 @@ void gc_start_cycle(struct gc_per_generation_state* self);
 // so caller can wait if needed
 uint64_t gc_start_cycle_async(struct gc_per_generation_state* self);
 
+// Return 0 if cycle completed or
+// or -ETIMEDOUT if `absTimeout` reached and cycle hasnt completed
+int gc_wait_cycle(struct gc_per_generation_state* self, uint64_t cycleID, struct timespec* absTimeout);
+
 struct gc_per_generation_state* gc_per_generation_state_new(struct generation* gen);
 void gc_per_generation_state_free(struct gc_per_generation_state* self);
 

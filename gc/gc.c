@@ -440,15 +440,23 @@ no_need_to_wake_gc:
   return lastCycleID;
 }
 
-void gc_start_cycle(struct gc_per_generation_state* self) {
-  uint64_t lastCycleID = gc_start_cycle_async(self);
-  
+int gc_wait_cycle(struct gc_per_generation_state* self, uint64_t cycleID, struct timespec* absTimeout) {
   flup_mutex_lock(self->cycleStatusLock);
   // Waiting loop
-  while (self->cycleID == lastCycleID)
-    flup_cond_wait(self->invokeCycleDoneEvent, self->cycleStatusLock, NULL);
+  while (self->cycleID == cycleID) {
+    int ret = flup_cond_wait(self->invokeCycleDoneEvent, self->cycleStatusLock, absTimeout);
+    if (ret == -ETIMEDOUT) {
+      flup_mutex_unlock(self->cycleStatusLock);
+      return -ETIMEDOUT;
+    }
+  }
+  
   flup_mutex_unlock(self->cycleStatusLock);
-  return;
+  return 0;
+}
+
+void gc_start_cycle(struct gc_per_generation_state* self) {
+  gc_wait_cycle(self, gc_start_cycle_async(self), NULL);
 }
 
 void gc_block(struct gc_per_generation_state* self, struct thread* blockingThread) {
