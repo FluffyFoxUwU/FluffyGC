@@ -1,4 +1,3 @@
-#include <errno.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -7,25 +6,21 @@
 #include <time.h>
 #include <unistd.h>
 #include <mimalloc.h>
-#include <inttypes.h>
 #include <stdint.h>
 
 #include <flup/core/panic.h>
 #include <flup/core/logger.h>
-
 #include <flup/thread/thread.h>
 
-#include "gc/driver.h"
 #include "platform/platform.h"
 #include "heap/heap.h"
 #include "memory/alloc_tracker.h"
 #include "object/descriptor.h"
 #include "object/helper.h"
-#include "util/cpu_pin.h"
 #include "stat_printer.h"
 
-#define WINDOW_SIZE 200'000
-#define MESSAGE_COUNT 10'750'000
+#define WINDOW_SIZE 100'000
+#define MESSAGE_COUNT 300'000'000
 #define MESSAGE_SIZE  (1 * 1024) //(2 * 1024 + 512)
 
 struct array_of_messages {
@@ -103,6 +98,31 @@ static void doTestGCExperiment(struct heap* heap) {
   pr_info("Average push time: %f milisecs", ((float) totalTimeMicroSec / (float) sampleCount) / 1'000);
 }
 
+static pthread_barrier_t runnerWaitBarrier;
+static void runnerFunction(void* _heap) {
+  struct heap* heap = _heap;
+  if (!heap_attach_thread(heap))
+    flup_panic("Cannot attach thread!");
+  
+  // Wait for start sync
+  pthread_barrier_wait(&runnerWaitBarrier);
+  
+  // Test based on same test on
+  // https://github.com/WillSewell/gc-latency-experiment
+  // in particular Java version is ported ^w^
+  doTestGCExperiment(heap);
+  // sleep(10);
+  // doTestGCExperiment(heap);
+  // sleep(10);
+  // doTestGCExperiment(heap);
+  // sleep(10);
+  // doTestGCExperiment(heap);
+  
+  // Wait for stop sync
+  pthread_barrier_wait(&runnerWaitBarrier);
+  heap_detach_thread(heap);
+}
+
 int main() {
   if (!flup_attach_thread("Main-Thread"))
     flup_panic("Failed to attach thread\n");
@@ -111,7 +131,7 @@ int main() {
   pr_info("FluffyGC running on %s", platform_get_name());
   
   // Create 128 MiB heap
-  size_t heapSize = 768 * 1024 * 1024;
+  size_t heapSize = 1024 * 1024 * 1024;
   size_t reserveExtra = 64 * 1024 * 1024;
   
   if (mi_reserve_os_memory(heapSize + reserveExtra, true, true) != 0)
@@ -123,38 +143,38 @@ int main() {
     return EXIT_FAILURE;
   }
   
-  pr_info("Pinning main thread to core 0");
-  int ret = util_cpu_pin_try_pin(pthread_self(), 0);
-  if (ret == -ENOSYS)
-    pr_warn("CPU pinning is disabled");
-  else if (ret == false)
-    flup_panic("Error pinning main thread to core 0");
-  
-  pr_info("Pinning GC thread to core 1");
-  ret = util_cpu_pin_try_pin(heap->gen->gcState->thread->thread, 1);
-  if (ret == -ENOSYS)
-    pr_warn("CPU pinning is disabled");
-  else if (ret == false)
-    flup_panic("Error pinning main thread to core 0");
-  
   struct stat_printer* printer = NULL;
   if (!(printer = stat_printer_new(heap)))
     flup_panic("Failed to start stat printer!");
   
   size_t beforeTestBytesAllocated = atomic_load(&heap->gen->allocTracker->lifetimeBytesAllocated);
   struct timespec start, end;
+  
+  // Information for managing threads
+  unsigned int threadCount = 2;
+  flup_thread* threads[threadCount];
+  
+  if (pthread_barrier_init(&runnerWaitBarrier, NULL, threadCount + 1) != 0)
+    flup_panic("Cannot init runner barrier");
+  
+  for (unsigned int i = 0; i < threadCount; i++)
+    if (!(threads[i] = flup_thread_new(runnerFunction, heap)))
+      flup_panic("Cannot create runner thread number %u", i);
+  
   clock_gettime(CLOCK_REALTIME, &start);
-  // Test based on same test on
-  // https://github.com/WillSewell/gc-latency-experiment
-  // in particular Java version is ported ^w^
-  doTestGCExperiment(heap);
-  // sleep(10);
-  // doTestGCExperiment(heap);
-  // sleep(10);
-  // doTestGCExperiment(heap);
-  // sleep(10);
-  // doTestGCExperiment(heap);
+  
+  pr_info("Threads created, starting them");
+  pthread_barrier_wait(&runnerWaitBarrier);
+  pr_info("Threads started, waiting for them to complete");
+  pthread_barrier_wait(&runnerWaitBarrier);
+  
   clock_gettime(CLOCK_REALTIME, &end);
+  
+  for (unsigned int i = 0; i < threadCount; i++) {
+    flup_thread_wait(threads[i]);
+    flup_thread_free(threads[i]);
+  }
+  pthread_barrier_destroy(&runnerWaitBarrier);
   
   double startTime = (double) start.tv_sec + (double) start.tv_nsec / 1e9;
   double endTime = (double) end.tv_sec + (double) end.tv_nsec / 1e9;
