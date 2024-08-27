@@ -1,4 +1,6 @@
+#include <flup/util/min_max.h>
 #include <stdatomic.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <time.h>
@@ -35,8 +37,45 @@ static size_t calcAverageTargetThreshold(struct gc_driver* self) {
   return total / self->triggerThresholdSamples->entryCount;
 }
 
+static thread_local struct timespec deadline;
 static void doCollection(struct gc_driver* self) {
-  gc_start_cycle(self->gcState);
+  atomic_store(&self->gcState->pacingMilisec, 0);
+  struct timespec gcBeginAtSpec;
+  clock_gettime(CLOCK_REALTIME, &gcBeginAtSpec);
+  float gcBeginTime = (float) gcBeginAtSpec.tv_sec + ((float) gcBeginAtSpec.tv_nsec / 1e9f);
+  uint64_t cycleID = gc_start_cycle_async(self->gcState);
+  
+  unsigned int currentDelayMilisec = 2;
+  while (gc_wait_cycle(self->gcState, cycleID, &deadline) == -ETIMEDOUT) {
+    float heapSize = (float) self->gcState->ownerGen->allocTracker->maxSize;
+    float heapUsage = (float) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
+    float allocRate = (float) atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1;
+    
+    struct timespec currentTimeSpec;
+    clock_gettime(CLOCK_REALTIME, &currentTimeSpec);
+    float timeSinceStart = ((float) currentTimeSpec.tv_sec + ((float) currentTimeSpec.tv_nsec / 1e9f)) - gcBeginTime;
+    
+    float averageCycleTime = (float) atomic_load(&self->gcState->averageCycleTime);
+    float nextTime = averageCycleTime - timeSinceStart;
+    if (nextTime < 1.0f / DRIVER_CHECK_RATE_HZ)
+      nextTime = 1.0f / DRIVER_CHECK_RATE_HZ;
+    
+    float heapUsageByNextTime = heapUsage + allocRate * nextTime;
+    
+    if (heapUsageByNextTime > heapSize) {
+      currentDelayMilisec *= currentDelayMilisec;
+      // Cap pace by 10 milisec
+      currentDelayMilisec = flup_min_uint(currentDelayMilisec, 10);
+      atomic_store(&self->gcState->pacingMilisec, currentDelayMilisec);
+    }
+    
+    deadline.tv_nsec += 1'000'000'000 / DRIVER_CHECK_RATE_HZ;
+    if (deadline.tv_nsec >= 1'000'000'000) {
+      deadline.tv_nsec -= 1'000'000'000;
+      deadline.tv_sec++;
+    }
+  }
+  atomic_store(&self->gcState->pacingMilisec, 0);
   
   size_t threshold = atomic_load(&self->gcState->bytesUsedRightBeforeSweeping);
   moving_window_append(self->triggerThresholdSamples, &threshold);
@@ -192,8 +231,6 @@ static void pollHeapState(struct gc_driver* self) {
 
 static void driver(void* _self) {
   struct gc_driver* self = _self;
-  
-  struct timespec deadline;
   
   if (clock_gettime(CLOCK_REALTIME, &deadline) != 0)
     flup_panic("Strange this implementation did not support CLOCK_REALTIME");

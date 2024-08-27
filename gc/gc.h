@@ -90,6 +90,7 @@ Extra notes:
 #include <flup/data_structs/dyn_array.h>
 #include <flup/data_structs/buffer.h>
 #include <flup/thread/thread.h>
+#include <time.h>
 
 // 8 MiB mutator mark queue size
 #define GC_MUTATOR_MARK_QUEUE_SIZE (8 * 1024 * 1024)
@@ -189,6 +190,18 @@ struct gc_per_generation_state {
   // "double" samples of cycle time in miliseconds
   struct moving_window* cycleTimeSamples;
   _Atomic(double) averageCycleTime;
+  
+  // Milisecs for stalling allocator
+  // inspired from Shenandoah GC because
+  // slowly failing is better than instantly fails?
+  //
+  // Increasing in cubic rate from 2 milisec
+  // every DRIVER_CHECK_RATE_HZ (so 2 milisec
+  // on first, 4 next, 16, 32, etc and so on) if
+  // the allocation
+  // rate still too high and heap is gonna OOM
+  // before cycle completed
+  atomic_uint pacingMilisec;
 };
 
 void gc_start_cycle(struct gc_per_generation_state* self);
@@ -206,6 +219,7 @@ void gc_per_generation_state_free(struct gc_per_generation_state* self);
 
 void gc_on_allocate(struct alloc_unit* block, struct generation* gen);
 void gc_need_remark(struct alloc_unit* obj);
+void gc_on_preallocate(struct generation* gen);
 
 // These can't be nested
 void gc_block(struct gc_per_generation_state* self, struct thread* blockingThread);

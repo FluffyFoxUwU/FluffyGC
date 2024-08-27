@@ -105,6 +105,8 @@ struct root_ref* heap_alloc(struct heap* self, size_t size) {
   if (!ref)
     return NULL;
   
+  gc_on_preallocate(self->gen);
+  
   heap_block_gc(self);
   struct alloc_unit* newObj = generation_alloc(self->gen, size);
   for (int i = 0; i < HEAP_ALLOC_RETRY_COUNT && newObj == NULL; i++) {

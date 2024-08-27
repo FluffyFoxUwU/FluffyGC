@@ -473,3 +473,22 @@ void gc_get_stats(struct gc_per_generation_state* self, struct gc_stats* stats) 
   flup_mutex_unlock(self->statsLock);
 }
 
+void gc_on_preallocate(struct generation* gen) {
+  struct gc_per_generation_state* gcState = gen->gcState;
+  unsigned int pacingNanosec = atomic_load(&gcState->pacingMilisec);
+  if (pacingNanosec == 0)
+    return;
+  
+  struct timespec sleepTime = {
+    .tv_sec = 0,
+    .tv_nsec = pacingNanosec
+  };
+  
+  struct timespec timeLeft;
+  
+  int err;
+  while ((err = clock_nanosleep(CLOCK_REALTIME, 0, &sleepTime, &timeLeft)) == EINTR)
+    sleepTime = timeLeft;
+  BUG_ON(err != 0);
+}
+
