@@ -8,7 +8,7 @@
 #include "gc/gc.h"
 #include "util/moving_window.h"
 
-#define STAT_COLLECTOR_HZ 20
+#define STAT_COLLECTOR_HZ 60
 #define STAT_COLLECTOR_ALLOC_RATE_SAMPLES (STAT_COLLECTOR_HZ * 1)
 
 struct stat_collector {
