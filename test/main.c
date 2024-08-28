@@ -19,9 +19,10 @@
 #include "object/helper.h"
 #include "stat_printer.h"
 
-#define WINDOW_SIZE 100'000
-#define MESSAGE_COUNT 300'000'000
-#define MESSAGE_SIZE  (1 * 1024) //(2 * 1024 + 512)
+#define WINDOW_SIZE 200'000
+#define MESSAGE_COUNT 20'000'000
+// #define MESSAGE_SIZE  (6 * 1024 + 512) //(2 * 1024 + 512)
+#define MESSAGE_SIZE 1024
 
 struct array_of_messages {
   long length;
@@ -131,7 +132,7 @@ int main() {
   pr_info("FluffyGC running on %s", platform_get_name());
   
   // Create 128 MiB heap
-  size_t heapSize = 1024 * 1024 * 1024;
+  size_t heapSize = 1700 * 1024 * 1024;
   size_t reserveExtra = 64 * 1024 * 1024;
   
   if (mi_reserve_os_memory(heapSize + reserveExtra, true, true) != 0)
@@ -151,7 +152,7 @@ int main() {
   struct timespec start, end;
   
   // Information for managing threads
-  unsigned int threadCount = 2;
+  unsigned int threadCount = 1;
   flup_thread* threads[threadCount];
   
   if (pthread_barrier_init(&runnerWaitBarrier, NULL, threadCount + 1) != 0)
