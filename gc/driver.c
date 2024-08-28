@@ -67,8 +67,8 @@ static void doCollection(struct gc_driver* self) {
   float gcBeginTime = (float) gcBeginAtSpec.tv_sec + ((float) gcBeginAtSpec.tv_nsec / 1e9f);
   uint64_t cycleID = gc_start_cycle_async(self->gcState);
   
-  float currentDelayMicrosec = 1000;
-  float multiplier = 1.1f;
+  float currentDelayMicrosec = 500;
+  float multiplier = 1.3f;
   while (gc_wait_cycle(self->gcState, cycleID, &deadline) == -ETIMEDOUT) {
     struct timespec currentTimeSpec;
     clock_gettime(CLOCK_REALTIME, &currentTimeSpec);
@@ -82,7 +82,6 @@ static void doCollection(struct gc_driver* self) {
     
     if (calcTimeToUsage(self, self->gcState->ownerGen->allocTracker->maxSize) < timeUntilCycleCompletion) {
       currentDelayMicrosec *= multiplier;
-      multiplier *= multiplier;
       
       // pr_info("Delayed by %f ms", currentDelayMicrosec / 1'000);
       // Cap pace by 10 milisec
