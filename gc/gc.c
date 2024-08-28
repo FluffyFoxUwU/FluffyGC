@@ -42,10 +42,10 @@ void gc_need_remark(struct alloc_unit* obj) {
   struct gc_per_generation_state* gcState = metadata->owningGeneration->gcState;
   
   // Add to queue if marking in progress
-  if (!atomic_load(&gcState->markingInProgress))
+  if (!atomic_load_explicit(&gcState->markingInProgress, memory_order_acquire))
     return;
   
-  bool prevMarkBit = atomic_exchange(&metadata->markBit, gcState->GCMarkedBitValue);
+  bool prevMarkBit = atomic_exchange_explicit(&metadata->markBit, gcState->GCMarkedBitValue, memory_order_relaxed);
   if (prevMarkBit == gcState->GCMarkedBitValue)
     return;
   
@@ -158,11 +158,11 @@ static bool markOneItem(struct gc_per_generation_state* state, struct alloc_unit
 
 static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_state* markState) {
   struct alloc_unit* block = markState->block;
-  bool markBit = atomic_exchange(&block->gcMetadata.markBit, state->GCMarkedBitValue);
+  bool markBit = atomic_exchange_explicit(&block->gcMetadata.markBit, state->GCMarkedBitValue, memory_order_relaxed);
   if (markState->fieldIndex == 0 && markBit == state->GCMarkedBitValue)
     return;
   
-  struct descriptor* desc = atomic_load(&block->desc);
+  struct descriptor* desc = atomic_load_explicit(&block->desc, memory_order_acquire);
   // Object have no GC-able references
   if (!desc)
     return;
@@ -173,7 +173,7 @@ static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_st
   for (fieldIndex = markState->fieldIndex; fieldIndex < desc->fieldCount; fieldIndex++) {
     size_t offset = desc->fields[fieldIndex].offset;
     _Atomic(struct alloc_unit*)* fieldPtr = (_Atomic(struct alloc_unit*)*) ((void*) (((char*) block->data) + offset));
-    if (!markOneItem(state, block, fieldIndex, atomic_load(fieldPtr)))
+    if (!markOneItem(state, block, fieldIndex, atomic_load_explicit(fieldPtr, memory_order_relaxed)))
       return;
   }
   
@@ -183,7 +183,7 @@ static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_st
   size_t flexArrayCount = (block->size - desc->objectSize) / sizeof(void*);
   for (size_t i = 0; i < flexArrayCount; i++) {
     _Atomic(struct alloc_unit*)* fieldPtr = (_Atomic(struct alloc_unit*)*) ((void*) (((char*) block->data) + desc->objectSize + i * sizeof(void*)));
-    if (!markOneItem(state, block, fieldIndex + i, atomic_load(fieldPtr)))
+    if (!markOneItem(state, block, fieldIndex + i, atomic_load_explicit(fieldPtr, memory_order_relaxed)))
       return;
   }
 }
@@ -271,7 +271,7 @@ static void processMutatorMarkQueuePhase(struct cycle_state* state) {
   struct alloc_unit* current;
   int ret;
   while ((ret = flup_buffer_read2(state->self->needRemarkQueue, &current, sizeof(void*), FLUP_BUFFER_READ2_DONT_WAIT_FOR_DATA)) >= 0) {
-    atomic_store(&current->gcMetadata.markBit, !state->self->GCMarkedBitValue);
+    atomic_store_explicit(&current->gcMetadata.markBit, !state->self->GCMarkedBitValue, memory_order_relaxed);
     doMark(state->self, current);
   }
   BUG_ON(ret == -EMSGSIZE);
@@ -292,7 +292,7 @@ static size_t sweepPhase(struct cycle_state* state) {
     count++;
     totalSize += block->size;
     // Object is alive continuing
-    if (atomic_load(&block->gcMetadata.markBit) == state->self->GCMarkedBitValue) {
+    if (atomic_load_explicit(&block->gcMetadata.markBit, memory_order_relaxed) == state->self->GCMarkedBitValue) {
       liveObjectCount++;
       liveObjectSize += block->size;
       return true;
@@ -349,21 +349,21 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   
   pauseAppThreads(&state);
   self->mutatorMarkedBitValue = self->GCMarkedBitValue;
-  atomic_store(&self->cycleInProgress, true);
+  atomic_store_explicit(&self->cycleInProgress, true, memory_order_release);
   
-  atomic_store(&self->markingInProgress, true);
+  atomic_store_explicit(&self->markingInProgress, true, memory_order_release);
   takeRootSnapshotPhase(&state);
   alloc_tracker_take_snapshot(state.arena, &state.objectsListSnapshot);
   unpauseAppThreads(&state);
   
   markingPhase(&state);
-  atomic_store(&self->markingInProgress, false);
+  atomic_store_explicit(&self->markingInProgress, false, memory_order_release);
   processMutatorMarkQueuePhase(&state);
   size_t freedBytes = sweepPhase(&state);
   
   pauseAppThreads(&state);
   self->GCMarkedBitValue = !self->GCMarkedBitValue;
-  atomic_store(&self->cycleInProgress, false);
+  atomic_store_explicit(&self->cycleInProgress, false, memory_order_release);
   unpauseAppThreads(&state);
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
   
@@ -383,9 +383,9 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   self->stats = state.stats;
   flup_mutex_unlock(self->statsLock);
   
-  size_t usage = atomic_load(&self->ownerGen->allocTracker->currentUsage);
-  atomic_store(&self->bytesUsedRightBeforeSweeping, usage + freedBytes);
-  atomic_store(&self->liveSetSize, state.stats.lifetimeLiveObjectSize - prev);
+  size_t usage = atomic_load_explicit(&self->ownerGen->allocTracker->currentUsage, memory_order_relaxed);
+  atomic_store_explicit(&self->bytesUsedRightBeforeSweeping, usage + freedBytes, memory_order_relaxed);
+  atomic_store_explicit(&self->liveSetSize, state.stats.lifetimeLiveObjectSize - prev, memory_order_relaxed);
   moving_window_append(self->cycleTimeSamples, &duration);
   
   struct moving_window_iterator iterator = {};
@@ -393,7 +393,7 @@ static void cycleRunner(struct gc_per_generation_state* self) {
   while (moving_window_next(self->cycleTimeSamples, &iterator))
     total += *((double*) iterator.current);
   
-  atomic_store(&self->averageCycleTime, total / (double) self->cycleTimeSamples->entryCount);
+  atomic_store_explicit(&self->averageCycleTime, total / (double) self->cycleTimeSamples->entryCount, memory_order_relaxed);
   // pr_info("After cycle mem usage: %f MiB", (float) atomic_load(&state.arena->currentUsage) / 1024.0f / 1024.0f);
 }
 
@@ -475,7 +475,7 @@ void gc_get_stats(struct gc_per_generation_state* self, struct gc_stats* stats) 
 
 void gc_on_preallocate(struct generation* gen) {
   struct gc_per_generation_state* gcState = gen->gcState;
-  unsigned int pacingNanosec = atomic_load(&gcState->pacingMicrosec) * 1'000;
+  unsigned int pacingNanosec = atomic_load_explicit(&gcState->pacingMicrosec, memory_order_relaxed) * 1'000;
   if (pacingNanosec == 0)
     return;
   

@@ -68,28 +68,28 @@ void alloc_tracker_filter_snapshot_and_delete_snapshot(struct alloc_tracker* sel
     freedSize += current->size + sizeof(*current);
     free(current);
   }
-  atomic_fetch_sub(&self->currentUsage, freedSize);
+  atomic_fetch_sub_explicit(&self->currentUsage, freedSize, memory_order_relaxed);
   snapshot->head = NULL;
 }
 
 void alloc_tracker_add_block_to_global_list(struct alloc_tracker* self, struct alloc_unit* block) {
-  struct alloc_unit* oldHead = atomic_load(&self->head);
+  struct alloc_unit* oldHead = atomic_load_explicit(&self->head, memory_order_relaxed);
   do {
     block->next = oldHead;
-  } while (!atomic_compare_exchange_weak(&self->head, &oldHead, block));
+  } while (!atomic_compare_exchange_weak_explicit(&self->head, &oldHead, block, memory_order_release, memory_order_relaxed));
 }
 
 
 static bool slowDoLargeAccounting(struct alloc_tracker* self, struct alloc_context*, size_t accountSize) {
-  size_t oldSize = atomic_load(&self->currentUsage);
+  size_t oldSize = atomic_load_explicit(&self->currentUsage, memory_order_relaxed);
   size_t newSize;
   do {
     if (oldSize + accountSize > self->maxSize)
       return false;
     
     newSize = oldSize + accountSize;
-  } while (!atomic_compare_exchange_weak(&self->currentUsage, &oldSize, newSize));
-  atomic_fetch_add(&self->lifetimeBytesAllocated, accountSize);
+  } while (!atomic_compare_exchange_weak_explicit(&self->currentUsage, &oldSize, newSize, memory_order_release, memory_order_relaxed));
+  atomic_fetch_add_explicit(&self->lifetimeBytesAllocated, accountSize, memory_order_relaxed);
   return true;
 }
 
@@ -176,7 +176,7 @@ skip_this_context:
   }
   
   // Append current global list
-  appendToSnapshot(atomic_exchange(&self->head, NULL), NULL);
+  appendToSnapshot(atomic_exchange_explicit(&self->head, NULL, memory_order_relaxed), NULL);
   
   flup_mutex_unlock(self->listOfContextLock);
 }
@@ -204,6 +204,6 @@ void alloc_tracker_get_statistics(struct alloc_tracker* self, struct alloc_track
   stat->maxSize = self->maxSize;
   stat->reservedBytes = stat->maxSize;
   stat->commitedBytes = stat->maxSize;
-  stat->usedBytes = atomic_load(&self->currentUsage);
+  stat->usedBytes = atomic_load_explicit(&self->currentUsage, memory_order_relaxed);
 }
 

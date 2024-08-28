@@ -88,7 +88,7 @@ static void doCollection(struct gc_driver* self) {
       // Cap pace by 10 milisec
       if (currentDelayMicrosec > 10'000)
         currentDelayMicrosec = 10'000;
-      atomic_store(&self->gcState->pacingMicrosec, (unsigned int) currentDelayMicrosec);
+      atomic_store_explicit(&self->gcState->pacingMicrosec, (unsigned int) currentDelayMicrosec, memory_order_relaxed);
     }
     
     deadline.tv_nsec += 1'000'000'000 / DRIVER_CHECK_RATE_HZ;

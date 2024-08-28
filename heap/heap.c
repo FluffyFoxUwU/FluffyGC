@@ -96,7 +96,7 @@ struct root_ref* heap_alloc_with_descriptor(struct heap* self, struct descriptor
     return NULL;
   
   descriptor_init_object(desc, extraSize, ref->obj->data);
-  atomic_store(&ref->obj->desc, desc);
+  atomic_store_explicit(&ref->obj->desc, desc, memory_order_release);
   return ref;
 }
 

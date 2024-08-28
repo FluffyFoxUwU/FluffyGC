@@ -53,6 +53,8 @@ enum gc_state : uint32_t {
 // Maps to each state in "readers_states" in that blog
 struct gc_lock_per_thread_data {
   flup_list_head node;
+  
+  [[gnu::aligned(64)]]
   _Atomic(enum mutator_state) mutatorState;
 };
 
@@ -65,6 +67,7 @@ struct gc_lock_state {
   flup_mutex* mutatorThreadsListLock;
   
   // Maps to "write_state" in that blog
+  [[gnu::aligned(64)]]
   _Atomic(enum gc_state) gcState;
 };
 
@@ -149,7 +152,7 @@ void gc_lock_free_thread(struct gc_lock_state* self, struct gc_lock_per_thread_d
 void gc_lock_enter_gc_exclusive(struct gc_lock_state* self) {
   // After setting this, there will be no new MUTATOR_ACTIVE instances
   // the new one will keep waiting
-  atomic_store(&self->gcState, GC_ACTIVE_OR_WAIT);
+  atomic_store_explicit(&self->gcState, GC_ACTIVE_OR_WAIT, memory_order_relaxed);
   
   // For each mutator, we'll wait until it turned either WAITING or UNUSED
   flup_mutex_lock(self->mutatorThreadsListLock);
@@ -163,40 +166,40 @@ void gc_lock_enter_gc_exclusive(struct gc_lock_state* self) {
     // > see further in the code
     
     // Wait until that mutator thread is waiting/unused
-    while (atomic_load(&thread->mutatorState) > MUTATOR_WAITING)
+    while (atomic_load_explicit(&thread->mutatorState, memory_order_relaxed) > MUTATOR_WAITING)
       futex_wait(&thread->mutatorState, MUTATOR_PREPARING);
   }
   flup_mutex_unlock(self->mutatorThreadsListLock);
 }
 
 void gc_lock_exit_gc_exclusive(struct gc_lock_state* self) {
-  atomic_store(&self->gcState, GC_UNUSED);
+  atomic_store_explicit(&self->gcState, GC_UNUSED, memory_order_relaxed);
   futex_wake_all(&self->gcState);
 }
 
 // Maps to "readLock" in that blog
 void gc_lock_block_gc(struct gc_lock_state* self, struct gc_lock_per_thread_data* thread) {
-  atomic_store(&thread->mutatorState, MUTATOR_PREPARING);
-  while (atomic_load(&self->gcState) == GC_ACTIVE_OR_WAIT) {
-    atomic_store(&thread->mutatorState, MUTATOR_WAITING);
+  atomic_store_explicit(&thread->mutatorState, MUTATOR_PREPARING, memory_order_relaxed);
+  while (atomic_load_explicit(&self->gcState, memory_order_relaxed) == GC_ACTIVE_OR_WAIT) {
+    atomic_store_explicit(&thread->mutatorState, MUTATOR_WAITING, memory_order_relaxed);
     
     // GC might want to know this interesting MUTATOR_WAITING state
     futex_wake_one(&thread->mutatorState);
     
-    while (atomic_load(&self->gcState) == GC_ACTIVE_OR_WAIT)
+    while (atomic_load_explicit(&self->gcState, memory_order_relaxed) == GC_ACTIVE_OR_WAIT)
       futex_wait(&self->gcState, GC_ACTIVE_OR_WAIT);
     
-    atomic_store(&thread->mutatorState, MUTATOR_PREPARING);
+    atomic_store_explicit(&thread->mutatorState, MUTATOR_PREPARING, memory_order_relaxed);
   }
-  atomic_store(&thread->mutatorState, MUTATOR_ACTIVE);
+  atomic_store_explicit(&thread->mutatorState, MUTATOR_ACTIVE, memory_order_relaxed);
 }
 
 // Maps to "readUnlock" in that blog
 void gc_lock_unblock_gc(struct gc_lock_state* self, struct gc_lock_per_thread_data* thread) {
-  atomic_store(&thread->mutatorState, MUTATOR_UNUSED);
+  atomic_store_explicit(&thread->mutatorState, MUTATOR_UNUSED, memory_order_relaxed);
   
   // GC might want to know this interesting MUTATOR_UNUSED state
-  if (atomic_load(&self->gcState) == GC_ACTIVE_OR_WAIT)
+  if (atomic_load_explicit(&self->gcState, memory_order_relaxed) == GC_ACTIVE_OR_WAIT)
     futex_wake_one(&thread->mutatorState);
 }
 
