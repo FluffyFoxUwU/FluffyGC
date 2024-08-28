@@ -37,6 +37,28 @@ static size_t calcAverageTargetThreshold(struct gc_driver* self) {
   return total / self->triggerThresholdSamples->entryCount;
 }
 
+// Calculate second until "bytes" usage reached
+// based on current allocation rates
+static float calcTimeToUsage(struct gc_driver* self, size_t bytes) {
+  float heapUsage = (float) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
+  float allocRate = (float) atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1;
+  float bytesFloat = (float) bytes;
+  
+  return (bytesFloat - heapUsage) / allocRate;
+}
+
+// Get averaged cycle time with driver poll period as minimum
+// because due some calculations and prediction only triggers
+// based on predicted memory usage but if cycle is too fast than
+// the poll period, driver may not be able to respond
+static float getAdjustedAverageCycleTime(struct gc_driver* self) {
+  float averageCycleTime = (float) atomic_load(&self->gcState->averageCycleTime);
+  if (averageCycleTime < 1.0f / DRIVER_CHECK_RATE_HZ)
+    averageCycleTime = 1.0f / DRIVER_CHECK_RATE_HZ;
+  
+  return averageCycleTime;
+}
+
 static thread_local struct timespec deadline;
 static void doCollection(struct gc_driver* self) {
   atomic_store(&self->gcState->pacingMilisec, 0);
@@ -47,22 +69,17 @@ static void doCollection(struct gc_driver* self) {
   
   unsigned int currentDelayMilisec = 2;
   while (gc_wait_cycle(self->gcState, cycleID, &deadline) == -ETIMEDOUT) {
-    float heapSize = (float) self->gcState->ownerGen->allocTracker->maxSize;
-    float heapUsage = (float) atomic_load(&self->gcState->ownerGen->allocTracker->currentUsage);
-    float allocRate = (float) atomic_load(&self->statCollector->averageAllocRatePerSecond) + 1;
-    
     struct timespec currentTimeSpec;
     clock_gettime(CLOCK_REALTIME, &currentTimeSpec);
+    
     float timeSinceStart = ((float) currentTimeSpec.tv_sec + ((float) currentTimeSpec.tv_nsec / 1e9f)) - gcBeginTime;
+    float averageCycleTime = getAdjustedAverageCycleTime(self);
+    float timeUntilCycleCompletion = averageCycleTime - timeSinceStart;
     
-    float averageCycleTime = (float) atomic_load(&self->gcState->averageCycleTime);
-    float nextTime = averageCycleTime - timeSinceStart;
-    if (nextTime < 1.0f / DRIVER_CHECK_RATE_HZ)
-      nextTime = 1.0f / DRIVER_CHECK_RATE_HZ;
+    if (timeUntilCycleCompletion < 1.0f / DRIVER_CHECK_RATE_HZ)
+      timeUntilCycleCompletion = 1.0f / DRIVER_CHECK_RATE_HZ;
     
-    float heapUsageByNextTime = heapUsage + allocRate * nextTime;
-    
-    if (heapUsageByNextTime > heapSize) {
+    if (calcTimeToUsage(self, self->gcState->ownerGen->allocTracker->maxSize) < timeUntilCycleCompletion) {
       currentDelayMilisec *= currentDelayMilisec;
       // Cap pace by 10 milisec
       currentDelayMilisec = flup_min_uint(currentDelayMilisec, 10);
