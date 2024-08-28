@@ -61,13 +61,14 @@ static float getAdjustedAverageCycleTime(struct gc_driver* self) {
 
 static thread_local struct timespec deadline;
 static void doCollection(struct gc_driver* self) {
-  atomic_store(&self->gcState->pacingMilisec, 0);
+  atomic_store(&self->gcState->pacingMicrosec, 0);
   struct timespec gcBeginAtSpec;
   clock_gettime(CLOCK_REALTIME, &gcBeginAtSpec);
   float gcBeginTime = (float) gcBeginAtSpec.tv_sec + ((float) gcBeginAtSpec.tv_nsec / 1e9f);
   uint64_t cycleID = gc_start_cycle_async(self->gcState);
   
-  unsigned int currentDelayMilisec = 2;
+  float currentDelayMicrosec = 1000;
+  float multiplier = 1.1f;
   while (gc_wait_cycle(self->gcState, cycleID, &deadline) == -ETIMEDOUT) {
     struct timespec currentTimeSpec;
     clock_gettime(CLOCK_REALTIME, &currentTimeSpec);
@@ -80,10 +81,14 @@ static void doCollection(struct gc_driver* self) {
       timeUntilCycleCompletion = 1.0f / DRIVER_CHECK_RATE_HZ;
     
     if (calcTimeToUsage(self, self->gcState->ownerGen->allocTracker->maxSize) < timeUntilCycleCompletion) {
-      currentDelayMilisec *= currentDelayMilisec;
+      currentDelayMicrosec *= multiplier;
+      multiplier *= multiplier;
+      
+      // pr_info("Delayed by %f ms", currentDelayMicrosec / 1'000);
       // Cap pace by 10 milisec
-      currentDelayMilisec = flup_min_uint(currentDelayMilisec, 10);
-      atomic_store(&self->gcState->pacingMilisec, currentDelayMilisec);
+      if (currentDelayMicrosec > 10'000)
+        currentDelayMicrosec = 10'000;
+      atomic_store(&self->gcState->pacingMicrosec, (unsigned int) currentDelayMicrosec);
     }
     
     deadline.tv_nsec += 1'000'000'000 / DRIVER_CHECK_RATE_HZ;
@@ -92,7 +97,7 @@ static void doCollection(struct gc_driver* self) {
       deadline.tv_sec++;
     }
   }
-  atomic_store(&self->gcState->pacingMilisec, 0);
+  atomic_store(&self->gcState->pacingMicrosec, 0);
   
   size_t threshold = atomic_load(&self->gcState->bytesUsedRightBeforeSweeping);
   moving_window_append(self->triggerThresholdSamples, &threshold);

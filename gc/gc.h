@@ -201,7 +201,7 @@ struct gc_per_generation_state {
   // the allocation
   // rate still too high and heap is gonna OOM
   // before cycle completed
-  atomic_uint pacingMilisec;
+  atomic_uint pacingMicrosec;
 };
 
 void gc_start_cycle(struct gc_per_generation_state* self);
