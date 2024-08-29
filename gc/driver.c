@@ -85,7 +85,7 @@ static void doCollection(struct gc_driver* self) {
       
       // pr_info("Delayed by %f ms", currentDelayMicrosec / 1'000);
       // Cap pace by 10 milisec
-      if (currentDelayMicrosec > 10'000)
+      if (currentDelayMicrosec > 5'000)
         currentDelayMicrosec = 10'000;
       atomic_store_explicit(&self->gcState->pacingMicrosec, (unsigned int) currentDelayMicrosec, memory_order_relaxed);
     }
@@ -96,7 +96,7 @@ static void doCollection(struct gc_driver* self) {
       deadline.tv_sec++;
     }
   }
-  // atomic_store(&self->gcState->pacingMicrosec, 0);
+  atomic_store(&self->gcState->pacingMicrosec, 0);
   
   size_t threshold = atomic_load(&self->gcState->bytesUsedRightBeforeSweeping);
   moving_window_append(self->triggerThresholdSamples, &threshold);
