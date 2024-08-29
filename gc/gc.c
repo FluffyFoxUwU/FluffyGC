@@ -167,6 +167,8 @@ static bool markOneItem(struct gc_per_generation_state* state, struct alloc_unit
 static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_state* markState) {
   struct alloc_unit* block = markState->block;
   bool markBit = atomic_exchange_explicit(&block->gcMetadata.markBit, state->GCMarkedBitValue, memory_order_relaxed);
+  // Current item is already marked skip and fieldIndex equals zero
+  // mean its not a continuation from previous state
   if (markState->fieldIndex == 0 && markBit == state->GCMarkedBitValue)
     return;
   
@@ -177,7 +179,7 @@ static void doMarkInner(struct gc_per_generation_state* state, struct gc_mark_st
   
   // Uses breadth first search but if failed
   // queue current state to process later
-  size_t fieldIndex = 0;
+  size_t fieldIndex;
   for (fieldIndex = markState->fieldIndex; fieldIndex < desc->fieldCount; fieldIndex++) {
     size_t offset = desc->fields[fieldIndex].offset;
     _Atomic(struct alloc_unit*)* fieldPtr = (_Atomic(struct alloc_unit*)*) ((void*) (((char*) block->data) + offset));
