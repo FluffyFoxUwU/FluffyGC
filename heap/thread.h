@@ -10,6 +10,10 @@
 #include "memory/alloc_context.h"
 #include "memory/alloc_tracker.h"
 
+// Mutator will only ever push this amount of bytes
+// into global queue
+#define THREAD_LOCAL_REMARK_BUFFER_SIZE ((1 * 1024 * 1024) / sizeof(void*))
+
 struct thread {
   flup_list_head node;
   
@@ -22,6 +26,11 @@ struct thread {
   struct gc_lock_per_thread_data* gcLockPerThread;
   
   flup_list_head cachedRootEntries;
+  
+  // Local remark buffer to reduce cost of inserting into global
+  // mark queue
+  unsigned int localRemarkBufferUsage;
+  struct alloc_unit* localRemarkBuffer[];
 };
 
 struct thread* thread_new(struct heap* owner);

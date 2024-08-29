@@ -9,7 +9,7 @@
 #include "thread.h"
 
 struct thread* thread_new(struct heap* owner) {
-  struct thread* self = malloc(sizeof(*self));
+  struct thread* self = malloc(sizeof(*self) + sizeof(void*) * THREAD_LOCAL_REMARK_BUFFER_SIZE);
   if (!self)
     return NULL;
   
@@ -17,7 +17,8 @@ struct thread* thread_new(struct heap* owner) {
     .ownerHeap = owner,
     .rootEntries = FLUP_LIST_HEAD_INIT(self->rootEntries),
     .cachedRootEntries = FLUP_LIST_HEAD_INIT(self->cachedRootEntries),
-    .rootSize = 0
+    .rootSize = 0,
+    .localRemarkBufferUsage = 0
   };
   
   if (!(self->allocContext = alloc_tracker_new_context(self->ownerHeap->gen->allocTracker)))

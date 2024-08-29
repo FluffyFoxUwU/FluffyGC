@@ -96,7 +96,7 @@ static void doCollection(struct gc_driver* self) {
       deadline.tv_sec++;
     }
   }
-  atomic_store(&self->gcState->pacingMicrosec, 0);
+  // atomic_store(&self->gcState->pacingMicrosec, 0);
   
   size_t threshold = atomic_load(&self->gcState->bytesUsedRightBeforeSweeping);
   moving_window_append(self->triggerThresholdSamples, &threshold);

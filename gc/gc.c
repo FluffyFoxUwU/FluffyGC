@@ -50,7 +50,15 @@ void gc_need_remark(struct alloc_unit* obj) {
     return;
   
   // Enqueue an pointer
-  flup_buffer_write_no_fail(gcState->needRemarkQueue, &obj, sizeof(void*));
+  struct thread* currentThread = heap_get_current_thread(obj->gcMetadata.owningGeneration->ownerHeap);
+  currentThread->localRemarkBuffer[currentThread->localRemarkBufferUsage] = obj;
+  currentThread->localRemarkBufferUsage++;
+  
+  // Local remark buffer is full, flush it to main queue in one go
+  if (currentThread->localRemarkBufferUsage == THREAD_LOCAL_REMARK_BUFFER_SIZE) {
+    flup_buffer_write_no_fail(gcState->needRemarkQueue, currentThread->localRemarkBuffer, sizeof(void*) * THREAD_LOCAL_REMARK_BUFFER_SIZE);
+    currentThread->localRemarkBufferUsage = 0;
+  }
 }
 
 static void gcThread(void* _self);
@@ -268,13 +276,31 @@ static void markingPhase(struct cycle_state* state) {
 }
 
 static void processMutatorMarkQueuePhase(struct cycle_state* state) {
-  struct alloc_unit* current;
+  auto processAChunk = ^void (struct alloc_unit** chunk, unsigned int chunkSize) {
+    for (unsigned int i = 0; i < chunkSize; i++) {
+      struct alloc_unit* current = chunk[i];
+      atomic_store_explicit(&current->gcMetadata.markBit, !state->self->GCMarkedBitValue, memory_order_relaxed);
+      doMark(state->self, current);
+    }
+  };
+  
+  // This is safe as mutator will only ever pushes THREAD_LOCAL_REMARK_BUFFER_SIZE
+  // items therefore the buffer content always multiple of this items
+  static thread_local struct alloc_unit* chunk[THREAD_LOCAL_REMARK_BUFFER_SIZE];
   int ret;
-  while ((ret = flup_buffer_read2(state->self->needRemarkQueue, &current, sizeof(void*), FLUP_BUFFER_READ2_DONT_WAIT_FOR_DATA)) >= 0) {
-    atomic_store_explicit(&current->gcMetadata.markBit, !state->self->GCMarkedBitValue, memory_order_relaxed);
-    doMark(state->self, current);
-  }
+  while ((ret = flup_buffer_read2(state->self->needRemarkQueue, &chunk, sizeof(void*) * THREAD_LOCAL_REMARK_BUFFER_SIZE, FLUP_BUFFER_READ2_DONT_WAIT_FOR_DATA)) >= 0)
+    processAChunk(chunk, THREAD_LOCAL_REMARK_BUFFER_SIZE);
   BUG_ON(ret == -EMSGSIZE);
+  
+  // Process each thread's local buffer
+  // for remaining unqueued entries
+  // it must be safe as mutator already
+  // stopped writing into its local buffer
+  // ensuring no race by this time
+  heap_iterate_threads(state->heap, ^(struct thread* thrd) {
+    processAChunk(thrd->localRemarkBuffer, thrd->localRemarkBufferUsage);
+    thrd->localRemarkBufferUsage = 0;
+  });
 }
 
 // Returns bytes free'd

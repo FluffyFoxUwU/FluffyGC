@@ -92,8 +92,8 @@ Extra notes:
 #include <flup/thread/thread.h>
 #include <time.h>
 
-// 8 MiB mutator mark queue size
-#define GC_MUTATOR_MARK_QUEUE_SIZE (8 * 1024 * 1024)
+// 32 MiB mutator mark queue size
+#define GC_MUTATOR_MARK_QUEUE_SIZE (32 * 1024 * 1024)
 // 16 MiB mark queue for GC only
 #define GC_MARK_QUEUE_SIZE (16 * 1024 * 1024)
 // 16 MiB deferred mark queue for when objects can't fit into one mark queue
