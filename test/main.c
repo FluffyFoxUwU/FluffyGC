@@ -124,7 +124,10 @@ static void runnerFunction(void* _heap) {
   heap_detach_thread(heap);
 }
 
-int main() {
+[[gnu::used]]
+[[gnu::visibility("default")]]
+extern int fluffygc_impl_main();
+extern int fluffygc_impl_main() {
   if (!flup_attach_thread("Main-Thread"))
     flup_panic("Failed to attach thread\n");
   
@@ -192,6 +195,8 @@ int main() {
   heap_free(heap);
   flup_thread_free(flup_detach_thread());
   // mimalloc_play();
+  
+  return 0;
 }
 
 // struct timespec start, end;

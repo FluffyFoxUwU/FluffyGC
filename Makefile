@@ -24,19 +24,19 @@ UwUMaker-linker-tail-flags-y += -lmimalloc -lFlup -lBlocksRuntime
 
 UwUMaker-pkg-config-libs-y += mimalloc sdl2
 
-UwUMaker-is-executable := y
+UwUMaker-is-executable := m
 UwUMaker-name := FluffyGC
 
 proj_run:
 	@$(MAKE) -C $(UWUMAKER_DIR) PROJECT_DIR="$(PROJECT_DIR)" cmd_all
-	@cd "$(PROJECT_DIR)" && $(BUILD_DIR)/objs/FluffyGC
+	@cd "$(PROJECT_DIR)" && LD_LIBRARY_PATH="$(BUILD_DIR)/objs:$$LD_LIBRARY" $(BUILD_DIR)/objs/test/exe/objs/Test
 
 proj_run_gdb:
 	@$(MAKE) -C $(UWUMAKER_DIR) PROJECT_DIR="$(PROJECT_DIR)" cmd_all
-	@cd "$(PROJECT_DIR)" && gdb $(BUILD_DIR)/objs/FluffyGC
+	@cd "$(PROJECT_DIR)" && LD_LIBRARY_PATH="$(BUILD_DIR)/objs:$$LD_LIBRARY" gdb $(BUILD_DIR)/objs/test/exe/objs/Test
 
 
 proj_run_valgrind:
 	@$(MAKE) -C $(UWUMAKER_DIR) PROJECT_DIR="$(PROJECT_DIR)" cmd_all
-	@cd "$(PROJECT_DIR)" && valgrind $(RUN_FLAGS) $(BUILD_DIR)/objs/FluffyGC
+	@cd "$(PROJECT_DIR)" && LD_LIBRARY_PATH="$(BUILD_DIR)/objs:$$LD_LIBRARY" valgrind $(RUN_FLAGS) $(BUILD_DIR)/objs/test/exe/objs/Test
 
