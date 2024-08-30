@@ -148,7 +148,8 @@ int main() {
   if (!(printer = stat_printer_new(heap)))
     flup_panic("Failed to start stat printer!");
   
-  mi_option_set(mi_option_purge_delay, -1);
+  // Puwge evewy 15 seconds
+  mi_option_set(mi_option_purge_delay, 15'000);
   
   size_t beforeTestBytesAllocated = atomic_load(&heap->gen->allocTracker->lifetimeBytesAllocated);
   struct timespec start, end;
