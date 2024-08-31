@@ -2,6 +2,7 @@
 
 #include <FluffyGC/FluffyGC.h>
 #include <FluffyGC/export.h>
+#include <FluffyGC/version.h>
 
 #include "api/common.h"
 #include "heap/heap.h"
