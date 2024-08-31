@@ -4,10 +4,7 @@
 #include <stddef.h>
 
 #include <FluffyGC/version.h>
-
-#define FLUFFYGC_EXPORT \
-  [[gnu::visibility("default")]] \
-  extern
+#include <FluffyGC/export.h>
 
 typedef struct fluffygc_state fluffygc_state;
 

@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <FluffyGC/FluffyGC.h>
+#include <FluffyGC/export.h>
 
 #include "api/common.h"
 #include "heap/heap.h"

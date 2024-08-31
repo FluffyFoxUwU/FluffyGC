@@ -3,6 +3,7 @@
 
 #include <FluffyGC/FluffyGC.h>
 #include <FluffyGC/gc.h>
+#include <FluffyGC/export.h>
 
 static const struct fluffygc_gc algorithmns[] = {
   {

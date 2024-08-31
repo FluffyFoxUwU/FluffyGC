@@ -5,6 +5,7 @@
 
 #include <FluffyGC/FluffyGC.h>
 #include <FluffyGC/version.h>
+#include <FluffyGC/export.h>
 
 // A structure describing about GC
 typedef struct fluffygc_gc {
