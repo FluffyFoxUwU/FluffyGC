@@ -1,5 +1,6 @@
-#include <flup/util/min_max.h>
 #include <stddef.h>
+
+#include <flup/util/min_max.h>
 
 #include <FluffyGC/FluffyGC.h>
 #include <FluffyGC/gc.h>
