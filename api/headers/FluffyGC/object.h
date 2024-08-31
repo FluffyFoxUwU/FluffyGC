@@ -18,4 +18,10 @@ fluffygc_object* fluffygc_object_new(fluffygc_state* state, const fluffygc_descr
 FLUFFYGC_EXPORT
 void fluffygc_object_unref(fluffygc_state* state, fluffygc_object* obj);
 
+FLUFFYGC_EXPORT
+void fluffygc_object_write_ref(fluffygc_state* state, fluffygc_object* obj, size_t fieldOffset, fluffygc_object* fieldContent);
+
+FLUFFYGC_EXPORT
+fluffygc_object* fluffygc_object_read_ref(fluffygc_state* state, fluffygc_object* obj, size_t fieldOffset);
+
 #endif

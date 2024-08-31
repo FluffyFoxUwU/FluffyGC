@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 #include <FluffyGC/descriptor.h>
 #include <FluffyGC/object.h>
 #include <stdbool.h>
@@ -39,7 +41,7 @@ int main() {
            i, current->id, current->name, current->version, current->description);
   }
   
-  fluffygc_state* heap = fluffygc_new(768 * 1024 * 1024, &listOfGCs[0]);
+  fluffygc_state* heap = fluffygc_new(50 * 1024 * 1024, &listOfGCs[0]);
   if (!heap) {
     printf("[ERROR] Cannot create the heap!");
     abort();
@@ -57,14 +59,45 @@ int main() {
     .objectSize = sizeof(struct message)
   };
   
-  // Just eat half of almost heap
-  for (int i = 0; i < (100 * 1024 * 1024) / descriptor.objectSize; i++) {
-    fluffygc_object* msgRef = fluffygc_object_new(heap, &descriptor, 0);
-    struct message* msg = fluffygc_object_get_data_ptr(msgRef);
-    msg->integer = 123;
+  static const fluffygc_descriptor arrayOfMessagesDescriptor = {
+    .fieldCount = 0,
+    .hasFlexArrayField = true,
+    .objectSize = 0
+  };
+  
+  const int PRESERVED_MESSAGE_COUNT = 5;
+  fluffygc_object* arrayOfMessages = fluffygc_object_new(heap, &arrayOfMessagesDescriptor, sizeof(void*) * PRESERVED_MESSAGE_COUNT);
+  
+  for (int i = 0; i < PRESERVED_MESSAGE_COUNT; i++) {
+    size_t messageSize = snprintf(NULL, 0, "Preserved message ID %d UwU", i) + 1;
+    fluffygc_object* msgRef = fluffygc_object_new(heap, &descriptor, messageSize);
+    
+    struct message* message = fluffygc_object_get_data_ptr(msgRef);
+    snprintf(message->data, messageSize, "Preserved message ID %d UwU", i);
+    message->integer = i;
+    
+    fluffygc_object_write_ref(heap, arrayOfMessages, i * sizeof(void*), msgRef);
     fluffygc_object_unref(heap, msgRef);
   }
   
+  // Trigger the GC
+  for (int i = 0; i < (40 * 1024 * 1024) / descriptor.objectSize; i++) {
+    fluffygc_object* msgRef = fluffygc_object_new(heap, &descriptor, 0);
+    struct message* msg = fluffygc_object_get_data_ptr(msgRef);
+    msg->integer = 2983878;
+    fluffygc_object_unref(heap, msgRef);
+  }
+  
+  // Access the preserved message to see GC hasnt nuke them
+  for (int i = 0; i < PRESERVED_MESSAGE_COUNT; i++) {
+    fluffygc_object* msgRef = fluffygc_object_read_ref(heap, arrayOfMessages, i * sizeof(void*));
+    struct message* msg = fluffygc_object_get_data_ptr(msgRef);
+    printf("Preserved message[%d]->integer = %d\n", i, msg->integer);
+    printf("Preserved message[%d]->data = %s\n", i, msg->data);
+    fluffygc_object_unref(heap, msgRef);
+  }
+  
+  fluffygc_object_unref(heap, arrayOfMessages);
   fluffygc_free(heap);
   return 0;
   return fluffygc_impl_main();

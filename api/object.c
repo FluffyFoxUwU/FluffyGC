@@ -7,6 +7,7 @@
 
 #include "api/common.h"
 #include "heap/heap.h"
+#include "object/helper.h"
 
 FLUFFYGC_EXPORT
 void* fluffygc_object_get_data_ptr(fluffygc_object* obj) {
@@ -22,3 +23,14 @@ FLUFFYGC_EXPORT
 void fluffygc_object_unref(fluffygc_state* state, fluffygc_object* obj) {
   heap_root_unref(API_INTERN(state), API_INTERN(obj));
 }
+
+FLUFFYGC_EXPORT
+void fluffygc_object_write_ref(fluffygc_state* state, fluffygc_object* obj, size_t fieldOffset, fluffygc_object* fieldContent) {
+  object_helper_write_ref(API_INTERN(state), API_INTERN(obj)->obj, fieldOffset, API_INTERN(fieldContent)->obj);
+}
+
+FLUFFYGC_EXPORT
+fluffygc_object* fluffygc_object_read_ref(fluffygc_state* state, fluffygc_object* obj, size_t fieldOffset) {
+  return API_EXTERN(object_helper_read_ref(API_INTERN(state), API_INTERN(obj)->obj, fieldOffset));
+}
+
