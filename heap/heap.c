@@ -21,6 +21,9 @@
 #include "memory/alloc_tracker.h"
 #include "object/descriptor.h"
 
+#undef FLUP_LOG_CATEGORY
+#define FLUP_LOG_CATEGORY "Heap"
+
 #define HEAP_ALLOC_RETRY_COUNT 5
 
 struct heap* heap_new(size_t size) {
@@ -44,6 +47,7 @@ struct heap* heap_new(size_t size) {
   if (!heap_attach_thread(self))
     goto failure;
   
+  pr_info("Heap ready, unpausing GC");
   // Heap is ready, unpause the GC driver
   gc_driver_unpause(self->gen->gcState->driver);
   return self;
@@ -69,6 +73,7 @@ void heap_free(struct heap* self) {
   if (!self)
     return;
   
+  pr_info("Shutting down...");
   gc_perform_shutdown(self->gen->gcState);
   flup_thread_local_free(self->currentThread);
   flup_list_head* current;

@@ -29,6 +29,9 @@
 
 #include "gc.h"
 
+#undef FLUP_LOG_CATEGORY
+#define FLUP_LOG_CATEGORY "GC"
+
 void gc_on_allocate(struct alloc_unit* block, struct generation* gen) {
   block->gcMetadata.markBit = !gen->gcState->mutatorMarkedBitValue;
   block->gcMetadata.owningGeneration = gen;
@@ -427,6 +430,8 @@ static void cycleRunner(struct gc_per_generation_state* self) {
 
 static void gcThread(void* _self) {
   struct gc_per_generation_state* self = _self;
+  
+  pr_info("GC thread started!");
   while (1) {
     flup_mutex_lock(self->gcRequestLock);
     while (self->gcRequest == GC_NOOP)

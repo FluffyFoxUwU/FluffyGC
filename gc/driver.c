@@ -20,7 +20,7 @@
 #include "driver.h"
 
 #undef FLUP_LOG_CATEGORY
-#define FLUP_LOG_CATEGORY "GC Driver"
+#define FLUP_LOG_CATEGORY "GC/Driver"
 
 // This file will contain logics to decide when to start GC
 // while the gc.c primarily focus on the actual GC process
@@ -256,6 +256,7 @@ static void driver(void* _self) {
   if (clock_gettime(CLOCK_REALTIME, &deadline) != 0)
     flup_panic("Strange this implementation did not support CLOCK_REALTIME");
   
+  pr_info("GC driver thread started!");
   while (atomic_load(&self->quitRequested) == false) {
     if (atomic_load(&self->paused) == true)
       goto driver_was_paused;

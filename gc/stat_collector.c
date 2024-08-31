@@ -14,7 +14,7 @@
 #include "stat_collector.h"
 
 #undef FLUP_LOG_CATEGORY
-#define FLUP_LOG_CATEGORY "Stat collector"
+#define FLUP_LOG_CATEGORY "GC/Driver/Stat collector"
 
 static void collectData(struct stat_collector* self) {
   static thread_local size_t lastLifetimeBytes = 0;
@@ -36,6 +36,7 @@ static void collectData(struct stat_collector* self) {
 static void statCollectorThread(void* _self) {
   struct stat_collector* self = _self;
   
+  pr_info("Stat collector started!");
   struct timespec deadline;
   if (clock_gettime(CLOCK_REALTIME, &deadline) != 0)
     flup_panic("Strange this implementation did not support CLOCK_REALTIME");
