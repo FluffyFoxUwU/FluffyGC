@@ -20,7 +20,7 @@ UwUMaker-linker-flags-y += -flto=full -O3
 # UwUMaker-linker-flags-y += -fsanitize=address
 # UwUMaker-c-flags-y += -fsanitize=undefined
 # UwUMaker-linker-flags-y += -fsanitize=undefined
-UwUMaker-linker-tail-flags-y += -lmimalloc -lFlup -lBlocksRuntime
+UwUMaker-linker-tail-flags-y += -lFlup -lBlocksRuntime
 
 UwUMaker-pkg-config-libs-y += mimalloc sdl2
 
