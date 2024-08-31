@@ -3,7 +3,6 @@
 
 #include <stddef.h>
 
-#include <FluffyGC/FluffyGC.h>
 #include <FluffyGC/version.h>
 #include <FluffyGC/export.h>
 
