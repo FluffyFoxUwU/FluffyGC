@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 #include <FluffyGC/FluffyGC.h>
+#include <FluffyGC/version.h>
 
 // A structure describing about GC
 typedef struct fluffygc_gc {
