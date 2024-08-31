@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "api/headers/FluffyGC.h"
+#include <FluffyGC/FluffyGC.h>
 
 [[gnu::visibility("default")]]
 extern int fluffygc_impl_main();
