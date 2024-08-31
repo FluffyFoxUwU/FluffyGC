@@ -15,13 +15,13 @@ int main() {
   
   size_t numberOfGCs = fluffygc_gc_get_algorithmns(NULL, 0);
   if (numberOfGCs == 0) {
-    printf("[ERROR] No GC is implemented");
+    printf("[ERROR] No GC is implemented\n");
     abort();
   }
   
   fluffygc_gc* listOfGCs = calloc(numberOfGCs, sizeof(*listOfGCs));
   if (!listOfGCs) {
-    printf("[ERROR] Cannot allocate memory for storing list of GCs");
+    printf("[ERROR] Cannot allocate memory for storing list of GCs\n");
     abort();
   }
   fluffygc_gc_get_algorithmns(listOfGCs, numberOfGCs);
