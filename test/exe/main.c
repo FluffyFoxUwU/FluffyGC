@@ -35,8 +35,15 @@ int main() {
            "\tDescription: %s\n",
            i, current->id, current->name, current->version, current->description);
   }
+  
+  fluffygc_state* heap = fluffygc_new(768 * 1024 * 1024, &listOfGCs[0]);
+  if (!heap) {
+    printf("[ERROR] Cannot create the heap!");
+    abort();
+  }
   free(listOfGCs);
   
+  fluffygc_free(heap);
   return 0;
   return fluffygc_impl_main();
 }
