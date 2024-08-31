@@ -1,3 +1,6 @@
+#include <FluffyGC/descriptor.h>
+#include <FluffyGC/object.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -42,6 +45,25 @@ int main() {
     abort();
   }
   free(listOfGCs);
+  
+  struct message {
+    int integer;
+    char data[];
+  };
+  
+  static const fluffygc_descriptor descriptor = {
+    .fieldCount = 0,
+    .hasFlexArrayField = false,
+    .objectSize = sizeof(struct message)
+  };
+  
+  // Just eat half of almost heap
+  for (int i = 0; i < (100 * 1024 * 1024) / descriptor.objectSize; i++) {
+    fluffygc_object* msgRef = fluffygc_object_new(heap, &descriptor, 0);
+    struct message* msg = fluffygc_object_get_data_ptr(msgRef);
+    msg->integer = 123;
+    fluffygc_object_unref(heap, msgRef);
+  }
   
   fluffygc_free(heap);
   return 0;
