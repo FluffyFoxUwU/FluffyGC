@@ -5,11 +5,12 @@
 
 #include <FluffyGC/version.h>
 #include <FluffyGC/export.h>
+#include <FluffyGC/gc.h>
 
 typedef struct fluffygc_state fluffygc_state;
 
 FLUFFYGC_EXPORT
-fluffygc_state* fluffygc_new(size_t heapSize);
+fluffygc_state* fluffygc_new(size_t heapSize, const fluffygc_gc* collector);
 
 FLUFFYGC_EXPORT
 void fluffygc_free(fluffygc_state* self);

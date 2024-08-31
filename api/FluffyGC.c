@@ -3,12 +3,16 @@
 #include <FluffyGC/FluffyGC.h>
 #include <FluffyGC/export.h>
 #include <FluffyGC/version.h>
+#include <FluffyGC/gc.h>
 
 #include "api/common.h"
 #include "heap/heap.h"
 
 FLUFFYGC_EXPORT
-fluffygc_state* fluffygc_new(size_t heapSize) {
+fluffygc_state* fluffygc_new(size_t heapSize, const fluffygc_gc* collector) {
+  if (!collector)
+    return NULL;
+  
   return API_EXTERN(heap_new(heapSize));
 }
 
