@@ -1,12 +1,13 @@
 #include <stddef.h>
 
-#include <FluffyGC/descriptor.h>
-#include <FluffyGC/object.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
 
+#include <FluffyGC/version.h>
+#include <FluffyGC/descriptor.h>
+#include <FluffyGC/object.h>
 #include <FluffyGC/FluffyGC.h>
 #include <FluffyGC/gc.h>
 
