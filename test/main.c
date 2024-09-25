@@ -136,11 +136,6 @@ extern int fluffygc_impl_main() {
   
   // Create 128 MiB heap
   size_t heapSize = 768 * 1024 * 1024;
-  size_t reserveExtra = 64 * 1024 * 1024;
-  
-  if (mi_reserve_os_memory(heapSize + reserveExtra, true, true) != 0)
-    flup_panic("Cannot reserve memory by mi_reserve_os_memory");
-  
   struct heap* heap = heap_new(heapSize);
   if (!heap) {
     pr_error("Error creating heap");

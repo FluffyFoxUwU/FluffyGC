@@ -1,4 +1,6 @@
+#include <mimalloc.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -13,6 +15,9 @@
 
 #include "alloc_tracker.h"
 #include "memory/alloc_context.h"
+
+#undef FLUP_LOG_CATEGORY
+#define FLUP_LOG_CATEGORY "Alloc Tracker"
 
 static void freeMemories(struct alloc_tracker* self) {
   flup_mutex_free(self->listOfContextLock);
@@ -29,6 +34,17 @@ struct alloc_tracker* alloc_tracker_new(size_t size) {
     .maxSize = size,
     .contexts = FLUP_LIST_HEAD_INIT(self->contexts)
   };
+  
+  if (mi_reserve_os_memory_ex(
+    size, 
+    false, 
+    false, 
+    true, 
+    &self->arena) != 0
+  ) {
+    pr_error("Failed to reserve memory for heap!");
+    goto failure;
+  }
   
   if (!(self->listOfContextLock = flup_mutex_new()))
     goto failure;
@@ -65,8 +81,10 @@ void alloc_tracker_filter_snapshot_and_delete_snapshot(struct alloc_tracker* sel
       alloc_tracker_add_block_to_global_list(self, current);
       continue;
     }
-    freedSize += current->size + sizeof(*current);
-    free(current);
+    
+    size_t totalSize = current->size + sizeof(*current);
+    freedSize += totalSize;
+    mi_free_size(current, totalSize);
   }
   atomic_fetch_sub_explicit(&self->currentUsage, freedSize, memory_order_relaxed);
   snapshot->head = NULL;
@@ -109,7 +127,7 @@ fast_accounted:
 struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, struct alloc_context* ctx, size_t allocSize) {
   struct alloc_unit* blockMetadata;
   
-  blockMetadata = malloc(sizeof(*blockMetadata) + allocSize);
+  blockMetadata = mi_heap_malloc(ctx->mimallocHeap, sizeof(*blockMetadata) + allocSize);
   if (!blockMetadata)
     return NULL;
 
@@ -132,7 +150,7 @@ struct alloc_unit* alloc_tracker_alloc(struct alloc_tracker* self, struct alloc_
   return blockMetadata;
 
 failure:
-  free(blockMetadata);
+  mi_free_size(blockMetadata, totalSize);
   return NULL;
 }
 
@@ -182,7 +200,7 @@ skip_this_context:
 }
 
 struct alloc_context* alloc_tracker_new_context(struct alloc_tracker* self) {
-  struct alloc_context* ctx = alloc_context_new();
+  struct alloc_context* ctx = alloc_context_new(self->arena);
   if (!ctx)
     return NULL;
   ctx->owner = self;

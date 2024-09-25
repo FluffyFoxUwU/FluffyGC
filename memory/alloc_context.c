@@ -1,3 +1,4 @@
+#include <mimalloc.h>
 #include <stdlib.h>
 
 #include <flup/concurrency/mutex.h>
@@ -5,12 +6,16 @@
 #include "alloc_tracker.h"
 #include "alloc_context.h"
 
-struct alloc_context* alloc_context_new() {
+struct alloc_context* alloc_context_new(mi_arena_id_t arena) {
   struct alloc_context* ctx = malloc(sizeof(*ctx));
   if (!ctx)
     return NULL;
   
   *ctx = (struct alloc_context) {};
+  if (!(ctx->mimallocHeap = mi_heap_new_in_arena(arena))) {
+    free(ctx);
+    return NULL;
+  }
   return ctx;
 }
 

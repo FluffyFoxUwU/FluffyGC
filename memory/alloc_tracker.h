@@ -1,6 +1,7 @@
 #ifndef UWU_F15ECD4B_1EE0_482D_8E14_3B523A879538_UWU
 #define UWU_F15ECD4B_1EE0_482D_8E14_3B523A879538_UWU
 
+#include <mimalloc.h>
 #include <stdatomic.h>
 #include <stddef.h>
 
@@ -42,6 +43,8 @@ struct alloc_tracker {
     
   flup_mutex* listOfContextLock;
   flup_list_head contexts;
+  
+  mi_arena_id_t arena;
 };
 
 struct alloc_unit {
