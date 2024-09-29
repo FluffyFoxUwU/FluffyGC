@@ -96,6 +96,22 @@ static void futex_wait(_Atomic(uint32_t)* futexWord, uint32_t currentValue) {
     flup_panic("SYS_futex with FUTEX_WAIT_PRIVATE failed: %d", errno);
 }
 
+// Priority inheritance lock/unlock
+static void futex_lock_pi(_Atomic(uint32_t)* futexWord) {
+  long ret = syscall(SYS_futex, futexWord, FUTEX_LOCK_PI);
+  if (ret == -1) {
+    if (errno == EDEADLK)
+      flup_panic("SYS_futex with FUTEX_LOCK_PI detected deadlock!");
+    flup_panic("SYS_futex with FUTEX_LOCK_PI failed: %d", errno);
+  }
+}
+
+static void futex_unlock_pi(_Atomic(uint32_t)* futexWord) {
+  long ret = syscall(SYS_futex, futexWord, FUTEX_UNLOCK_PI);
+  if (ret == -1)
+    flup_panic("SYS_futex with FUTEX_UNLOCK_PI failed: %d", errno);
+}
+
 struct gc_lock_state* gc_lock_new() {
   struct gc_lock_state* self = malloc(sizeof(*self));
   if (!self)
